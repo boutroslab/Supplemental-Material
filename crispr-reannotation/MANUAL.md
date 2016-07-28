@@ -2,7 +2,7 @@ reannotate-crispr is a perl based script for the re-annotation or the mapping of
 
 It depends on the following perl packages available from the CRAN archive:
 
- Bio::DB::Fast
+ Bio::DB::Fasta
  Bio::SeqIO
  Bio::Tools::GFF
  Scalar::Util
@@ -22,6 +22,7 @@ It depends on the following perl packages available from the CRAN archive:
  
  , and the package Set::IntervalTree, which can be found in the depends folder of this directory.
 
+Databases can be downloaded from http://www.dkfz.de/signaling/crispr-downloads/
 
 Usage: perl reannotate-crispr.pl [--options=value] ...
 Options:
