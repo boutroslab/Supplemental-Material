@@ -5,7 +5,7 @@ It depends on the following perl packages available from the CPAN archive:
 
  Bio::DB::Fasta<br>Bio::SeqIO<br>Bio::Tools::GFF<br>Scalar::Util<br>Bio::SeqFeature::Generic<br>Bio::Location::Split<br>JSON::XS<br>File::Slurp<br>List::MoreUtils<br>List::Util<br>Archive::Zip<br>Parallel::ForkManager<br>Cwd<br>Getopt::Long<br>File::Grep<br>Text::Wrap<br>Unix::Processors<br>
  
- , and the package Set::IntervalTree, which can be found in the depends folder of this directory.
+ , and a **modified** package Set::IntervalTree, which can be found in the depends folder of this directory.
 
 Databases can be downloaded from http://www.dkfz.de/signaling/crispr-downloads/
 
