@@ -1,29 +1,13 @@
-reannotate-crispr is a perl based script for the re-annotation or the mapping of existing sgRNA libraries. it relies on the same architecture a E-CRISP (http://www.e-crisp.org) and cld (http://github.com/boutroslab/cld).
+#reannotate-crispr 
+is a perl based script for the re-annotation or the mapping of existing sgRNA libraries. it relies on the same architecture a E-CRISP (http://www.e-crisp.org) and cld (http://github.com/boutroslab/cld).
 
-It depends on the following perl packages available from the CRAN archive:
+It depends on the following perl packages available from the CPAN archive:
 
- Bio::DB::Fasta
- Bio::SeqIO
- Bio::Tools::GFF
- Scalar::Util
- Bio::SeqFeature::Generic
- Bio::Location::Split
- JSON::XS 
- File::Slurp
- List::MoreUtils 
- List::Util 
- Archive::Zip
- Parallel::ForkManager
- Cwd
- Getopt::Long
- File::Grep
- Text::Wrap
- Unix::Processors
+ Bio::DB::Fasta<br>Bio::SeqIO<br>Bio::Tools::GFF<br>Scalar::Util<br>Bio::SeqFeature::Generic<br>Bio::Location::Split<br>JSON::XS<br>File::Slurp<br>List::MoreUtils<br>List::Util<br>Archive::Zip<br>Parallel::ForkManager<br>Cwd<br>Getopt::Long<br>File::Grep<br>Text::Wrap<br>Unix::Processors<br>
  
  , and the package Set::IntervalTree, which can be found in the depends folder of this directory.
 
 Databases can be downloaded from http://www.dkfz.de/signaling/crispr-downloads/
-
 
     Usage: perl reannotate-crispr.pl [--options=value] ...
     
