@@ -175,8 +175,8 @@ $databasepath = $something{"databasepath"} . $something{"organism"} . "/" . $som
                                     }
 		close $bowtie;
 		my %obj=();
-		open( RESULTTABLE,">". $temp_dir . "/results.tab") or die $!;
-			print RESULTTABLE "Name\tTarget-chrome\(s\)\tStart\tEnd\tGene targets\tSpec-Score\tAnno-Score\tEff-Score\tMatchstring\tSequence\tDirection\tCDS_score\texon_score\tseed_GC\tdoench_score\txu_score\tdoench_30_mer\n";
+		open( my $RESULTTABLE,">". $temp_dir . "/results.tab") or die $!;
+			print $RESULTTABLE "Name\tTarget-chrome\(s\)\tStart\tEnd\tGene targets\tSpec-Score\tAnno-Score\tEff-Score\tMatchstring\tSequence\tDirection\tCDS_score\texon_score\tseed_GC\tdoench_score\txu_score\tdoench_30_mer\n";
 		
 		foreach my $query_id (keys(%CRISPR_hash)){
 			my @new_score=(120,0,0,0,0,0,0,0);
@@ -272,11 +272,11 @@ $databasepath = $something{"databasepath"} . $something{"organism"} . "/" . $som
 					}else{
 						$tmp_seq=$hit_specs[3];
 					}
-					print RESULTTABLE $query_id."\t".$hit_specs[0]."\t".$hit_specs[1]."\t".$hit_specs[2]."\t".$gene_name."\t".$new_score[0]."\t".$new_score[1]."\t".$new_score[2]."\t".$tmp_seq."\t".$crispr_seq."\t".$hit_specs[5]."\t".$new_score[3]."\t".$new_score[4]."\t".$new_score[5]."\t".$new_score[6]."\t".$new_score[7]."\t".$doench_seq."\n";         
+					print $RESULTTABLE $query_id."\t".$hit_specs[0]."\t".$hit_specs[1]."\t".$hit_specs[2]."\t".$gene_name."\t".$new_score[0]."\t".$new_score[1]."\t".$new_score[2]."\t".$tmp_seq."\t".$crispr_seq."\t".$hit_specs[5]."\t".$new_score[3]."\t".$new_score[4]."\t".$new_score[5]."\t".$new_score[6]."\t".$new_score[7]."\t".$doench_seq."\n";         
 				}
 			}	
 		}		
-		close RESULTTABLE;
+		close $RESULTTABLE;
 		
 		print "\n########################################\n\n\n\nDONE\n\n\n\n########################################\n";
 #########################################################################################
