@@ -146,8 +146,10 @@ $databasepath = $something{"databasepath"} . $something{"organism"} . "/" . $som
 		#system( '/usr/bin/bowtie ' . $databasepath.".genome" . ' ' . $temp_dir . "/" .'seq.fasta -f -v 3 -y -k 30 -S --sam-nohead --sam-nosq -p 4  > ' . $temp_dir .'/primary_out.bwt' );
 		if (-e $databasepath.".genome.1.ebwtl") {
 			system( 'bowtie ' . $databasepath.".genome" . ' ' . $temp_dir . "/" .'seq.fasta -f -v 3 --quiet -y -a -S --sam-nohead --large-index  --sam-nosq -p 4  > ' . $temp_dir .'/primary_out.bwt' );
-		  }else{
+            print 'large '.'bowtie ' . $databasepath.".genome" . ' ' . $temp_dir . "/" .'seq.fasta -f -v 3 --quiet -y -a -S --sam-nohead --large-index  --sam-nosq -p 4  > ' . $temp_dir .'/primary_out.bwt'."\n";
+          }else{
 			system( 'bowtie ' . $databasepath.".genome" . ' ' . $temp_dir . "/" .'seq.fasta -f -v 3 --quiet -y -a -S --sam-nohead --sam-nosq -p 4  > ' . $temp_dir .'/primary_out.bwt' );
+            print 'small '.'bowtie ' . $databasepath.".genome" . ' ' . $temp_dir . "/" .'seq.fasta -f -v 3 --quiet -y -a -S --sam-nohead --sam-nosq -p 4  > ' . $temp_dir .'/primary_out.bwt'."\n";
 		  }
 		open($bowtie,"$temp_dir/primary_out.bwt") or die $temp_dir,"cannot open primary bwt\n" ;
 			while (my $line = <$bowtie>) {
