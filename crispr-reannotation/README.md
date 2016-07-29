@@ -1,4 +1,4 @@
-reannotate-crispr is a perl based script for the re-annotation or the mapping of existing sgRNA libraries. it relies on the same architecture a E-CRISP (e-crisp.org) and cld (github.com/boutroslab/cld).
+reannotate-crispr is a perl based script for the re-annotation or the mapping of existing sgRNA libraries. it relies on the same architecture a E-CRISP (http://www.e-crisp.org) and cld (http://github.com/boutroslab/cld).
 
 It depends on the following perl packages available from the CRAN archive:
 
