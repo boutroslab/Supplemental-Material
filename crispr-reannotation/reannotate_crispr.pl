@@ -60,7 +60,7 @@ for (my $i=0; $i<scalar(@ARGV); $i++){
 if(!defined($something{"output-dir"}) or !(-d $something{"output-dir"})){ $something{"output-dir"}="." }
 if(!defined($something{"sequence-files"}) or !(-e $something{"sequence-files"})){ die "The sequence file ".$something{"sequence-files"}." could not be opened. Either the user has no rights the read it or the file does not exist." }
 if(!defined($something{"databasepath"}) or !(-d $something{"databasepath"})){ $something{"databasepath"}="." }
-if(!defined($something{"organism"}) or !(-d $something{"organism"})){ $something{"organism"}="drosophila_melanogaster" }
+if(!defined($something{"organism"})){ $something{"organism"}="drosophila_melanogaster" }
 if(!defined($something{"non-seed-length"})){ $something{"non-seed-length"}=1 }
 if(!defined($something{"mismatches-allowed"})){ $something{"mismatches-allowed"}=0 }
 
