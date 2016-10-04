@@ -61,10 +61,10 @@ if(!defined($something{"output-dir"}) or !(-d $something{"output-dir"})){ $somet
 if(!defined($something{"sequence-files"}) or !(-e $something{"sequence-files"})){ die "The sequence file ".$something{"sequence-files"}." could not be opened. Either the user has no rights the read it or the file does not exist." }
 if(!defined($something{"databasepath"}) or !(-d $something{"databasepath"})){ $something{"databasepath"}="." }
 if(!defined($something{"organism"})){ $something{"organism"}="drosophila_melanogaster" }
-if(!defined($something{"non-seed-length"})){ $something{"non-seed-length"}=1 }
+if(!defined($something{"non-seed-length"})){ $something{"non-seed-length"}=0 }
 if(!defined($something{"mismatches-allowed"})){ $something{"mismatches-allowed"}=0 }
 
-my ($script_name,$script_version,$script_date,$script_years) = ('reannotate-crispr','0.0.1','2016-27-07','2013-2016');
+my ($script_name,$script_version,$script_date,$script_years) = ('reannotate-crispr','0.0.2','2016-27-07','2013-2016');
 
 $something{"version_string"} = "$script_name, version $script_version, $script_date\nAuthor $script_years Florian Heigwer\n";
 $something{"help_string"} = qq{Usage: reannotate-crispr [--options=value] ...
@@ -73,7 +73,7 @@ Options:
 --sequence-files=<path/to/dir>      - A fasta formatted file of sgRNA spacer sequences (not-including PAM, mandatory).
 --databasepath=<path/to/dir>        - Select folder where genome data is deposit  (default: .)
 --organism=<string>                 - Please type the name of the reference organism as given in the database (default: drosophila_melanogaster)
---non-seed-length=<int>             - Specify the non-seed length in bp (the number of 5' basepairs to be ignore by the aligner, default: 1)
+--non-seed-length=<int>             - Specify the non-seed length in bp (the number of 5' basepairs to be ignored by the aligner, will be cut from the 5' end of the sequence , default: 0)
 --mismatches-allowed=<int>          - Specify the number of mismatches allowed in a "valid" alignment (default: 0)
 --version                           - Show version.
 --help                              - Show this message.
