@@ -1,0 +1,46 @@
+---
+title: "Pairwise interactions of Wnt-ligands and FZD receptors"
+author: "Oksana Voloshanenko"
+date: "5/8/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This markdown script contains code to create a heatmap visualizing pairwise interactions between Wnt ligands and FZD receptors as measured and described in Voloshanenko *et al.*, 2017.
+
+# Loading Dependencies
+
+The script depends on the pheatmap package to draw the heatmap and the RColorBrewer package to generate a color pallette. We first load these packages into the R environment.
+
+```{r, results='hide', warning=F, message=F}
+library(pheatmap)
+library(RColorBrewer)
+```
+
+# Loading the data
+
+We next load the data from a tab separated text file. The first column contains the row names of the table.
+
+```{r, results='hide', warning=F, message=F}
+data <- read.delim('WntFz_map.txt', row.names = 1)
+```
+
+# Drawing the heatmap
+
+We define a shades of gray color pallette and finally draw the heatmap clustering both rows and columns.
+
+```{r, results='hide', warning=F, message=F}
+colors <- colorRampPalette(c("gray100", "gray90", "gray80", "gray70",
+                             "gray60", "gray50", "gray40", "gray30",
+                             "gray20", "gray10", "gray1"))(200)
+pheatmap(as.matrix(data), cluster_rows = TRUE, cluster_cols = TRUE, color=colors)
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```
