@@ -2,7 +2,7 @@
 
 This directory contains scripts and files supporting publications from the Boutros lab.
 
-## Rauscher, Heigwer et al. NAR 2016
+## Rauscher, Heigwer et al. NAR, 2016
 
 [Rauscher, Heigwer, *et al.*](https://academic.oup.com/nar/article/45/D1/D679/2333939/GenomeCRISPR-a-database-for-high-throughput-CRISPR), 2016, GenomeCRIPSR - a database for high-throughput CRISPR/Cas9 screens. Nucleic Acids Research
 
