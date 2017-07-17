@@ -1,4 +1,4 @@
-# Manuscript supplements
+# Supplemental material of published manuscripts
 
 This directory contains scripts and files supporting publications from the Boutros lab.
 
