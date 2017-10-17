@@ -4,10 +4,10 @@
 This directory contains an R package that can reproduce the figures in the manuscript. The package can be downloaded manually or by cloning the GitHub repository. The package can then be installed using 
 
 ```{sh}
-R CMD INSTALL CGIMhd17.tar.gz
+R CMD INSTALL CGIMhd17_0_1_0.tar.gz
 ```
 
-or using for example [Rstudio](https://www.rstudio.com/)
+or using for example [Rstudio](https://www.rstudio.com/).
 
 ## Contact
 
