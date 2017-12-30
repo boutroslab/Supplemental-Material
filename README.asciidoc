@@ -1,0 +1,90 @@
+[[supplemental-material-of-published-manuscripts]]
+Supplemental material of published manuscripts
+----------------------------------------------
+
+This directory contains scripts and files supporting publications from
+the Boutros lab.
+
+[[rauscher-heigwer-et-al.-nar-2016]]
+Rauscher, Heigwer et al., NAR 2016
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+https://academic.oup.com/nar/article/45/D1/D679/2333939/GenomeCRISPR-a-database-for-high-throughput-CRISPR[Rauscher,
+Heigwer, _et al._], 2016, GenomeCRIPSR - a database for high-throughput
+CRISPR/Cas9 screens. Nucleic Acids Research
+
+Over the past years, CRISPR/Cas9 mediated genome editing has developed
+into a powerful tool for modifying genomes in various organisms. In
+high-throughput screens, CRISPR/Cas9 mediated gene perturbations can be
+used for the systematic functional analysis of whole genomes.
+Discoveries from such screens provide a wealth of knowledge about gene
+to phenotype relationships in various biological model systems. However,
+a database resource to query results efficiently has been lacking. To
+this end, we developed GenomeCRISPR (http://genomecrispr.org), a
+database for genome-scale CRISPR/Cas9 screens. Currently, GenomeCRISPR
+contains data on more than 550 000 single guide RNAs (sgRNA) derived
+from 84 different experiments performed in 48 different human cell
+lines, comprising all screens in human cells using CRISPR/Cas published
+to date. GenomeCRISPR provides data mining options and tools, such as
+gene or genomic region search. Phenotypic and genome track views allow
+users to investigate and compare the results of different screens, or
+the impact of different sgRNAs on the gene of interest. An Application
+Programming Interface (API) allows for automated data access and batch
+download. As more screening data will become available, we also aim at
+extending the database to include functional genomic data from other
+organisms and enable cross-species comparisons.
+
+[[voloshanenko-et-al.-faseb-2017]]
+Voloshanenko et al., FASEB 2017
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+http://www.fasebj.org/content/early/2017/07/21/fj.201700144R.abstract[Voloshanenko
+_et al._], 2017, Mapping of Wnt-Frizzled interactions by multiplex
+CRISPR targeting of receptor gene families. The FASEB journal
+
+Signaling pathway modules are often encoded by several closely related
+paralogous genes that can have redundant roles and are therefore
+difficult to analyze by loss-of-function analysis. A typical example is
+the Wnt signaling pathway, which in mammals is mediated by 19 Wnt
+ligands that can bind to 10 Frizzled (FZD) receptors. Although
+significant progress in understanding Wnt-FZD receptor interactions has
+been made in recent years, tools to generate systematic interaction maps
+have been largely lacking. Here we generated cell lines with multiplex
+mutant alleles of FZD1, FZD2, and FZD7 and demonstrate that these cells
+are unresponsive to canonical Wnt ligands. Subsequently, we performed
+genetic rescue experiments with combinations of FZDs and canonical Wnts
+to create a functional ligand–receptor interaction map. These
+experiments showed that whereas several Wnt ligands, such as Wnt3a,
+induce signaling through a broad spectrum of FZD receptors, others, such
+as Wnt8a, act through a restricted set of FZD genes. Together, our
+results map functional interactions of FZDs and 10 Wnt ligands and
+demonstrate how multiplex targeting by clustered regularly interspaced
+short palindromic repeat (CRISPR)/Cas9 can be used to systematically
+elucidate the functions of multigene families.
+
+[[billmann-et-al.-cell-systems-2017]]
+Billmann et al., Cell Systems 2017
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+http://www.cell.com/cell-systems/abstract/S2405-4712(17)30485-4[Billmann
+_et al._], 2017, Widespread Rewiring of Genetic Networks upon Cancer
+Signaling Pathway Activation
+
+Cellular signaling networks coordinate physiological processes in all
+multicellular organisms. Within networks, modules switch their function
+to control signaling activity in response to the cellular context.
+However, systematic approaches to map the interplay of such modules have
+been lacking. Here, we generated a context-dependent genetic interaction
+network of a metazoan's signaling pathway. Using Wnt signaling in
+Drosophila as a model, we measured >290,000 double perturbations of the
+pathway in a baseline state, after activation by Wnt ligand or after
+loss of the tumor suppressor APC. We found that genetic interactions
+within the Wnt network globally rewired after pathway activation. We
+derived between-state networks that showed how genes changed their
+function between state-specific networks. This related pathway
+inhibitors across states and identified genes required for pathway
+activation. For instance, we predicted and confirmed the ER-resident
+protein Catsup to be required for ligand-mediated Wnt signaling
+activation. Together, state-dependent and between-state genetic
+interaction networks identify responsive functional modules that control
+cellular pathways.
