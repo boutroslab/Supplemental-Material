@@ -11,7 +11,7 @@ Rauscher, Heigwer et al., NAR 2016
 
 https://academic.oup.com/nar/article/45/D1/D679/2333939/GenomeCRISPR-a-database-for-high-throughput-CRISPR[Rauscher,
 Heigwer, _et al._], 2016, GenomeCRIPSR - a database for high-throughput
-CRISPR/Cas9 screens. Nucleic Acids Research
+CRISPR/Cas9 screens. _Nucleic Acids Research_, 45(D1):D679-D686.
 
 Over the past years, CRISPR/Cas9 mediated genome editing has developed
 into a powerful tool for modifying genomes in various organisms. In
@@ -40,7 +40,7 @@ Voloshanenko et al., FASEB 2017
 
 http://www.fasebj.org/content/early/2017/07/21/fj.201700144R.abstract[Voloshanenko
 _et al._], 2017, Mapping of Wnt-Frizzled interactions by multiplex
-CRISPR targeting of receptor gene families. The FASEB journal
+CRISPR targeting of receptor gene families. _The FASEB journal_, 31(11):4832-4844.
 
 Signaling pathway modules are often encoded by several closely related
 paralogous genes that can have redundant roles and are therefore
@@ -68,7 +68,7 @@ Billmann et al., Cell Systems 2017
 
 http://www.cell.com/cell-systems/abstract/S2405-4712(17)30485-4[Billmann
 _et al._], 2017, Widespread Rewiring of Genetic Networks upon Cancer
-Signaling Pathway Activation
+Signaling Pathway Activation. _Cell Systems_ 
 
 Cellular signaling networks coordinate physiological processes in all
 multicellular organisms. Within networks, modules switch their function
@@ -88,3 +88,12 @@ protein Catsup to be required for ligand-mediated Wnt signaling
 activation. Together, state-dependent and between-state genetic
 interaction networks identify responsive functional modules that control
 cellular pathways.
+
+[[rauscher-et-al.-bioRxiv-2017]]
+Rauscher et al., bioRxiv 2017
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+https://www.biorxiv.org/content/early/2017/11/09/120964[Rauscher _et al._], 2017, Towards an Integrated Map of Genetic Interactions in Cancer Cells. bioRxiv
+
+Cancer genomes often harbor hundreds of molecular aberrations. Such genetic variants can be drivers or passengers of tumorigenesis and, as a side effect, create new vulnerabilities for potential therapeutic exploitation. To systematically identify genotype-dependent vulnerabilities and synthetic lethal interactions, forward genetic screens in different genetic backgrounds have been conducted. We devised MINGLE, a computational framework that integrates CRISPR/Cas9 screens originating from many different libraries and laboratories to build genetic interaction maps. It builds on analytical approaches that were established for genetic network discovery in model organisms. We applied this method to integrate and analyze data from 85 CRISPR/Cas9 screens in human cancer cell lines combining functional data with information on genetic variants to explore the relationships of more than 2.1 million gene-background relationships. In addition to known dependencies, our analysis identified new genotype-specific vulnerabilities of cancer cells. Experimental validation of predicted vulnerabilities associated with aberrant Wnt/β-catenin signaling identified GANAB and PRKCSH as new positive regulators of Wnt/β-catenin signaling. By clustering genes with similar genetic interaction profiles, we drew the largest genetic network in cancer cells to date. Our scalable approach highlights how diverse genetic screens can be integrated to systematically build informative maps of genetic interactions in cancer, which can grow dynamically as more data is included.
+
