@@ -6,6 +6,9 @@ This directory contains scripts and files supporting publications from
 the Boutros lab.
 
 :toc:
+:toc-placement!:
+
+toc::[]
 
 [[rauscher-heigwer-et-al.-nar-2016]]
 Rauscher, Heigwer et al., NAR 2016
