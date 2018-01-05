@@ -5,13 +5,6 @@ Supplemental material of published manuscripts
 This directory contains scripts and files supporting publications from
 the Boutros lab.
 
-Table of contents
-^^^^^^^^^^^^^^^^^
-
-=== 2016
-[[rauscher-heigwer-et-al.-nar-2016]]Rauscher, Heigwer et al., NAR 2016
-
-
 [[rauscher-heigwer-et-al.-nar-2016]]
 Rauscher, Heigwer et al., NAR 2016
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
