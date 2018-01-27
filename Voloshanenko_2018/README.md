@@ -1,4 +1,4 @@
-# $\beta$-catenin-independent regulation of Wnt target genes by RoR2 and ATF2/ATF4 in colon cancer cells
+# β-catenin-independent regulation of Wnt target genes by RoR2 and ATF2/ATF4 in colon cancer cells
 
 ## Supporting computer code
 
