@@ -1,0 +1,86 @@
+---
+title: "Gene expression heat maps"
+author: "Benedikt Rauscher"
+date: "9/22/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Dependencies
+
+```{r, echo=F, message=F, warning=F, results='hide'}
+library(openxlsx)
+library(pheatmap)
+library(tidyverse)
+```
+
+# Loading the data
+
+We first load the expression data from Excel files.
+
+```{r, results='hide', warning=F, message=F}
+## Table S1
+ts1 <- read.xlsx('Table S1.xlsx', rowNames = T, startRow = 4)
+## canonical main
+canonical <- read.xlsx('canonical main.xlsx', rowNames=T)
+## canonical N2
+canonical_n2 <- read.xlsx('canonical N2.xlsx', rowNames=T)
+## canonical N3
+canonical_n3 <- read.xlsx('canonical N3.xlsx', rowNames=T)
+```
+
+# Draw heat maps
+
+## Data normalization 
+
+We normalize each dataset by standardizing the per-gene expression values. This highlights differences in gene expression across different samples but loses information about the base expression level of each gene.
+
+```{r, results='hide', warning=F, message=F}
+## normalize each data set
+data_norm <- lapply(list(ts1, canonical, canonical_n2, canonical_n3), function(d){
+  ## save names
+  cn <- colnames(d)
+  ## z-score normalization
+  norm <- t(apply(scale(log(d)), 1, function(x) scale(x)))
+  colnames(norm) <- cn
+  return(t(norm))
+})
+```
+
+## Visualization
+
+We can now visualize the normalized expression values as heatmaps using the `pheatmap` package.
+
+```{r, results='hide', warning=F, message=F}
+## heatmap colours
+cols <- rev(colorRampPalette(c('#67001f','#b2182b','#d6604d',
+                           '#f4a582','#fddbc7', '#f7f7f7',
+                           '#d1e5f0','#92c5de','#4393c3',
+                           '#2166ac', '#053061'))(50))
+## draw heat map
+pheatmap(data_norm[[1]], color=cols, border_color = NA, cutree_cols = 6)
+```
+
+```{r, results='hide', warning=F, message=F}
+## draw heat map
+pheatmap(data_norm[[2]], color=cols, border_color = NA, cutree_cols = 2)
+```
+
+```{r, results='hide', warning=F, message=F}
+## draw heat map
+pheatmap(data_norm[[3]], color=cols, border_color = NA, cutree_cols = 2)
+```
+
+```{r, results='hide', warning=F, message=F}
+## draw heat map
+pheatmap(data_norm[[4]], color=cols, border_color = NA, cutree_cols = 2)
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```
