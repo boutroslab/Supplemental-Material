@@ -1,0 +1,74 @@
+---
+title: "ISA Bi-Clustering"
+author: "Uwe Schwartz"
+date: "13 8 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Dependencies
+```{r libraries, message=FALSE, warning=FALSE}
+library(eisa)
+library(Biobase)
+library(genefilter)
+library(org.Hs.eg.db)
+```
+
+## Read RPKM-count tables
+First we load the RPKM-count tables obtained from Moffa et al. In this study RNA-expression levels were quantified after single gene knock-down of WNT-signaling pathway components in HCT116 cells. Each table represents one biological replicate. In this study our focus lies on APC, CTNNB1 and EVI knock-downs and the control sample.
+
+```{r data, message=FALSE, warning=FALSE}
+rna1<-read.table("data/RNA-seq/SA00011.seq0005.rpkm", header=T, row.names=1)
+rna2<-read.table("data/RNA-seq/SA00011.seq0006.rpkm", header=T, row.names=1)
+
+# mark second replicate
+colnames(rna2)<- paste(colnames(rna2), "2", sep="_")
+# select samples of interest and convert them to an ExpressionSet object
+rnaseq<-cbind(rna1[,c(1,4,5,6)],rna2[,c(1,4,5,6)])
+ma.rna<-as.matrix(rnaseq)
+exp.set<-new("ExpressionSet", exprs=ma.rna, annotation="org.Hs.eg")
+```
+
+## Non-specific filtering
+Next, we remove not expressed genes and genes exhibiting a low variability across all samples.
+
+```{r filtering}
+# gene has at least in 2 samples RPKM-values >3
+kLimit<-2
+ALimit<-3
+# gene has at least a variance of 0.5
+varLimit<-0.5
+# filter ExpressionSet
+flist <- filterfun(function(x) var(x)>varLimit, kOverA(kLimit,ALimit))
+exp.set.fil <- exp.set[genefilter(exp.set, flist), ]
+```
+
+
+## Data normalization
+
+Before clutsering the expression matrix is scaled and centered. Two normalized matrices are generated: the gene-wise (row-wise) normalized and the sample-wise (column-wise) normalized expression matrix. 
+
+```{r normalisation}
+norm.ISA<-ISANormalize(exp.set.fil)
+```
+
+## Iterative Bi-Clustering
+
+The Algorithm starts with a random set of genes and will refine iteratively this input set. First those conditions are identified where the gene set exhibits a high correlation, then genes are removed/included that are well/poorly co-expressed within the selected conditions. This process is iterated until the gene expression signature is stable and does not change anymore in this process. This procedure is controled by two user-defined thresholds thr.feat and thr.sample, which define how closely related are the genes and the conditions respectively. We start with 300 randomly generated gene sets. Next ISA is applied and co-regulated modules are collected. Finally duplicated modules are removed.
+
+```{r bi-cluster}
+random.seed <- generate.seeds(length=nrow(norm.ISA), count=3)
+#Bi-Clustering
+module_run <- ISAIterate(norm.ISA, feature.seeds=random.seed, 
+                         thr.feat=1.75, thr.samp=0.45, convergence="cor")
+# Remove duplicated modules 
+modules.unique <- ISAUnique(norm.ISA, module_run)
+```
+
+##Session info
+```{r info}
+sessionInfo()
+```
