@@ -1,6 +1,6 @@
 # Towards an Integrated Map of Genetic Interactions in Cancer Cells
 
-The paper that this repository is related to can be found on [bioRxiv](https://www.biorxiv.org/content/early/2017/11/09/120964) 
+The paper that this repository is related to can be viewed on [the Molecular Systems Biology journal website](http://msb.embopress.org/content/14/2/e7656) 
 
 ## Abstract
 
