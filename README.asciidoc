@@ -89,11 +89,11 @@ activation. Together, state-dependent and between-state genetic
 interaction networks identify responsive functional modules that control
 cellular pathways.
 
-[[rauscher-et-al.-bioRxiv-2017]]
-Rauscher et al., bioRxiv 2017
+[[rauscher-et-al.-MSB-2018]]
+Rauscher et al., Molecular Systems Biology 2018
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-https://www.biorxiv.org/content/early/2017/11/09/120964[Rauscher _et al._], 2017, Towards an Integrated Map of Genetic Interactions in Cancer Cells. bioRxiv
+http://msb.embopress.org/content/14/2/e7656[Rauscher _et al._], 2018, Towards an Integrated Map of Genetic Interactions in Cancer Cells. _Molecular Systems Biology_, 14, e7656
 
 Cancer genomes often harbor hundreds of molecular aberrations. Such genetic variants can be drivers or passengers of tumorigenesis and create vulnerabilities for potential therapeutic exploitation. To identify genotype-dependent vulnerabilities, forward genetic screens in different genetic backgrounds have been conducted. We devised MINGLE, a computational framework to integrate CRISPR/Cas9 screens originating from different libraries building on approaches pioneered for genetic network discovery in model organisms. We applied this method to integrate and analyze data from 85 CRISPR/Cas9 screens in human cancer cells combining functional data with information on genetic variants to explore more than 2.1 million gene-background relationships. In addition to known dependencies, we identified new genotype-specific vulnerabilities of cancer cells. Experimental validation of predicted vulnerabilities identified GANAB and PRKCSH as new positive regulators of Wnt/β-catenin signaling. By clustering genes with similar genetic interaction profiles, we drew the largest genetic network in cancer cells to date. Our scalable approach highlights how diverse genetic screens can be integrated to systematically build informative maps of genetic interactions in cancer, which can grow dynamically as more data is included.
 
