@@ -91,7 +91,7 @@ cellular pathways.
 
 [[rauscher-et-al.-MSB-2018]]
 Rauscher et al., Molecular Systems Biology 2018
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 http://msb.embopress.org/content/14/2/e7656[Rauscher _et al._], 2018, Towards an Integrated Map of Genetic Interactions in Cancer Cells. _Molecular Systems Biology_, 14, e7656
 
