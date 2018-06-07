@@ -1,0 +1,541 @@
+---
+title: "MEK inhibition activates Wnt signalling and induces stem cell plasticity in colorectal cancer organoids"
+author: "Benedikt Rauscher"
+date: "`r Sys.Date()`"
+abstract: >
+ Resistance to Ras pathway inhibition is a major challenge in the treatment of colorectal cancer (CRC), but the underlying mechanisms are incompletely understood. By a large-scale compound screens in CRC, we identified MEK1/2 inhibitors as potent activators of Wnt/beta-catening signalling. Targeting MEK increased Wnt activity in different CRC cell lines and in murine intestine in vivo. This Wnt response was strongly enhanced by truncating mutations in APC and mediated by downregulation of AXIN1. Using patient-derived CRC organoids, we showed that MEK inhibition leads to increased Wnt activity, elevated LGR5 levels and enrichment of gene signatures associated with stemness and cancer relapse. Our study demonstrates that MEK inhibition affects stem cell plasticity which constitutes an unknown mechanism of drug resistance. 
+bibliography: references.bib
+output: BiocStyle::pdf_document
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  chunk_output_type: console
+---
+
+# About
+
+This document contains computer code to reproduce DigiWest and gene expression analyses presented in the manuscript.
+
+# Dependencies
+
+We load a number of packages whose functions are needed throughout the analysis
+
+```{r message=F, warning=F, results='hide'}
+library(limma)
+library(ggrepel)
+library(lumi)
+library(patchwork)
+library(pheatmap)
+library(fgsea)
+library(tidyverse)
+```
+
+# Digital Western (DigiWest) analyses
+
+Antibody specific signalings in the DigiWest experiment were quantified using a specific computer software [@pmid27659302]. We load the quantified signal into R.
+
+```{r, results='hide', warning=F, message=F}
+## loads object 'dw_mat'
+data('digiwest', package='MEKWnt2018')
+```
+
+In order to test for differences in antibody signal between Trametinib-treated and untreated cells using a moderated t-test we set up a design matrix and run limma [@pmid25605792].
+
+```{r, results='hide', warning=F, message=F}
+## limma setup
+treatment <- factor(ifelse(grepl('DMSO', colnames(dw_mat)), 'DMSO', 'TRAM'))
+
+mm <- model.matrix(~treatment)
+dw_res <- lmFit(dw_mat, mm) %>%
+  eBayes() %>%
+  topTable(n=Inf, coef=2) %>% 
+  rownames_to_column('Gene') %>% tbl_df
+```
+
+We generate a volcano plot visualizing the results. We assign a colour to all antibodies with a false discovery rate (FDR) of less 20%. We give different colours to antibodies whose abundance is increase and decreased, respectively, by the Trametinib treatment. We label antibodies targeting selected genes of interest.
+
+```{r, results='hide', warning=F, message=F}
+## cutoff for 20 % FDR line
+fdr20 <- -log10(dw_res %>% filter(adj.P.Val > 0.2) %>% 
+                  .$P.Value %>% .[1])
+
+wnt_dw <- c('TAZ - #1626', 'Naked1', 'Axin2 (Conductin)', 'Axin1')
+ras_dw <- c('Erk1/2 (MAPK p44/42) - phospho - Thr202/Tyr204 - Peak 1',
+         'Erk1/2 (MAPK p44/42) - phospho - Thr202/Tyr204 - Peak 2',
+         'RSK 1 (p90RSK) - phospho - Thr573 ')
+
+dw_res %>% mutate(label = ifelse(Gene %in% c(wnt_dw, ras_dw), Gene, ''),
+                  col = ifelse(Gene %in% wnt_dw, 'wnt', 
+                        ifelse(Gene %in% ras_dw, 'ras', 'none'))) %>%
+  ggplot(aes(logFC, -log10(P.Value), label=label)) +
+  geom_point(aes(colour=col)) + geom_text_repel() +
+  geom_vline(xintercept = 0, linetype='dashed') +
+  geom_hline(yintercept = fdr20, linetype='dashed') +
+  scale_colour_manual(values=c('#dddddd', '#e41a1c', '#377eb8')) + 
+  theme_classic() + ylim(c(0, 4.5))
+```
+
+# Gene expression analysis of MEK inhibition in patient derived CRC organoids
+
+## Illumina BeadChips
+
+In order to examine how MEK treatment affects gene expression in patient derived CRC organoids we performed expression profiling experiments using an Illumina BeadChip platform. The raw data were parsed and normalized using the lumi [@pmid18467348] software and stored as an Rdata file. We next load the normalized expression profiles into working memory. We further load a data frame that maps Illumina probes to gene symbols.
+
+```{r, results='hide', warning=F, message=F}
+data('expr_organoids_norm', package='MEKWnt2018')
+data('probe_mapping_ilmn', package='MEKWnt2018')
+```
+
+### Reproducibility
+
+In order to make sure that the data are reproducible we can plot MA plots of both replicates corresponding to each sample. As these are many plots we will not display them in the vignette but they can be generated on demand using below code snippet.
+
+```{r, warning=F, eval=F}
+walk(expr_organoids_norm, ~ plot(., what='MAplot'))
+```
+
+### Differential gene expression
+
+We perform three different gene expression analyes:
+
+1. We compare DGE between Trametinib treatment and DMSO controls for Organoid line 4
+1. We compare DGE between Trametinib treatment and DMSO controls for Organoid line 7
+1. We compare DGE between Trametinib treatment and DMSO controls as well as Trametinib + PRI-742 treatment (rescue experiment) for Organoid line 4
+
+#### Organoid line 4
+
+We use the limma package for differential gene expression analysis. First we remove unexpressed genes to reduce false positives.
+
+```{r, results='hide', warning=F, message=F}
+## get expression matrix for Organoid 4 samples
+o4_expr <- exprs(expr_organoids_norm$o4_norm)
+
+## present probes
+o4present <- detectionCall(expr_organoids_norm$o4_norm)
+## select probe present in at least one sample
+o4_expr_fil <- o4_expr[o4present > 0,]
+```
+
+Next we can run limma's moderated t-test to find differentially expressed genes between Trametinib and DMSO treated samples.
+
+```{r, results='hide', warning=F, message=F}
+## vector specifying treatment per sample
+treatment <- factor(ifelse(grepl('T10', colnames(o4_expr_fil)), 'TRAM', 'DMSO'))
+
+## model matrix for DGE analysis
+mm <- model.matrix(~treatment)
+## fit model 
+fit <- lmFit(o4_expr_fil, mm)
+fit <- eBayes(fit)
+## make a results table
+o4_res <- topTable(fit, coef = 2, n=Inf) %>% as.data.frame() %>% 
+  rownames_to_column('ProbeID') %>% tbl_df %>% 
+  left_join(probe_mapping_ilmn)
+```
+
+##### Visualization
+
+We would like to visualize the results of the differential expression analysis as a volcano plot in which we want to highlight key target genes of the Ras pathway as well as stem cell and differentiation markers. Hence, we first define a function that we can reuse for later DGE analyses.
+
+```{r, results='hide', warning=F, message=F}
+## we label some genes to specificly highlight them
+to_label <- c('CD44', 'EPHB2', 'AXIN2', 'BIRC5', 'ASCL2', 'LGR5',
+              'DUSP5', 'FOS', 'FOSL1', 'OLFM4', 'KRT20', 'TFF1')
+
+## load list of canonical Wnt pathway components
+data('wnt_genes', package='MEKWnt2018')
+
+## load list of ras pathway members
+data('ras_genes', package='MEKWnt2018')
+
+## KRT20 and TFF1 are differentiation markers of CRC cells
+kera <- c('KRT20', 'TFF1')
+
+volcano_plot <- function(df, co=0.2){
+  ## fdr cutoff 
+  fdr_co <- df %>% filter(adj.P.Val < co) %>% 
+    arrange(desc(P.Value)) %>% 
+    .$P.Value %>% .[1] %>% log10
+
+  ## annotate data for plotting
+  df <- df %>% group_by(Symbol) %>% arrange(P.Value) %>% 
+    dplyr::slice(1) %>% ungroup() %>% 
+    mutate(target_group = ifelse(Symbol %in% wnt, 'Wnt', 
+                        ifelse(Symbol %in% ras, 'Ras', 
+                        ifelse(Symbol %in% kera, 'Keratinocyte', 'none'))),
+          label = ifelse(Symbol %in% to_label, Symbol, ''))
+  
+  vp <- ggplot() + geom_point(data=filter(df, target_group == 'none'), 
+                        aes(x=logFC, y= -log10(P.Value)), colour='#dddddd') +
+    geom_point(data=filter(df, target_group == 'Wnt' & label != ''), 
+               aes(x=logFC, y= -log10(P.Value)), colour = '#f4b400') + 
+    geom_point(data=filter(df, target_group == 'Ras' & label != ''), 
+               aes(x=logFC, y= -log10(P.Value)), colour = '#4285f4') + 
+    geom_point(data=filter(df, target_group == 'Keratinocyte' & label != ''), 
+               aes(x=logFC, y= -log10(P.Value)), colour = '#f03531') +
+    geom_text(data = filter(df, Symbol %in% c(wnt, ras, kera)), 
+              aes(x=logFC, y= -log10(P.Value), label=label)) + 
+    geom_vline(xintercept = 0) + geom_hline(yintercept = -1*fdr_co) +
+    theme_classic()
+  
+  return(vp)
+}
+```
+
+Now we can use this function to visualize the results of the DGE analysis of the Trametinib treated organoid 4 line.
+
+```{r, results='hide', warning=F, message=F}
+volcano_plot(o4_res)
+```
+
+#### Organoid line 7
+
+We repeat the same steps detailed above for the organoid line 7.
+
+```{r, results='hide', warning=F, message=F}
+## get expression matrix for Organoid 4 samples
+o7_expr <- exprs(expr_organoids_norm$o7_norm)
+
+## present probes
+o7present <- detectionCall(expr_organoids_norm$o7_norm)
+## select probe present in at least one sample
+o7_expr_fil <- o7_expr[o7present > 0,]
+```
+
+Again we run limma's moderated t-test to find differentially expressed genes between Trametinib and DMSO treated samples.
+
+```{r, results='hide', warning=F, message=F}
+## vector specifying treatment per sample
+treatment <- factor(ifelse(grepl('TRAM', colnames(o7_expr_fil)), 'TRAM', 'DMSO'))
+
+## model matrix for DGE analysis
+mm <- model.matrix(~treatment)
+## fit model 
+fit <- lmFit(o7_expr_fil, mm)
+fit <- eBayes(fit)
+## make a results table
+o7_res <- topTable(fit, coef = 2, n=Inf) %>% as.data.frame() %>% 
+  rownames_to_column('ProbeID') %>% tbl_df %>% 
+  left_join(probe_mapping_ilmn)
+```
+
+##### Visualization
+
+We use the volcano plot function defined above to visualize the results.
+
+```{r, results='hide', warning=F, message=F}
+volcano_plot(o7_res)
+```
+
+#### Organoid line 15
+
+We repeat the same steps detailed above for the organoid line 7.
+
+```{r, results='hide', warning=F, message=F}
+## get expression matrix for Organoid 4 samples
+o15_expr <- exprs(expr_organoids_norm$o15_norm)
+
+## present probes
+o15present <- detectionCall(expr_organoids_norm$o15_norm)
+## select probe present in at least one sample
+o15_expr_fil <- o15_expr[o15present > 0,]
+```
+
+Again we run limma's moderated t-test to find differentially expressed genes between Trametinib and DMSO treated samples.
+
+```{r, results='hide', warning=F, message=F}
+## vector specifying treatment per sample
+treatment <- factor(ifelse(grepl('TRAM', colnames(o15_expr_fil)), 'TRAM', 'DMSO'))
+
+## model matrix for DGE analysis
+mm <- model.matrix(~treatment)
+## fit model 
+fit <- lmFit(o15_expr_fil, mm)
+fit <- eBayes(fit)
+## make a results table
+o15_res <- topTable(fit, coef = 2, n=Inf) %>% as.data.frame() %>% 
+  rownames_to_column('ProbeID') %>% tbl_df %>% 
+  left_join(probe_mapping_ilmn)
+```
+
+##### Visualization
+
+We use the volcano plot function defined above to visualize the results.
+
+```{r, results='hide', warning=F, message=F}
+volcano_plot(o15_res)
+```
+
+#### Organoid line 19
+
+Here we performed in addition to Trametinib treatment a rescue experiment where we additionally treated the cells with the Wnt signaling inhibitor PRI-724.
+
+```{r, results='hide', warning=F, message=F}
+## get expression matrix for Organoid 4 samples
+o19_expr <- exprs(expr_organoids_norm$o19_norm)
+
+## present probes
+o19present <- detectionCall(expr_organoids_norm$o19_norm)
+## select probe present in at least one sample
+o19_expr_fil <- o19_expr[o19present > 0,]
+```
+
+We now model contrasts in which we compare Trametinib treatment to DMSO and Trametinib/PRI combination treatment to DMSO.
+
+```{r, results='hide', warning=F, message=F}
+## vector specifying treatment per sample
+treatment <- factor(ifelse(grepl('DMSO', colnames(o19_expr_fil)), 'DMSO', 
+                    ifelse(grepl('P5', colnames(o19_expr_fil)), 'TRAMP5',
+                    ifelse(grepl('P10', colnames(o19_expr_fil)), 'TRAMP10',
+                           'TRAM'))))
+
+## design matrix
+mm <- model.matrix(~0+treatment)
+
+## we define the contrasts
+contr <- makeContrasts(treatmentTRAMP10-treatmentDMSO, 
+                       treatmentTRAM-treatmentDMSO, 
+                       treatmentTRAMP5-treatmentDMSO,
+                       treatmentTRAMP10-treatmentTRAM,
+         levels=c('treatmentDMSO', 'treatmentTRAM',
+                  'treatmentTRAMP10', 'treatmentTRAMP5'))
+
+## perform DGE analysis
+fit <- lmFit(o19_expr_fil, mm)
+fit <- eBayes(fit)
+
+fit2 <- contrasts.fit(fit, contr)
+fit2 <- eBayes(fit2)
+
+## results Trametinib rescue experiments
+o19_res <- map(1:length(rownames(contr)), function(i){
+  topTable(fit2, coef = i, n=Inf) %>% as.data.frame() %>% 
+    rownames_to_column('ProbeID') %>% tbl_df %>% 
+    left_join(probe_mapping_ilmn)
+})
+```
+
+##### Visualization
+
+Again we can use the volcano plot function to visualize the results of the different comparisons. We use the same axis limits for all plots to render the results more visually comparable.
+
+```{r, results='hide', warning=F, message=F}
+p1 <- volcano_plot(o19_res[[1]]) + xlim(c(-2, 2)) + ylim(c(0, 8)) +
+  ggtitle('Trametinib + PRI-724 (10 nM) vs. DMSO')
+p2 <- volcano_plot(o19_res[[2]]) + xlim(c(-2, 2)) + ylim(c(0, 8)) +
+  ggtitle('Trametinib vs. DMSO')
+p3 <- volcano_plot(o19_res[[3]]) + xlim(c(-2, 2)) + ylim(c(0, 8)) +
+  ggtitle('Trametinib + PRI-724 (5 nM) vs. DMSO')
+p4 <- volcano_plot(o19_res[[4]]) + xlim(c(-2, 2)) + ylim(c(0, 8)) +
+  ggtitle('Trametinib + PRI-724 (10 nM) vs. Trametinib')
+```
+
+We can plot some of the plots next to each to see the difference well.
+
+```{r, results='hide', warning=F, message=F}
+p2 + p1
+```
+
+## Affymetrix chip
+
+To further increase the confidence in our results we repeated the rescue experiments in organoid line 19 using an independent gene expression platform by Affymetrix (U133+2). We repeat the exact same analysis as shown above to examine whether we can find the same results.
+
+### Loading and normalization
+
+Raw microarray CEL files were parsed and normalized using the RMA and quantile normalization methods implemented in the affy [@pmid14960456] R/Bioconductor [@pmid25633503] package. Raw data files can be downloaded from Gene Expression Omnibus [@pmid11752295] but cannot be included in the vignette for data size reasons. We load an R data object that contains normalized and annotation expression measureents.
+
+```{r, results='hide', warning=F, message=F}
+data('affy_data_anno', package = 'MEKWnt2018')
+```
+
+### Differentially expressed genes
+
+We perform a differential expression analysis based on the Affymetrix samples similar to what we did for the Illumina data. We first need an expression matrix.
+
+```{r, results='hide', warning=F, message=F}
+## make expression matrix
+affy_expr <- affy_data_anno %>% distinct(ProbeID, sample, expr) %>% 
+  spread(sample, expr) %>% data.frame() %>% 
+  `rownames<-`(NULL) %>% column_to_rownames('ProbeID')
+```
+
+We next define model matrix and contrasts for DGE analysis. After that we perform DGE analysis as described above.
+
+```{r, results='hide', warning=F, message=F}
+treatment <- affy_data_anno %>% distinct(sample, treatment) %>% 
+  .$treatment %>% factor()
+## design matrix
+mm <- model.matrix(~0+treatment)
+
+## first we need to define the contrasts
+contr <- makeContrasts(treatmentT10-treatmentDMSO, 
+                       treatmentT10.P10-treatmentDMSO, 
+                       treatmentT10-treatmentT10.P10,
+         levels=c('treatmentDMSO', 'treatmentT10',
+                  'treatmentT10.P10'))
+
+## perform DGE analysis
+fit_affy <- lmFit(affy_expr, mm)
+fit_affy <- eBayes(fit_affy)
+
+fit_affy2 <- contrasts.fit(fit_affy, contr)
+fit_affy2 <- eBayes(fit_affy2)
+
+## results Trametinib rescue experiments
+rescue_res_affy <- map(1:3, function(i){
+  topTable(fit_affy2, n=Inf, coef=i) %>% 
+    rownames_to_column('ProbeID') %>% tbl_df %>% 
+    inner_join(distinct(affy_data_anno, ProbeID, Symbol)) %>%
+    return()
+})
+names(rescue_res_affy) <- colnames(contr)
+```
+
+#### Visualization
+
+Using the volcano plotting function defined earlier we visualize our results.
+
+```{r, results='hide', warning=F, message=F}
+affy_t10 <- volcano_plot(rescue_res_affy[[1]]) + 
+  xlim(c(-5, 5)) + ylim(c(0, 7)) + 
+  ggtitle('Affymetrix: Trametinib vs DMSO')
+affy_p10 <- volcano_plot(rescue_res_affy[[2]]) + 
+  xlim(c(-5, 5)) + ylim(c(0, 7)) +
+  ggtitle('Affymetrix: Trametinib + PRI-724 vs DMSO')
+
+## plot to canvas
+affy_t10 + affy_p10
+```
+
+We observe similar results as we did based on the Illumina chips. We see that here there is in fact a difference of LGR5 expression across conditions, suggesting that the Illumina probe(s) might have not worked in the experiment above.
+
+In addition, we plot genes of interest as a heat map with scaled rows.
+
+```{r, results='hide', warning=F, message=F}
+## probes for genes of interest
+probes_target_genes <- affy_data_anno %>% filter(Symbol %in% to_label) %>%
+  group_by(Symbol, ProbeID) %>% summarise(mad=mad(expr)) %>% ungroup() %>%
+  group_by(Symbol) %>% arrange(desc(mad)) %>% dplyr::slice(1) %>% ungroup() %>%
+  .$ProbeID
+
+affy_data_anno %>% filter(ProbeID %in% probes_target_genes) %>% 
+  unite(experiment, treatment, rep, sep='_') %>% 
+  distinct(experiment, Symbol, expr) %>% 
+  spread(experiment, expr) %>% data.frame() %>% 
+  `rownames<-`(NULL) %>% column_to_rownames('Symbol') %>% 
+  pheatmap(scale='row')
+```
+
+## Gene set enrichment analysis
+
+### Loading signatures
+
+We want to understand if previously published gene signatures describing stemness and proliferative behaviour of cancer cells change when we treat samples with Trametinib. Specifically we refer to humanized signatures published by Merlos-Suarez et al [@pmid21419747]. We need to first load these signatures from an R data object generated from the supplemental materials as downloaded from the original publication.
+
+```{r, results='hide', warning=F, message=F}
+## loads an object called 'signatures'
+data('csc_signatures', package='MEKWnt2018')
+```
+
+### GSEA analysis
+
+We perform gene set enrichment analysis using the Broad Institute's [GSEA](http://software.broadinstitute.org/gsea/index.jsp) [@pmid17644558]. An R version of the algorithm is implemented in the `fgsea` algorithm [@Sergushichev060012], which we use for analysis.
+
+We want to visualize the results as a barcode plot. `fgsea` already implements a nice barcode plot, which we cusotomize a bit to adapt it according to our expectations.
+
+```{r, results='hide', warning=F, message=F}
+custom_barcode_plot <- function(df, sig){
+  ## named vector of gene-level stats
+  stat_vector <- setNames(df$t, df$Symbol)
+  ## genes in signature
+  sig_genes <- signatures[[sig]]
+  
+  ## generate barcode plot
+  bc_plot <- plotEnrichment(sig_genes, stat_vector)
+  
+  ## remove unwanted layers
+  bc_plot$layers <- list()
+  
+  ## add barcode at the bottom
+  lowest_pos <- min(bc_plot$data[,2])
+  dash_length <- abs(reduce(range(bc_plot$data[,2]), `-`)*0.1)
+  middle <- which.min(abs(sort(df$t, decreasing=T)))
+  
+  bc_plot_custom <- bc_plot + geom_segment(aes(x=x, xend=x), y=lowest_pos,
+                           yend=lowest_pos-dash_length) + 
+    geom_line(colour='#4daf4a') + 
+    geom_hline(yintercept=lowest_pos, colour='#cccccc') + 
+    geom_hline(yintercept=0, colour='#cccccc') + xlab('') +
+    theme_classic() +
+    geom_tile(data=tibble(rank=1:length(stat_vector), 
+                          y=lowest_pos-(1.25*dash_length)), 
+              aes(x=rank, y=y, fill=rank),
+                  width=1,
+                  height=0.5*dash_length) +
+    scale_fill_gradient2(low ='#b2182b', high='#2166ac', 
+                         mid='#f7f7f7', midpoint = middle) + 
+    scale_x_continuous(expand = c(0, 0)) +
+    scale_y_continuous(expand = c(0, 0)) +
+    theme(panel.grid=element_blank(), 
+          axis.text.x=element_blank(),
+          axis.ticks.x = element_blank(),
+          legend.position = 'none') + 
+    ggtitle(paste(sig, 'signature')) +
+    ylab('Enrichment score')
+  
+  return(bc_plot_custom)
+}
+```
+
+#### Organoid 19T - TRAM vs DMSO
+
+We perform the enrichment analysis of gene signatures based on the Affymetrix data. We analyze the organoid 19 line examining the effects of various treatments on the gene signatures of interest. We first calculate GSEA statistics for each gene set. We then generate barcode plots and annotate them with P-values and normalized enrichment scores.
+
+```{r, results='hide', warning=F, message=F}
+o19stats <- rescue_res_affy[[1]]
+o19stats <- setNames(o19stats$t, o19stats$Symbol)
+
+## run GSEA to get p-value and NES for each list
+o19_fgsea <- fgsea(signatures,
+                      o19stats, nperm=10000)
+
+## generate plots
+bc_plots_affy <- map(1:nrow(o19_fgsea), function(j){
+  bcp <- custom_barcode_plot(rescue_res_affy[[1]], o19_fgsea$pathway[j]) + 
+    annotate('text', x=Inf , y=Inf, hjust=1, vjust=1, 
+             label=paste('NES =', round(o19_fgsea$NES[j], 2), 
+                         '\nFDR =', round(o19_fgsea$padj[j], 3)))
+  
+  return(bcp)
+})
+
+## plot to canvas
+reduce(rev(bc_plots_affy), `+`) + plot_layout(ncol=2)
+```
+
+We can further visualize the signatures as heat maps to see information about transcriptomic changes at the gene level.
+
+```{r, results='hide', warning=F, message=F}
+walk(signatures, function(sig){
+  affy_data_anno %>% filter(treatment %in% c('DMSO', 'T10')) %>%
+  inner_join(rescue_res_affy[[1]] %>% filter(adj.P.Val < 0.2) %>% 
+               group_by(Symbol) %>% arrange(desc(t)) %>% dplyr::slice(1) %>% 
+               ungroup() %>% distinct(ProbeID, Symbol)) %>%
+  filter(Symbol %in% sig) %>% 
+  distinct(Symbol, treatment, rep, expr) %>% 
+  unite(sample, treatment, rep, sep ='_') %>% spread(sample, expr) %>% 
+  data.frame() %>% `rownames<-`(NULL) %>% 
+  column_to_rownames('Symbol') %>% 
+  pheatmap(scale='row')
+})
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```
+
+# Bibliography
