@@ -113,3 +113,11 @@ Zhan, Ambrosi, Wandmacher et al., 2018, MEK inhibition activates Wnt signalling 
 induces stem cell plasticity in colorectal cancer organoids
 
 Manuscript under review.
+
+[[Heigwer-et-al.-2018]]
+Heigwer et al., 2018
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Heigwer et al., 2018, Time-resolved mapping of genetic interactions to model signaling pathway vulnerabilities
+
+Manuscript in submission.
