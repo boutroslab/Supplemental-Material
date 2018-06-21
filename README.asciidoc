@@ -116,7 +116,7 @@ Manuscript under review.
 
 [[Heigwer-et-al.-2018]]
 Heigwer et al., 2018
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
 
 Heigwer et al., 2018, Time-resolved mapping of genetic interactions to model signaling pathway vulnerabilities
 
