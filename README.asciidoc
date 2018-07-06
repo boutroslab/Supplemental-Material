@@ -121,3 +121,11 @@ Heigwer et al., 2018
 Heigwer et al., 2018, Time-resolved mapping of genetic interactions to model signaling pathway vulnerabilities
 
 Manuscript in submission.
+
+[[zhan-faehling-rauscher-et-al.-2018]]
+Zhan, Faehling, Rauscher et al., 2018
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Zhan, Faehling, Rauscher et al., 2018, Multi-omics integration identifies a selective vulnerability of colorectal cancer subtypes to YM155
+
+Manuscript in submission.
