@@ -128,4 +128,12 @@ Zhan, Faehling, Rauscher et al., 2018
 
 Zhan, Faehling, Rauscher et al., 2018, Multi-omics integration identifies a selective vulnerability of colorectal cancer subtypes to YM155
 
-Manuscript in submission.
+Manuscript in submission
+
+[[betge-rindtorff-sauer-rauscher-et-al.-2018]]
+Betge, Rindtorff, Sauer, Rauscher et al., 2018
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Betge, Rindtorff, Sauer, Rauscher et al., 2018, Automated image-based profiling identifies compound induced phenotypes in patient-derived organoids
+
+Manuscript under review.
