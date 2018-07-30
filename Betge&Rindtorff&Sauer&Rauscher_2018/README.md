@@ -2,7 +2,7 @@
 
 This study is currently under revision.
 
-Supporting computer code
+## Supporting computer code
 
 This directory contains documented computer code that can reproduce the figures shown in the manuscript. An R package that bundles these scripts with all required source data can be downloaded from [Figshare](https://figshare.com/s/e465d65a9964d3b999e9). The package can then be installed from the command line by typing
 
