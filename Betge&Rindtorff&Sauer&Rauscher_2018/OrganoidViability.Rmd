@@ -1,0 +1,1654 @@
+---
+title: "Organoid Viability"
+author: "Jan Sauer"
+date: "`r Sys.Date()`"
+output:
+  BiocStyle::html_document:
+    code_folding: hide
+    df_print: paged
+    toc_depth: 4
+    toc_float: true
+vignette: >
+  %\VignetteIndexEntry{Organoid Viability}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include = FALSE}
+library(ggplot2)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(reshape2)
+library(pheatmap)
+library(SCOPEAnalysis)
+# library(DT)
+# library(webshot)
+
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+
+# Load data
+data("organoid_viability", package = "SCOPEAnalysis")
+
+# Lines
+lines = get_lines()
+colorScale = setNames(
+  object = c("#e6194b", "#3cb44b", "#ffe119", "#0082c8", "#f58231", 
+             "#911eb4", "#46f0f0", "#f032e6", "#d2f53c", "#fabebe", 
+             "#008080", "#e6beff", "#aa6e28", "#fffac8", "#800000"), 
+  nm = lines)
+
+# Define a base theme for the plots
+# Modified from https://rpubs.com/Koundy/71792
+theme_vignette <- function(base_size=14, base_family="Helvetica") {
+  library(grid)
+  library(ggthemes)
+  (theme_foundation(base_size=base_size, base_family=base_family)
+    + theme(plot.title = element_text(face = "bold",
+                                      size = rel(1.2), hjust = 0.5), 
+            plot.subtitle = element_text(hjust = 0.5),
+            plot.caption = element_text(hjust = 0),
+            text = element_text(),
+            panel.background = element_rect(colour = NA),
+            plot.background = element_rect(colour = NA),
+            panel.border = element_rect(colour = NA),
+            axis.title = element_text(face = "bold",size = rel(1)),
+            axis.title.y = element_text(angle=90,vjust =2),
+            axis.title.x = element_text(vjust = -0.2),
+            axis.text = element_text(), 
+            axis.line = element_line(colour="black"),
+            axis.ticks = element_line(),
+            # panel.grid.major = element_line(colour="#f0f0f0"),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            legend.key = element_rect(colour = NA),
+            legend.position = "right",
+            legend.direction = "vertical",
+            legend.key.size= unit(0.5, "cm"),
+            legend.spacing = unit(1, "cm"),
+            legend.title = element_text(face="italic"),
+            plot.margin=unit(c(10,5,5,5),"mm"),
+            strip.background=element_rect(colour="#f0f0f0",fill="#f0f0f0"),
+            strip.text = element_text(face="bold")))
+}
+
+theme_vignette_color <- function(...){
+  library(scales)
+  discrete_scale(
+    aesthetics = c("colour", "color"), scale_name = "theme_vignette",
+    palette = manual_pal(values = unname(colorScale)), ...)
+}
+
+theme_vignette_fill <- function(...){
+  library(scales)
+  discrete_scale(
+    aesthetics = c("fill"), scale_name = "theme_vignette",
+    palette = manual_pal(values = unname(colorScale)), ...)
+}
+
+# Flag whether images should be saved additionally as PDF files
+save_images = FALSE
+img_output_dir = "images"
+if(save_images) if(!dir.exists(img_output_dir)) dir.create(img_output_dir)
+```
+
+# Introduction 
+I trained a random forest classifier to differentiate between live and dead organoids. DMSO served as the negative controls, i.e. live organoids. After visual inspection of the images we decided to use Bortezomib and Irinotecan/SN-38 at concentrations of 0.2 and 1.0 as positive controls, i.e. dead organoids. A separate classifier was trained for each cell line. Data was split into a training and validation data set.
+
+# Classifier Validation and Quality Control
+## Training Validation
+The ROC curves of the classifiers on the validation data set as well as the corresponding AUROCs are shown below.
+```{r}
+ggplot(
+    data = roc_data %>% filter(clf_line == data_line), 
+    mapping = aes(x = FalsePosRate, y = TruePosRate, group = clf_line)) + 
+  geom_line(size = 1, color = "black") + theme_vignette() + 
+  scale_color_manual(values = colorScale) + 
+  labs(x = "False Positive Rate", y = "True Positive Rate", 
+       title = "Validation ROC Curves") + 
+  coord_equal()
+if(save_images) ggsave(
+  filename = file.path(img_output_dir, "Validation_ROC.pdf"), 
+  width = 4, height = 4, useDingbats = FALSE)
+```
+
+```{r}
+ggplot(
+    data = roc_aucs %>% filter(clf_line == data_line) %>% 
+      mutate(texty = AUC - 0.075, text = round(AUC, 3)), 
+    mapping = aes(x = clf_line, y = AUC)) + 
+  geom_col() + 
+  geom_text(aes(y = texty, label = text), color = "White") + 
+  theme_vignette() + scale_color_manual(values = colorScale) + 
+  coord_flip() + theme(axis.ticks = element_blank()) + 
+  scale_y_continuous(breaks = c(0, 0.5, 1.0)) + 
+  labs(x = "", y = "", title = "Validation AUROC")
+if(save_images) ggsave(
+  filename = file.path(img_output_dir, "Validation_AUC.pdf"), 
+  height = 4, width = 3, useDingbats = FALSE)
+```
+
+## Replicate Correlation
+I look at the correlation between replicates
+```{r}
+rep1 = mortality %>% 
+  arrange(Replicate, Layout, Line, Well.ID) %>% 
+  filter(Replicate == 1)
+rep2 = mortality %>% 
+  arrange(Replicate, Layout, Line, Well.ID) %>% 
+  filter(Replicate == 2)
+repcor_df = data.frame(
+  "r1" = rep1$Percent.Live, 
+  "r2" = rep2$Percent.Live, 
+  "line" = rep1$Line)
+ggplot(data = repcor_df, aes(x = r1, y = r2)) + 
+  geom_point(alpha = 0.25, size = 0.1) + 
+  theme_vignette() + scale_color_manual(values = colorScale) + 
+  xlab("Replicate 1") + ylab("Replicate 2") + 
+  ggtitle(
+    label = "Viability Correlation between Replicates",
+    subtitle = sprintf("rho =  %0.4f", cor(repcor_df$r1, repcor_df$r2))) + 
+  theme(legend.position = "none") + coord_fixed()
+if(save_images) ggsave(
+  filename = file.path(img_output_dir, "ViabilityReplicateCorrelation.pdf"), 
+  width = 4, height = 4, useDingbats = FALSE)
+```
+
+```{r}
+line_cors_img = data.frame(
+  "Line" = sort(unique(repcor_df$line)), 
+  "Correlation" = NA, 
+  row.names = sort(unique(repcor_df$line)), 
+  stringsAsFactors = FALSE)
+for(line in unique(repcor_df$line)) {
+  line_cors_img[line, "Correlation"] = cor(
+    repcor_df[repcor_df$line == line, "r1"], 
+    repcor_df[repcor_df$line == line, "r2"])
+}
+line_cors_img$CorrLabel = sprintf("%0.2f", line_cors_img$Correlation)
+line_cors_img$CorrLoc = line_cors_img$Correlation - 0.15
+
+ggplot(data = line_cors_img, mapping = aes(x = Line, y = Correlation)) + 
+  geom_col() + theme_vignette() + xlab("") + ylab("") + 
+  geom_text(aes(x = Line, y = CorrLoc, label = CorrLabel), color = "White") + 
+  coord_polar() + 
+  theme(axis.text.y = element_blank(), axis.ticks = element_blank(), 
+        axis.line = element_blank(), axis.text.x = element_text(size = 8)) + 
+  ggtitle("Viability Correlation by Lines")
+if(save_images) ggsave(
+  filename = file.path(
+    img_output_dir, "ViabilityReplicateCorrelation_bars_polar.pdf"),
+  width = 7, height = 4, useDingbats = FALSE)
+```
+
+## Validation of Control Wells
+```{r}
+dmso_mortality = mortality %>% filter(Product.Name == "DMSO")
+dmso_mortality_by_plate = aggregate(
+  x = dmso_mortality$Percent.Live, 
+  by = list(dmso_mortality$Plate.ID), 
+  FUN = median)
+colnames(dmso_mortality_by_plate) = c("Plate", "Viability")
+dmso_mortality_by_plate$Line = substr(dmso_mortality_by_plate$Plate, 1, 7)
+ggplot() + 
+  geom_boxplot(
+    data = dmso_mortality, 
+    mapping = aes(x = Line, y = Percent.Live), 
+    outlier.size = -1, fill = "lightgrey") + 
+  geom_point(
+    data = dmso_mortality_by_plate, 
+    mapping = aes(x = Line, y = Viability)) + 
+  theme_vignette() + labs(x = "", y = "") + 
+  coord_cartesian(ylim = c(0.75, 1.0)) + 
+  ggtitle(label = "Negative Control Viability per Line") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+if(save_images) ggsave(
+  filename = file.path(img_output_dir, "NegCtrl_Viability.pdf"),
+  width = 7, height = 4, useDingbats = FALSE)
+```
+
+```{r}
+pos_mortality = mortality %>% filter(
+  Product.Name %in% c("Bortezomib", "Irinotecan / SN-38"), 
+  Concentration %in% c(0.2, 1))
+pos_mortality_by_plate = aggregate(
+  x = pos_mortality$Percent.Live, 
+  by = list(pos_mortality$Plate.ID), 
+  FUN = median)
+colnames(pos_mortality_by_plate) = c("Plate", "Viability")
+pos_mortality_by_plate$Line = substr(pos_mortality_by_plate$Plate, 1, 7)
+ggplot() + 
+  geom_boxplot(
+    data = pos_mortality, 
+    mapping = aes(x = Line, y = Percent.Live), 
+    outlier.size = -1, fill = "lightgrey") + 
+  geom_point(
+    data = pos_mortality_by_plate, 
+    mapping = aes(x = Line, y = Viability)) + 
+  theme_vignette() + labs(x = "", y = "") + 
+  # coord_cartesian(ylim = c(0.75, 1.0)) + 
+  ggtitle(label = "Positive Control Viability per Line") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+if(save_images) ggsave(
+  filename = file.path(img_output_dir, "PosCtrl_Viability.pdf"),
+  width = 7, height = 4, useDingbats = FALSE)
+```
+
+## Positive Control Gradients
+```{r}
+pos_ctrls = mortality %>% filter(
+  Product.Name %in% c("Bortezomib", "Irinotecan / SN-38"))
+pos_ctrls$Concentration = as.factor(pos_ctrls$Concentration)
+
+correlation = cor(
+  as.numeric(as.character(pos_ctrls$Concentration)), 
+  pos_ctrls$Percent.Live, 
+  use = "pairwise.complete.obs", method = "spearman")
+
+ggplot(data = pos_ctrls, aes(x = Product.Name, y = Percent.Live)) + 
+  geom_boxplot(mapping = aes(fill = Concentration), outlier.size = -1) + 
+  geom_point(mapping = aes(colour = Concentration), 
+             position = position_jitterdodge(jitter.width = 0.05)) + 
+  theme_vignette() + theme_vignette_fill() + theme(
+    legend.key.size = unit(0.5, "cm"), legend.position = "right", 
+    legend.direction = "vertical") + 
+  xlab("") + ylab("") + 
+  ggtitle(label = "Organoid Viability", 
+          subtitle = sprintf("Spearman correlation = %0.4f", correlation)) + 
+  scale_color_manual(guide = FALSE, values = c(
+    "black", "black", "black", "black", "black")) + 
+  guides(fill = guide_legend(override.aes = list(shape = 18)))
+if(save_images) ggsave(
+  filename = file.path(
+    img_output_dir, "PositiveControlConcentrationGradients.pdf"), 
+  width = 6, height = 4, useDingbats = FALSE)
+```
+# Clustering by Viabilities (KiStem)
+Having established the validity of the classifier and the screen quality, I attempt to cluster drugs based on the organoid viability. I explicitly keep the positive controls at the highest two concentrations
+```{r}
+drug_viability = mortality %>% 
+  filter(substr(Plate.ID, 12, 14) != "L08" |
+         (Product.Name %in% c("Bortezomib", "Irinotecan / SN-38") & 
+          Concentration %in% c(0.2, 1.0))) %>%
+  filter(Line != "D054T01") %>%
+  select(Product.Name, Line, Percent.Live)
+drug_viability = aggregate(
+  x = drug_viability$Percent.Live, 
+  by = list("Drug" = drug_viability$Product.Name, 
+            "Line" = drug_viability$Line), 
+  FUN = mean)
+drug_viability = acast(
+  data = drug_viability, 
+  formula = Drug ~ Line, 
+  value.var = "x")
+```
+
+## Clustering all Drugs
+```{r}
+# corr = cor(t(drug_viability), use = "pairwise.complete.obs")
+# d = as.dist((1 - corr)/2)
+d = dist(drug_viability)
+hc = hclust(d, method = "ward.D2")
+
+hc_lines = hclust(dist(t(drug_viability)), method = "ward.D2")
+
+# Annotate Pathway and Targets
+annotation = drug_annotations[
+  drug_annotations$Drug %in% rownames(drug_viability), ]
+# I want DMSO in here, so I annotate it specifically
+annotation[annotation$Drug == "DMSO", ] = c("DMSO", "DMSO", "DMSO")
+annotation[annotation$Drug == "Bortezomib", ] = c(
+  "Bortezomib", "Bortezomib", "Bortezomib")
+annotation[annotation$Drug == "Irinotecan / SN-38", ] = c(
+  "Irinotecan / SN-38", "Irinotecan / SN-38", "Irinotecan / SN-38")
+pathways = list()
+for(pathway in unique(annotation$Pathway)) {
+  pathways[[pathway]] = grep(
+    pattern = paste0("\\b", pathway, "\\b"), 
+    x = annotation$Pathway, 
+    ignore.case = TRUE)
+}
+pathways_sig_vec = get_cluster_enrichment(
+  clustering = hc, labels = pathways, min_cluster_size = 5, 
+  max_cluster_size = 50)
+# 'Others' is too vague
+pathways_sig_vec$Labels[pathways_sig_vec$Labels == "Others"] = NA
+
+targets_split = tolower(annotation$Targets)
+# Turn targets into list
+targets = list()
+for(target in unique(unlist(strsplit(targets_split, ", ")))) {
+  targets[[target]] = grep(
+    pattern = paste0("\\b", target, "\\b"), 
+    x = targets_split, ignore.case = TRUE)
+}
+targets_sig_vec = get_cluster_enrichment(
+  clustering = hc, labels = targets, 
+  min_cluster_size = 5, max_cluster_size = 50)
+
+ctrl_anno = rep(NA, nrow(annotation))
+ctrl_anno[annotation$Drug == "DMSO"] = "DMSO"
+ctrl_anno[annotation$Drug == "Bortezomib"] = "Bortezomib"
+ctrl_anno[annotation$Drug == "Irinotecan / SN-38"] = "Irinotecan / SN-38"
+annotation = data.frame(
+  "Pathway" = pathways_sig_vec$Labels, 
+  "Target" = targets_sig_vec$Labels, 
+  "Control" = ctrl_anno,
+  row.names = rownames(drug_viability), 
+  stringsAsFactors = FALSE)
+
+all_pathways = na.omit(unique(pathways_sig_vec$Labels))
+all_targets = na.omit(unique(targets_sig_vec$Labels))
+annotation_color = list(
+  "Pathway" = setNames(
+    object = unname(colorScale)[seq_along(all_pathways)], 
+    nm = all_pathways), 
+  "Target" = setNames(
+    object = unname(colorScale)[seq_along(all_targets)], 
+    nm = all_targets), 
+  "Control" = c("Bortezomib" = "#e6194b", "DMSO" = "#3cb44b", 
+                "Irinotecan / SN-38" = "#0082c8"))
+
+hm_colorScale = colorRampPalette(
+  rev(c("#f7f7f7", "#E0F3F8", "#91BFDB", "#4575B4")))(150)
+
+pheatmap(
+  mat = t(drug_viability), show_colnames = FALSE, show_rownames = TRUE,
+  cluster_rows = hc_lines, cluster_cols = hc,
+  annotation_col = annotation, color = hm_colorScale, 
+  annotation_colors = annotation_color, clustering_method = "ward.D2",
+  cutree_cols = 4, main = "Viability Clustering", 
+  border_color = NA, cellwidth = 0.5, cellheight = 10)
+if(save_images) pheatmap(
+  mat = t(drug_viability), show_colnames = FALSE, show_rownames = TRUE,
+  cluster_rows = hc_lines, cluster_cols = hc,
+  annotation_col = annotation, color = hm_colorScale, 
+  annotation_colors = annotation_color, main = "Viability Clustering",
+  border_color = NA, cellwidth = 0.5, cellheight = 10, height = 10,
+  filename = file.path(img_output_dir, "ViabilityDrugClustering_allDrugs.pdf"))
+```
+
+## Clustering Active drugs
+Inactive drugs can be defined as those drugs, which cluster most closely to DMSO, i.e. the large, white block.
+```{r}
+# Isolate the active drugs by removing the cluster with DMSO
+# 4 branches were determined from the plot above; more robust would be a 
+# specific distance measure, but this would have the same outcome.
+labels = cutree(hc, k = 4)
+dmso_label = labels["DMSO"]
+active_drug_viability = drug_viability[labels != dmso_label, ]
+d_active = dist(active_drug_viability)
+hc_active = hclust(d_active, method = "ward.D2")
+
+annotation_color$Control = annotation_color$Control[
+  c("Bortezomib", "Irinotecan / SN-38")]
+
+pheatmap(
+  mat = t(active_drug_viability), show_colnames = FALSE, show_rownames = TRUE,
+  cluster_rows = hc_lines, cluster_cols = hc_active,
+  annotation_col = annotation, color = hm_colorScale, 
+  annotation_colors = annotation_color, clustering_method = "ward.D2",
+  cutree_cols = 3, main = "Viability Clustering of Active Drugs",
+  border_color = NA, cellwidth = 1.5, cellheight = 10)
+if(save_images) pheatmap(
+  mat = t(active_drug_viability), show_colnames = FALSE, show_rownames = TRUE,
+  cluster_rows = hc_lines, cluster_cols = hc_active,
+  annotation_col = annotation, color = hm_colorScale, 
+  annotation_colors = annotation_color, clustering_method = "ward.D2",
+  border_color = NA, cellwidth = 1.5, cellheight = 10, height = 10,
+  cutree_cols = 3, main = "Viability Clustering of Active Drugs",
+  filename = file.path(
+    img_output_dir, "ViabilityDrugClustering_allDrugs_onlyActive.pdf"))
+```
+
+### Active Drugs 
+```{r}
+annotation[rownames(active_drug_viability), c("Pathway", "Target")] %>%
+    kable(caption = "Active Drugs") %>%
+    kable_styling(bootstrap_options = "condensed", full_width = FALSE) %>%
+    row_spec(0, bold = TRUE)
+```
+
+### Individual Groups
+I take a closer look at individual clusters for a more detailed view.
+
+```{r}
+find_smallest_common_cluster = function(clustering, elements) {
+  # Set clusters
+  clusters = list()
+  for(ii in seq_len(nrow(clustering$merge))) {
+    hcrow = clustering$merge[ii, ]
+    if(hcrow[1] < 0) {
+      set1 = clustering$labels[-1 * hcrow[1]]
+    } else {
+      set1 = clusters[[hcrow[1]]]
+    }
+    if(hcrow[2] < 0) {
+      set2 = clustering$labels[-1 * hcrow[2]]
+    } else {
+      set2 = clusters[[hcrow[2]]]
+    }
+    clusters[[ii]] = c(set1, set2)
+  }
+  
+  # Find smallest cluster that contains all 'elements'
+  contains_all = sapply(clusters, function(x) all(elements %in% x))
+  min_cluster = clusters[contains_all][[
+    which.min(lengths(clusters[contains_all]))]]
+  return(min_cluster)
+}
+
+# MEK Inhibitors
+mek_inhibitors = rownames(drug_viability[which(annotation$Target == "mek"), ])
+smallest_cluster = find_smallest_common_cluster(
+  clustering = hc_active, elements = mek_inhibitors)
+mek_cluster = drug_viability[smallest_cluster, ]
+mek_anno = drug_annotations[drug_annotations$Drug %in% smallest_cluster, ]
+rownames(mek_anno) = mek_anno$Drug
+mek_anno$Drug = NULL
+
+all_pathways = na.omit(unique(mek_anno$Pathways))
+all_targets = na.omit(unique(mek_anno$Targets))
+mek_anno_color = list(
+  "Pathways" = setNames(
+    object = unname(colorScale)[seq_along(all_pathways)], 
+    nm = all_pathways), 
+  "Targets" = setNames(
+    object = unname(colorScale)[seq_along(all_targets)], 
+    nm = all_targets))
+
+pheatmap(
+  mat = t(mek_cluster), show_colnames = TRUE, show_rownames = TRUE, 
+  annotation_col = mek_anno, 
+  cluster_rows = hc_lines, cluster_cols = TRUE, color = hm_colorScale, 
+  annotation_colors = mek_anno_color, clustering_method = "ward.D2",
+  border_color = NA, cellwidth = 10, cellheight = 10)
+if(save_images) pheatmap(
+  mat = t(mek_cluster), show_colnames = TRUE, show_rownames = TRUE,
+  annotation_col = mek_anno, 
+  cluster_rows = hc_lines, cluster_cols = TRUE, color = hm_colorScale, 
+  annotation_colors = mek_anno_color, clustering_method = "ward.D2",
+  border_color = NA, cellwidth = 10, cellheight = 10, height = 10,
+  filename = file.path(
+    img_output_dir, "ViabilityDrugClustering_allDrugs_onlyMEK.pdf"))
+
+# EGFR Inhibitors
+egfr_inhibitors = rownames(drug_viability[
+  which(annotation$Target == "egfr"), ])
+smallest_cluster = find_smallest_common_cluster(
+  clustering = hc_active, elements = egfr_inhibitors)
+egfr_cluster = drug_viability[smallest_cluster, ]
+egfr_anno = drug_annotations[drug_annotations$Drug %in% smallest_cluster, ]
+rownames(egfr_anno) = egfr_anno$Drug
+egfr_anno$Drug = NULL
+
+all_pathways = na.omit(unique(egfr_anno$Pathways))
+all_targets = na.omit(unique(egfr_anno$Targets))
+egfr_anno_color = list(
+  "Pathways" = setNames(
+    object = unname(colorScale)[seq_along(all_pathways)], 
+    nm = all_pathways), 
+  "Targets" = setNames(
+    object = unname(colorScale)[seq_along(all_targets)], 
+    nm = all_targets))
+
+pheatmap(
+  mat = t(egfr_cluster), show_colnames = TRUE, show_rownames = TRUE, 
+  annotation_col = egfr_anno, 
+  cluster_rows = hc_lines, cluster_cols = TRUE, color = hm_colorScale, 
+  annotation_colors = egfr_anno_color, clustering_method = "ward.D2",
+  border_color = NA, cellwidth = 10, cellheight = 10)
+if(save_images) pheatmap(
+  mat = t(egfr_cluster), show_colnames = TRUE, show_rownames = TRUE,
+  annotation_col = egfr_anno, 
+  cluster_rows = hc_lines, cluster_cols = TRUE, color = hm_colorScale, 
+  annotation_colors = egfr_anno_color, clustering_method = "ward.D2",
+  border_color = NA, cellwidth = 10, cellheight = 10, height = 10,
+  filename = file.path(
+    img_output_dir, "ViabilityDrugClustering_allDrugs_onlyEGFR.pdf"))
+```
+
+I center and scale the viabilities of the active drugs to visually determine if any drugs have distinctly differential effects.
+```{r}
+scaled_active_drug_viability = apply(
+  X = t(active_drug_viability), 
+  MARGIN = 2, FUN = function(x) 
+    (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE))
+limit = max(abs(range(scaled_active_drug_viability, na.rm = TRUE)))
+z_breaks = seq(-limit, limit, length.out = 100)
+hm_z_colorScale = colorRampPalette(
+  c("#e6194b", "white", "#0082c8"))(length(z_breaks))
+pheatmap(
+  mat = scaled_active_drug_viability, show_colnames = FALSE,
+  annotation_col = annotation, cluster_cols = hc_active,
+  clustering_method = "ward.D2", 
+  color = hm_z_colorScale, breaks = z_breaks, 
+  annotation_colors = annotation_color,
+  border_color = NA, cellheight = 10)
+```
+## Average Line Response
+Each line showed a notably different average response to the active drugs
+```{r}
+line_response = data.frame(
+  "Line" = colnames(active_drug_viability),
+  "Viability" = apply(active_drug_viability, 2, median, na.rm = TRUE), 
+  stringsAsFactors = FALSE)
+line_response = line_response[order(line_response$Viability), ]
+line_response$Line = factor(line_response$Line, levels = line_response$Line)
+ggplot(data = line_response) + 
+  geom_col(mapping = aes(x = Line, y = Viability)) + 
+  theme_vignette() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  ggtitle("Median Viability of Organoids Treated With Active Drugs")
+if(save_images) ggsave(
+  filename = file.path(img_output_dir, "MedianResponseToActiveDrugs.pdf"), 
+  width = 7, height = 4, useDingbats = FALSE)
+```
+
+# Clustering by AUCs (CCP)
+```{r}
+drug_viability = aggregate(
+  x = auc_img_full$s_AUC_actual,
+  by = list("Line" = auc_img_full$Line, 
+            "Drug" = auc_img_full$Product.Name),
+  FUN = mean)
+drug_viability = acast(
+  data = drug_viability, 
+  formula = Drug ~ Line, 
+  value.var = "x")
+
+# Leave out combinations
+drug_viability = drug_viability[!
+  rownames(drug_viability) %in% c(
+    "Irinotecan mit 5-FU", "Oxaliplatin mit 5-FU + Gefitinib",
+    "Irinotecan mit 5-FU + Gefitinib", "Dabrafenib with Trametinib", 
+    "Trifluoridin/Tipiracil", "Oxaliplatin mit 5-FU"),]
+```
+
+## Clustering all Drugs
+Performing an enrichment makes little sense, as no target annotation is frequent enough.
+```{r}
+d = dist(drug_viability)
+hc = hclust(d, method = "ward.D2")
+hc_lines = hclust(dist(t(drug_viability)), method = "ward.D2")
+
+annotation = data.frame(
+  "Control" = rownames(drug_viability), 
+  row.names = rownames(drug_viability), 
+  stringsAsFactors = FALSE)
+annotation[!annotation$Control %in% c(
+  "DMSO", "Bortezomib", "Irinotecan / SN-38"), ] = NA
+
+annotation_color = list(
+  "Control" = c("Bortezomib" = "#e6194b", 
+                "Irinotecan / SN-38" = "#0082c8"))
+
+hm_colorScale = colorRampPalette(
+  rev(c("#f7f7f7", "#E0F3F8", "#91BFDB", "#4575B4")))(150)
+
+pheatmap(
+  mat = t(drug_viability), show_colnames = FALSE, show_rownames = TRUE,
+  cluster_rows = hc_lines, cluster_cols = hc,
+  annotation_col = annotation, color = hm_colorScale, 
+  annotation_colors = annotation_color, clustering_method = "ward.D2",
+  main = "Dose-Response AUROC Clustering",
+  border_color = NA, cellwidth = 4, cellheight = 10)
+if(save_images) pheatmap(
+  mat = t(drug_viability), show_colnames = FALSE, show_rownames = TRUE,
+  cluster_rows = hc_lines, cluster_cols = hc,
+  annotation_col = annotation, color = hm_colorScale, 
+  annotation_colors = annotation_color,
+  main = "Dose-Response AUROC Clustering",
+  border_color = NA, cellwidth = 4, cellheight = 10, height = 10,
+  filename = file.path(img_output_dir, "AUCDrugClustering_allDrugs.pdf"))
+```
+
+Heatmap of clusters
+```{r}
+corr = cor(t(drug_viability))
+d = as.dist((1 - corr) / 2)
+hc = hclust(d, method = "ward.D2")
+
+hm_colorScale = colorRampPalette(
+  c("#f7f7f7", "#f7f7f7", "#f7f7f7", "#f7f7f7", 
+    "#E0F3F8", "#91BFDB", "#4575B4"))(150)
+
+pheatmap(
+  mat = corr, show_colnames = FALSE, show_rownames = FALSE,
+  cluster_rows = hc, cluster_cols = hc, color = hm_colorScale, 
+  annotation_col = annotation, annotation_colors = annotation_color,
+  border_color = NA, cellwidth = 3, cellheight = 3)
+```
+
+## Dose-Response Curves
+I am interested in the dose-response curves for each treatment. For this, I look only at drugs that were tested at multiple concentrations.
+
+This code block generates dose response curves for each drug and each cell line in one file per drug. It runs reasonably quickly.
+```{r}
+# if(!dir.exists("dose_response")) dir.create("dose_response")
+all_drugs = unique(auc_img_full$Product.Name)
+for(drug in all_drugs) {
+  drug_name = gsub("/", "-", drug)
+  drug_name = gsub(" ", "_", drug_name)
+  out_fn = sprintf("dose_response/DoseResponse_%s.pdf", drug_name)
+  if(file.exists(out_fn)) next
+  drug_dat = auc_img_full[auc_img_full$Product.Name == drug,]
+  drug_dat_min = aggregate(
+    x = drug_dat$Percent.Live, 
+    by = list("Line" = drug_dat$Line, 
+              "Concentration" = drug_dat$Concentration), 
+    FUN = min)
+  drug_dat_max = aggregate(
+    x = drug_dat$Percent.Live, 
+    by = list("Line" = drug_dat$Line, 
+              "Concentration" = drug_dat$Concentration), 
+    FUN = max)
+  conc_transform = function(x) {log(x) / log(5) + 5}
+  conc_inv_transform = function(x) {exp((x - 5) * log(5))}
+  ggplot_df = data.frame(
+    "Line" = drug_dat_min$Line, 
+    "Concentration" = drug_dat_min$Concentration,
+    "ConcentrationInt" = conc_transform(drug_dat_min$Concentration), 
+    "Min.Live" = drug_dat_min$x, 
+    "Max.Live" = drug_dat_max$x, 
+    "Mean" = (drug_dat_min$x + drug_dat_max$x) / 2)
+  gp = ggplot(data = ggplot_df) + 
+    geom_ribbon(aes(x = ConcentrationInt, ymin = Min.Live, ymax = Max.Live, 
+                    color = Line, fill = Line), alpha = 0.25) + 
+    geom_line(aes(x = ConcentrationInt, y = Mean, color = Line), size = 2) + 
+    scale_x_continuous(labels = conc_inv_transform) + theme_vignette() + 
+    scale_color_manual(values = colorScale) + 
+    scale_fill_manual(values = colorScale) + 
+    facet_wrap(~Line, nrow = 3) + xlab("Concentration") + ylab("Viability") + 
+    ggtitle(sprintf("Dose Response Curves for '%s'", drug)) + 
+    theme(legend.position = "none", 
+          axis.text.x = element_text(angle = 45, hjust = 1))
+  plot(gp)
+  # ggsave(filename = out_fn, width = 10, height = 7, useDingbats = FALSE)
+}
+```
+
+Shown below are some exemplary dose response curves with all lines in one plot. YM155 exhibits a delayed, concentration-dependent response across lines, Trametinib appears to only be effective in some lines, while Vorinostat is universally lethal.
+```{r}
+example_drugs = c("YM155", "Vorinostat", "Trametinib")
+drug_dat = auc_img_full %>% filter(Product.Name %in% example_drugs)
+drug_dat_min = aggregate(
+    x = drug_dat$Percent.Live, 
+    by = list("Cell.Line" = drug_dat$Line, 
+              "Concentration" = drug_dat$Concentration, 
+              "Drug" = drug_dat$Product.Name), 
+    FUN = min)
+drug_dat_max = aggregate(
+    x = drug_dat$Percent.Live, 
+    by = list("Cell.Line" = drug_dat$Line, 
+              "Concentration" = drug_dat$Concentration, 
+              "Drug" = drug_dat$Product.Name), 
+    FUN = max)
+conc_transform = function(x) {log(x) / log(5) + 5}
+conc_inv_transform = function(x) {exp((x - 5) * log(5))}
+ggplot_df = data.frame(
+  "Cell.Line" = drug_dat_min$Cell.Line, 
+  "Drug" = drug_dat_min$Drug,
+  "Concentration" = drug_dat_min$Concentration,
+  "ConcentrationInt" = conc_transform(drug_dat_min$Concentration), 
+  "Min.Live" = drug_dat_min$x, 
+  "Max.Live" = drug_dat_max$x, 
+  "Mean" = (drug_dat_min$x + drug_dat_max$x) / 2)
+highlighted_drugs = list(
+  "YM155" = c("D018T01", "D027T01"), 
+  "Vorinostat" = c(), 
+  "Trametinib" = c("D004T01", "D020T01"))
+ggplot(data = ggplot_df, mapping = aes(x = ConcentrationInt)) + 
+  # All Lines
+  facet_wrap(facets = ~Drug) + 
+  geom_line(data = ggplot_df, 
+            mapping = aes(y = Mean, group = Cell.Line), 
+            size = 2, color = "gray", alpha = 0.25) + 
+  # Trametinib Highlights
+  geom_line(data = ggplot_df %>% 
+              filter(Drug == "Trametinib", 
+                     Cell.Line %in% highlighted_drugs[["Trametinib"]]), 
+            mapping = aes(y = Mean, color = Cell.Line), size = 2) + 
+  geom_ribbon(data = ggplot_df %>% 
+                filter(Drug == "Trametinib", 
+                       Cell.Line %in% highlighted_drugs[["Trametinib"]]), 
+              mapping = aes(ymin = Min.Live, ymax = Max.Live, 
+                            color = Cell.Line, fill = Cell.Line), 
+              alpha = 0.25) + 
+  # YM155 Highlights
+  geom_line(data = ggplot_df %>% 
+              filter(Drug == "YM155", 
+                     Cell.Line %in% highlighted_drugs[["YM155"]]), 
+            mapping = aes(y = Mean, color = Cell.Line), size = 2) + 
+  geom_ribbon(data = ggplot_df %>% 
+                filter(Drug == "YM155", 
+                       Cell.Line %in% highlighted_drugs[["YM155"]]), 
+              mapping = aes(ymin = Min.Live, ymax = Max.Live, 
+                            color = Cell.Line, fill = Cell.Line), 
+              alpha = 0.25) + 
+  scale_x_continuous(labels = conc_inv_transform) + theme_vignette() + 
+  scale_color_manual(values = colorScale) + 
+  scale_fill_manual(values = colorScale) + 
+  xlab("Concentration") + ylab("") + 
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1), 
+    legend.title = element_blank()) + 
+  coord_fixed(ratio = 4) + 
+  guides(fill = guide_legend(override.aes = list(alpha = 1)))
+if(save_images) ggsave(
+  filename = file.path(img_output_dir, "DoseResponseCurves_combined.pdf"), 
+  width = 10, height = 4, useDingbats = FALSE)
+```
+
+Dose Response Curves for combination drugs
+```{r}
+combo_drugs = c(
+  "5-FU", "Dabrafenib with Trametinib", "Dabrafenib", 
+  "Trametinib", "Irinotecan / SN-38", "Irinotecan mit 5-FU", 
+  "Irinotecan mit 5-FU + Gefitinib", "Gefitinib", "Oxaliplatin", 
+  "Oxaliplatin mit 5-FU + Gefitinib", "Oxaliplatin mit 5-FU", 
+  "Bortezomib")
+drug_dat = auc_img_full %>% filter(Product.Name %in% combo_drugs)
+drug_dat_min = aggregate(
+    x = drug_dat$Percent.Live, 
+    by = list("Cell.Line" = drug_dat$Line, 
+              "Concentration" = drug_dat$Concentration, 
+              "Drug" = drug_dat$Product.Name), 
+    FUN = min)
+drug_dat_max = aggregate(
+    x = drug_dat$Percent.Live, 
+    by = list("Cell.Line" = drug_dat$Line, 
+              "Concentration" = drug_dat$Concentration, 
+              "Drug" = drug_dat$Product.Name), 
+    FUN = max)
+conc_transform = function(x) {log(x) / log(5) + 5}
+conc_inv_transform = function(x) {exp((x - 5) * log(5))}
+ggplot_df = data.frame(
+  "Cell.Line" = drug_dat_min$Cell.Line, 
+  "Drug" = drug_dat_min$Drug,
+  "Concentration" = drug_dat_min$Concentration,
+  "ConcentrationInt" = conc_transform(drug_dat_min$Concentration), 
+  "Min.Live" = drug_dat_min$x, 
+  "Max.Live" = drug_dat_max$x, 
+  "Mean" = (drug_dat_min$x + drug_dat_max$x) / 2)
+# highlighted_drugs = list(
+#   "YM155" = c("D018T01", "D027T01"), 
+#   "Vorinostat" = c(), 
+#   "Trametinib" = c("D004T01", "D020T01"))
+ggplot(data = ggplot_df, mapping = aes(x = ConcentrationInt)) + 
+  # All Lines
+  facet_wrap(facets = ~Drug) + 
+  geom_line(data = ggplot_df, 
+            mapping = aes(y = Mean, group = Cell.Line), 
+            size = 2, color = "gray", alpha = 0.25) + 
+  scale_x_continuous(labels = conc_inv_transform) + theme_vignette() + 
+  scale_color_manual(values = colorScale) + 
+  scale_fill_manual(values = colorScale) + 
+  xlab("Concentration") + ylab("") + 
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1), 
+    legend.title = element_blank()) + 
+  # coord_fixed(ratio = 4) + 
+  guides(fill = guide_legend(override.aes = list(alpha = 1)))
+if(save_images) ggsave(
+  filename = file.path(
+    img_output_dir, "DoseResponseCurves_combinationDrugs_combined.pdf"), 
+  width = 10, height = 4, useDingbats = FALSE)
+```
+
+# Transfer Learning Accuracy Metrics
+
+I trained classifiers for each cell line individually and then measured their accuracy on the data of all other cell lines as well. This transfer learning matrix gives an idea of how similar the training data is for each cell line. The heatmap shows the accuracies of classifiers trained on individual cell lines (rows) when applied to the validation data of all cell lines (columns). Note that the same validation data for each cell line is used to test each classifier, making the results directly comparable.
+
+While the classifier for D027T01 shows adequate accuracies on most cell lines, the validation data for D027T01 cannot be correctly classified by half of the classifiers of other cell lines. This is the final piece of evidence required to show that the quality of the D027T01 plates is too low for any downstream analysis using these classification results.
+```{r}
+hm_colorScale = colorRampPalette(
+  c("#f7f7f7", "#003399"))(150)
+pheatmap(
+  acc_matrix, cluster_rows = FALSE, cluster_cols = FALSE, 
+  color = hm_colorScale, display_numbers = FALSE, 
+  fontsize_number = 12, legend = TRUE, 
+  main = "Transfer Accuracies", border_color = NA)
+if(save_images) pheatmap(
+  acc_matrix, cluster_rows = FALSE, cluster_cols = FALSE, 
+  color = hm_colorScale, display_numbers = FALSE, 
+  fontsize_number = 12, legend = TRUE, 
+  filename = file.path(img_output_dir, "TransferLearningAccuracies.pdf"), 
+  main = "Transfer Accuracies", cellwidth = 15, cellheight = 15, 
+  border_color = NA)
+```
+
+ROC curves also give some insight into how well the classifiers can be applied to other cell lines. Shown below are the ROC curves for the classifier for line D022T01 applied to each of the other lines.
+
+```{r}
+clf_line = "D022T01"
+D022_roc = roc_data[roc_data$clf_line == clf_line, ]
+D022_auc = roc_aucs[roc_aucs$clf_line == clf_line, ]
+D022_roc$LegendLabel = paste0(
+  D022_roc$data_line, ": ", round(
+    x = D022_auc[match(D022_roc$data_line, D022_auc$data_line), "AUC"], 
+    digits = 2))
+ggplot(mapping = aes(x = FalsePosRate, y = TruePosRate)) + 
+  geom_line(
+    data = D022_roc[
+      D022_roc$data_line != clf_line, ], 
+    mapping = aes(group = LegendLabel),
+    size = 1, color = "lightgray") + 
+  geom_line(
+    data = D022_roc[
+      D022_roc$data_line %in% c("D010T01", "D030T01"), ], 
+    mapping = aes(color = data_line), size = 2) + 
+  geom_line(
+    data = D022_roc[
+      D022_roc$data_line == clf_line, ], 
+    size = 2) + 
+  theme_vignette() + scale_colour_manual(
+    values = c("#e6194b", "#3cb44b")) + 
+  labs(color = "AUC", x = "False Positive Rate", y = "True Positive Rate") + 
+  coord_equal()
+if(save_images) ggsave(
+  filename = file.path(
+    img_output_dir, 
+    sprintf("TransferLearningAccuracies_roc_%s.pdf", clf_line)), 
+  width = 5, height = 5, useDingbats = FALSE)
+```
+
+# Classifiers Trained on Reduced Feature Sets
+
+The same viability classifier can be trained on limited feature sets. I attempted to train the classifier using only features relating to specific channels (Actin, DAPI, FITC, and Actin + DAPI). 
+
+## Correlation to Full Dataset
+I begin by looking at the correlation between the results of these "reduced classifiers" and the classifiers trained on the full feature sets. The two-channel classifier trained on the Actin and DAPI channels correlates most strongly with the full classifier.
+```{r}
+ggplot_df = data.frame(
+  "All.Channels" = mortality$Percent.Live, 
+  "Actin" = mortality_reduced$Actin$Percent.Live, 
+  "DAPI" = mortality_reduced$DAPI$Percent.Live, 
+  "FITC" = mortality_reduced$FITC$Percent.Live,
+  "ActinDAPI" = mortality_reduced$Actin_DAPI$Percent.Live)
+
+ggplot(data = ggplot_df, aes(x = All.Channels, y = Actin)) + 
+  geom_point(alpha = 0.3, size = 0.5) + 
+  theme_vignette() + scale_color_manual(values = colorScale(length(lines))) + 
+  xlab("All Channels") + ylab("Only Actin Channel") + 
+  ggtitle(label = "All Channels versus Actin Channel", 
+          subtitle = sprintf(
+            "Correlation: %0.4f", 
+            cor(ggplot_df$All.Channels, ggplot_df$Actin))) + 
+  theme(legend.key.size = unit(0.5, "cm"), legend.position = "right", 
+        legend.direction = "vertical") + coord_equal() + 
+  geom_line(data = data.frame("x" = c(0,1), "y" = c(0,1)), 
+            mapping = aes(x = x, y = y), 
+            size = 2, color = "red")
+if(save_images) ggsave(
+  filename = file.path(
+    img_output_dir, "ReducedClassifierCorrelation_vsActin.pdf"), 
+  width = 4, height = 4, useDingbats = FALSE)
+
+ggplot(data = ggplot_df, aes(x = All.Channels, y = DAPI)) + 
+  geom_point(alpha = 0.3, size = 0.5) + 
+  theme_vignette() + scale_color_manual(values = colorScale(length(lines))) + 
+  xlab("All Channels") + ylab("Only DAPI Channel") + 
+  ggtitle(label = "All Channels versus DAPI Channel", 
+          subtitle = sprintf(
+            "Correlation: %0.4f", 
+            cor(ggplot_df$All.Channels, ggplot_df$DAPI))) + 
+  theme(legend.key.size = unit(0.5, "cm"), legend.position = "right", 
+        legend.direction = "vertical") + coord_equal() + 
+  geom_line(data = data.frame("x" = c(0,1), "y" = c(0,1)), 
+            mapping = aes(x = x, y = y), 
+            size = 2, color = "red")
+if(save_images) ggsave(
+  filename = file.path(
+    img_output_dir, "ReducedClassifierCorrelation_vsDAPI.pdf"), 
+  width = 4, height = 4, useDingbats = FALSE)
+
+ggplot(data = ggplot_df, aes(x = All.Channels, y = FITC)) + 
+  geom_point(alpha = 0.3, size = 0.5) + 
+  theme_vignette() + scale_color_manual(values = colorScale(length(lines))) + 
+  xlab("All Channels") + ylab("Only FITC Channel") + 
+  ggtitle(label = "All Channels versus FITC Channel", 
+          subtitle = sprintf(
+            "Correlation: %0.4f", 
+            cor(ggplot_df$All.Channels, ggplot_df$FITC))) + 
+  theme(legend.key.size = unit(0.5, "cm"), legend.position = "right", 
+        legend.direction = "vertical") + coord_equal() + 
+  geom_line(data = data.frame("x" = c(0,1), "y" = c(0,1)), 
+            mapping = aes(x = x, y = y), 
+            size = 2, color = "red")
+if(save_images) ggsave(
+  filename = file.path(
+    img_output_dir, "ReducedClassifierCorrelation_vsFITC.pdf"), 
+  width = 4, height = 4, useDingbats = FALSE)
+
+ggplot(data = ggplot_df, aes(x = All.Channels, y = ActinDAPI)) + 
+  geom_point(alpha = 0.25, size = 0.5) + 
+  theme_vignette() + scale_color_manual(values = colorScale(length(lines))) + 
+  xlab("All Channels") + ylab("Actin+Dapi Channels") + 
+  ggtitle(label = "All Channels versus Actin+DAPI Channels", 
+          subtitle = sprintf(
+            "Correlation: %0.4f", 
+            cor(ggplot_df$All.Channels, ggplot_df$ActinDAPI))) + 
+  theme(legend.position = "none") + coord_equal() + 
+  geom_line(data = data.frame("x" = c(0,1), "y" = c(0,1)), 
+            mapping = aes(x = x, y = y), 
+            size = 2, color = "red")
+if(save_images) ggsave(
+  filename = file.path(
+    img_output_dir, "ReducedClassifierCorrelation_vsActinDAPI.pdf"), 
+  width = 4, height = 4, useDingbats = FALSE)
+```
+
+## Accuracy Comparison
+A barplot for the accuracies of classifiers on their native datasets. While there is a substantial drop in accuracy for most cell lines if only individual channels are used, the classifier does not become useless. The lowest achieved accuracy if only the DAPI channel is used is still approximately 80%, which is reasonable for a biological screen. It is worth noting that the additional stainings possible by using only one of the channels and freeing up the other two will undoubtedly improve the accuracy again.
+
+```{r}
+acc_full = diag(acc_matrix)
+acc_Actin = diag(acc_matrix_reduced$Actin)
+acc_FITC = diag(acc_matrix_reduced$FITC)
+acc_DAPI = diag(acc_matrix_reduced$DAPI)
+acc_ActinDAPI = diag(acc_matrix_reduced$Actin_DAPI)
+
+acc = cbind(acc_full, acc_Actin, acc_DAPI, acc_FITC, acc_ActinDAPI)
+acc = reshape2::melt(acc)
+colnames(acc) = c("Line", "Type", "Accuracy")
+acc$Split = setNames(
+  rep(c("A", "B", "C"), each = 5), 
+  sort(unique(acc$Line)))[acc$Line]
+acc$Line = as.character(acc$Line)
+
+ggplot(data = acc) + 
+  geom_col(aes(x = Line, y = Accuracy, fill = Type), 
+           position = position_dodge()) + 
+  facet_wrap(facets = ~Line, nrow = 3, scales = "free_x") + 
+  theme_vignette() + scale_fill_manual(
+    labels = c("All Channels", "Actin", "DAPI", "Dead Cells", "Actin + DAPI"), 
+    values = c("#800000", "#e6194b", "#0082c8", "#3cb44b", "#911eb4")) + 
+  labs(x = "", y = "", fill = "") + theme(
+    legend.key.size = unit(0.5, "cm")) + 
+  coord_cartesian(ylim = c(0.7, 1.0)) + 
+  theme(strip.background = element_blank(), strip.text = element_blank()) + 
+  ggtitle(
+    label = "Accuracies of Classifiers", 
+    subtitle = "Classifiers were Trained on a Subset of Image Channels")
+if(save_images) ggsave(
+  filename = file.path(img_output_dir, "ReducedClassifierAccuracies.pdf"), 
+  width = 6, height = 4, useDingbats = FALSE)
+```
+
+```{r}
+ggplot_df = acc
+ggplot_df$Type = c(
+  "acc_full" = "All", 
+  "acc_Actin" = "Actin", 
+  "acc_DAPI" = "DAPI", 
+  "acc_FITC" = "FITC", 
+  "acc_ActinDAPI" = "Actin & DAPI")[ggplot_df$Type]
+ggplot_df$Type = factor(
+  x = ggplot_df$Type, 
+  levels = c("All", "Actin", "DAPI", "FITC", "Actin & DAPI"))
+ggplot(data = ggplot_df, mapping = aes(x = Type, y = Accuracy, fill = Type)) + 
+  geom_boxplot(position = position_dodge(), width = 0.5) + 
+  geom_point(position = position_jitterdodge(jitter.width = 0.5)) + 
+  theme_vignette() + scale_fill_manual(
+    labels = c("All Channels", "Actin", "DAPI", "Dead Cells", "Actin + DAPI"), 
+    values = c("#800000", "#e6194b", "#0082c8", "#3cb44b", "#911eb4"))
+if(save_images) ggsave(
+  filename = file.path(
+    img_output_dir, "ReducedClassifierAccuracies_boxplot.pdf"), 
+  width = 6, height = 3, useDingbats = FALSE)
+```
+
+# Comparison to CTG
+Another method of assessing cell viability is a Cell-Titer-Glo assay, which measures the ATP content of cells. This method effectively analyzes individual cells whereas the image-based approach introduced here analyzes entire organoids. This is a comparison of the results. Because the replicates of the image data do not correspond to the replicates of the CTG data (both methods were used on different plates), the replicates are averaged together for this analysis.
+
+## Well-Based Correlation
+Because the replicates do not match, I average together the replicate viabilities from both methods and correlate the results. This correlates each drug and concentration individually. Most cell lines exhibit a similarly high correlation, only for D007T01 do the CTG and the image-based results correlate poorly.
+```{r}
+ctg_viability = aggregate(
+  x = auc_ctg$viability, 
+  by = list("id" = paste0(
+    auc_ctg$Line, "_", 
+    auc_ctg$library, "_", 
+    auc_ctg$well)), 
+  FUN = mean)
+
+img_id = paste0(
+  auc_img_full$Line, "_", 
+  substr(auc_img_full$Plate.ID, 12, 14), "_", 
+  auc_img_full$Well.ID)
+img_viability = aggregate(
+  x = auc_img_full$Percent.Live, 
+  by = list("id" = img_id), 
+  FUN = mean)
+
+mortality_dict = aggregate(auc_img_full, list("id" = img_id), first)
+viability = merge(img_viability, ctg_viability, by = "id")
+colnames(viability) = c("id", "img_viability", "ctg_viability")
+viability = merge(viability, mortality_dict, by = "id")
+
+correlation = sapply(sort(unique(viability$Line)), function(x) {
+  corr = cor.test(
+    viability[viability$Line == x, "img_viability"], 
+    viability[viability$Line == x, "ctg_viability"])
+  unname(corr$estimate)
+})
+
+full_correlation = cor.test(
+  viability$img_viability, 
+  viability$ctg_viability)$estimate
+
+ggplotdf = viability
+ggplotdf$LineLabel = sprintf(
+  "%s; r = %.2f", substr(ggplotdf$Line, 1, 4), 
+  correlation[ggplotdf$Line])
+ggplot(data = ggplotdf, mapping = aes(x = img_viability, y = ctg_viability)) + 
+  geom_point(alpha = 0.1) + 
+  stat_function(fun = function(x) x, size = 1, color = "red") + 
+  theme_vignette() + theme_vignette_color() + 
+  # facet_wrap(facets = ~ LineLabel) + 
+  xlab("Image Viability") + ylab("CTG Viability") +
+  # scale_x_continuous(breaks = c(0.25, 0.75, 1.0)) +
+  # scale_y_continuous(breaks = c(0.25, 0.75, 1.0)) +
+  theme(legend.title = element_blank()) + xlim(c(0, 1)) + ylim(c(0, 1)) + 
+  ggtitle(label = "Correlation of Image Viability vs. CTG", 
+          subtitle = sprintf("Full Channel Classifier; Correlation = %.4f", 
+                             full_correlation)) + 
+  coord_equal()
+if(save_images) ggsave(
+  filename = file.path(
+    img_output_dir, 
+    sprintf("CorrelationCTGImage_wells.pdf")), 
+  useDingbats = FALSE)
+
+cor_df = data.frame(correlation) %>% 
+  rownames_to_column("Line") %>% 
+  add_column("Loc" = correlation - 0.04) %>%
+  mutate(Label = round(correlation, 2))
+ggplot(data = cor_df, mapping = aes(x = Line, y = correlation)) + geom_col() + 
+  theme_vignette() + xlab("") + ylab("") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  ggtitle(label = "Correlation of Image Viability vs. CTG", 
+          subtitle = sprintf("Full Channel Classifier; Correlation = %.4f", 
+                             full_correlation)) + 
+  geom_text(aes(x = Line, y = Loc, label = Label), color = "White")
+if(save_images) ggsave(
+  filename = file.path(
+    img_output_dir, 
+    sprintf("CorrelationCTGImage_barplots_wells.pdf")), 
+  useDingbats = FALSE)
+```
+
+## AUC-based Correlation
+I also look at how the AUCs compare between the CTG and image screens. The AUC is defined as the area under the dose response curve so that a low AUC implies a killing drug while a high AUC implies a nonlethal drug.
+
+```{r}
+auc_type = "s_AUC_actual"
+ctg_auc = aggregate(
+  x = auc_ctg[[auc_type]], 
+  by = list(
+    "Line" = auc_ctg$Line, 
+    "Drug" = auc_ctg$drug), 
+  FUN = mean)
+ctg_auc$id = paste0(ctg_auc$Line, "__", ctg_auc$Drug)
+
+img_auc = aggregate(
+  x = auc_img_full[[auc_type]], 
+  by = list(
+    "Line" = auc_img_full$Line, 
+    "Drug" = auc_img_full$Product.Name), 
+  FUN = mean)
+img_auc$id = paste0(img_auc$Line, "__", img_auc$Drug)
+
+mortality_dict = aggregate(
+  x = auc_img_full, 
+  by = list(
+    auc_img_full$Line, 
+    auc_img_full$Product.Name), 
+  FUN = first)
+mortality_dict$id = paste0(
+  mortality_dict$Group.1, "__", 
+  mortality_dict$Group.2)
+
+auc = merge(
+  x = img_auc %>% select(-Line, -Drug), 
+  y = ctg_auc %>% select(-Line, -Drug), 
+  by = "id")
+colnames(auc) = c("id", "Image.AUC", "CTG.AUC")
+auc = merge(
+  x = auc, 
+  y = mortality_dict %>% select(Line, Product.Name, id), 
+  by = "id")
+
+correlation = sapply(sort(unique(auc$Line)), function(x) {
+  corr = cor.test(
+    auc[auc$Line == x, "Image.AUC"], 
+    auc[auc$Line == x, "CTG.AUC"])
+  unname(corr$estimate)
+})
+
+full_correlation = cor.test(
+  auc$Image.AUC, 
+  auc$CTG.AUC)$estimate
+
+ggplotdf = auc
+ggplotdf$LineLabel = sprintf(
+  "%s; r = %.2f", substr(ggplotdf$Line, 1, 4), 
+  correlation[ggplotdf$Line])
+ggplot(data = ggplotdf, mapping = aes(x = Image.AUC, y = CTG.AUC)) + 
+  geom_point(alpha = 0.1) + 
+  stat_function(fun = function(x) x, size = 1, color = "red") + 
+  theme_vignette() + theme_vignette_color() + 
+  # facet_wrap(facets = ~ LineLabel) + 
+  xlab("Image Viability") + ylab("CTG Viability") +
+  # scale_x_continuous(breaks = c(0.25, 0.75, 1.0)) +
+  # scale_y_continuous(breaks = c(0.25, 0.75, 1.0)) +
+  theme(legend.title = element_blank()) + xlim(c(0, 1)) + ylim(c(0, 1)) + 
+  ggtitle(
+    label = "AUC Correlation of Image Viability vs. CTG", 
+    subtitle = sprintf("Full Channel Classifier; Correlation = %.4f", 
+                       full_correlation)) + 
+  coord_equal()
+if(save_images) ggsave(
+  filename = file.path(img_output_dir, sprintf(
+    "CorrelationCTGImage_auc.pdf")), 
+  useDingbats = FALSE)
+
+cor_df = data.frame(correlation) %>% 
+  rownames_to_column("Line") %>% 
+  add_column("Loc" = correlation - 0.04) %>%
+  mutate(Label = round(correlation, 2))
+ggplot(data = cor_df, mapping = aes(x = Line, y = correlation)) + geom_col() + 
+  theme_vignette() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  xlab("") + ylab("") + 
+  ggtitle(label = "AUC Correlation of Image Viability vs. CTG", 
+          subtitle = sprintf("Full Channel Classifier; Correlation = %.4f", 
+                             full_correlation)) + 
+  geom_text(aes(x = Line, y = Loc, label = Label), color = "White")
+if(save_images) ggsave(
+  filename = file.path(img_output_dir, sprintf(
+    "CorrelationCTGImage_barplots_auc.pdf")), 
+  useDingbats = FALSE)
+```
+
+### Outliers
+The AUC correlation shows distinct outliers. I define a "typically dead" AUC value as the IQR around the positive controls (the AUC never fully reaches 0 as the lowest concentrations will almost never show any effect) and a "typically" alive AUC value as the IQR around the median of the entire distribution (there are far more inactive drugs than active ones in the dataset, making this approximately correct).
+
+```{r}
+auc_dead = auc %>% filter(
+  Product.Name %in% c("Bortezomib", "Irinotecan / SN-38"))
+dead_thresh_img = median(auc_dead$Image.AUC, na.rm = TRUE) + 
+  IQR(auc_dead$Image.AUC, na.rm = TRUE)
+dead_thresh_ctg = median(auc_dead$CTG.AUC, na.rm = TRUE) + 
+  IQR(auc_dead$CTG.AUC, na.rm = TRUE)
+live_thresh_img = median(auc$Image.AUC, na.rm = TRUE) - 
+  IQR(auc$Image.AUC, na.rm = TRUE)
+live_thresh_ctg = median(auc$CTG.AUC, na.rm = TRUE) - 
+  IQR(auc$CTG.AUC, na.rm = TRUE)
+
+outliers_1 = auc %>% filter(
+  Image.AUC < dead_thresh_img, 
+  CTG.AUC > live_thresh_ctg)
+outliers_1_matrix = as.matrix(table(
+  outliers_1$Line, outliers_1$Product.Name))
+outliers_1_matrix = outliers_1_matrix[
+  order(rowSums(outliers_1_matrix), decreasing = TRUE), , 
+  drop = FALSE]
+outliers_1_matrix = outliers_1_matrix[
+  , order(colSums(outliers_1_matrix), decreasing = TRUE), 
+  drop = FALSE]
+outliers_1_matrix = cbind(
+  outliers_1_matrix, "TOTAL" = rowSums(outliers_1_matrix))
+outliers_1_matrix = rbind(
+  outliers_1_matrix, "TOTAL" = colSums(outliers_1_matrix))
+
+outliers_2 = auc %>% filter(
+  Image.AUC > live_thresh_img, 
+  CTG.AUC < dead_thresh_ctg)
+outliers_2_matrix = as.matrix(table(
+  outliers_2$Line, outliers_2$Product.Name))
+outliers_2_matrix = outliers_2_matrix[
+  order(rowSums(outliers_2_matrix), decreasing = TRUE), , 
+  drop = FALSE]
+outliers_2_matrix = outliers_2_matrix[
+  , order(colSums(outliers_2_matrix), decreasing = TRUE), 
+  drop = FALSE]
+outliers_2_matrix = cbind(
+  outliers_2_matrix, "TOTAL" = rowSums(outliers_2_matrix))
+outliers_2_matrix = rbind(
+  outliers_2_matrix, "TOTAL" = colSums(outliers_2_matrix))
+```
+
+```{r}
+if(!interactive()) {
+  outliers_1_matrix %>%
+    kable(caption = "Alive according to CTG but dead according to RFC") %>%
+    kable_styling(bootstrap_options = "condensed", full_width = FALSE) %>%
+    row_spec(0, bold = TRUE)
+} else {
+  print("Alive according to CTG but dead according to RFC")
+  print(outliers_1_matrix)
+  print("---")
+}
+```
+
+```{r}
+if(!interactive()) {
+  outliers_2_matrix %>%
+      kable(caption = "Dead according to CTG but alive according to RFC") %>%
+      kable_styling(bootstrap_options = "condensed", full_width = FALSE) %>%
+      row_spec(0, bold = TRUE)
+} else {
+  print("Dead according to CTG but alive according to RFC")
+  print(outliers_2_matrix)
+}
+```
+
+Scatter plot but with outliers marked
+```{r}
+ggplot(data = ggplotdf, mapping = aes(x = Image.AUC, y = CTG.AUC)) + 
+  geom_point(size = 0.5, alpha = 0.25) + 
+  geom_point(
+    data = ggplotdf[
+      ggplotdf$Product.Name %in% c("Methotrexate", "Doxorubicin"), ], 
+    mapping = aes(color = Product.Name) , size = 1.5) + 
+  scale_color_manual(values = c("#e6194b", "#0082c8")) + 
+  theme_vignette() + 
+  xlab("Image Viability") + ylab("CTG Viability") +
+  theme(legend.title = element_blank()) + xlim(c(0, 1)) + ylim(c(0, 1)) + 
+  ggtitle(
+    label = "AUC Correlation of Image Viability vs. CTG", 
+    subtitle = sprintf("Full Channel Classifier; Correlation = %.4f", 
+                       full_correlation)) + 
+  coord_equal()
+if(save_images) ggsave(
+  filename = file.path(img_output_dir, sprintf(
+    "CorrelationCTGImage_auc_withOutliers.pdf")), 
+  width = 5, height = 5, useDingbats = FALSE)
+```
+
+## Outlier Analysis
+The notable outlier of this comparison is Methotrexate, which is classified as living by the image classifier but as dead by the CTG assay. Doxorubicin is ambiguously classified in only one cell line, D007T01, which already exhibits a lower-than-average correlation between the image and the CTG assays. Additionally, Doxorubicin is bright red in color and has been shown to falsify fluorescent microscopy images, which may have a negative impact on the reliability of an image-based screen.
+
+I look at the dose response curves and images of Methotrexate and Doxorubicin.
+
+```{r}
+drugs = c("Methotrexate", "Doxorubicin")
+
+# Setup response data
+drug_data_img = mortality[mortality$Product.Name %in% drugs, ]
+img_min = aggregate(
+  x = drug_data_img$Percent.Live, 
+  by = list(drug_data_img$Line, 
+            drug_data_img$Product.Name, 
+            drug_data_img$Concentration), 
+  FUN = min)
+img_max = aggregate(
+  x = drug_data_img$Percent.Live, 
+  by = list(drug_data_img$Line, 
+            drug_data_img$Product.Name, 
+            drug_data_img$Concentration), 
+  FUN = max)
+  
+drug_data_ctg = auc_ctg[auc_ctg$drug %in% drugs, ]
+drug_data_ctg$Concentration = as.numeric(drug_data_ctg$Concentration)
+ctg_min = aggregate(
+  x = drug_data_ctg$viability, 
+  by = list(drug_data_ctg$Line, 
+            drug_data_ctg$drug, 
+            drug_data_ctg$Concentration), 
+  FUN = min)
+ctg_max = aggregate(
+  x = drug_data_ctg$viability, 
+  by = list(drug_data_ctg$Line, 
+            drug_data_ctg$drug, 
+            drug_data_ctg$Concentration), 
+  FUN = max)
+
+conc_transform = function(x) {log(x) / log(5) + 5}
+conc_inv_transform = function(x) {exp((x - 5) * log(5))}
+ggplot_df = rbind(
+  data.frame(
+    "Line" = img_min$Group.1,
+    "Drug" = img_min$Group.2,
+    "Concentration" = img_min$Group.3,
+    "ConcentrationInt" = conc_transform(img_min$Group.3),
+    "Min" = img_min$x,
+    "Max" = img_max$x,
+    "Mean" = (img_min$x + img_max$x) / 2,
+    "Type" = rep("Images", nrow(img_min))),
+  data.frame(
+    "Line" = ctg_min$Group.1,
+    "Drug" = ctg_min$Group.2,
+    "Concentration" = ctg_min$Group.3,
+    "ConcentrationInt" = conc_transform(ctg_min$Group.3),
+    "Min" = ctg_min$x,
+    "Max" = ctg_max$x,
+    "Mean" = (ctg_min$x + ctg_max$x) / 2,
+    "Type" = rep("CTG", nrow(ctg_min))))
+
+# Some lines were processed with CTG but not with the image classifier
+ggplot_df = ggplot_df[ggplot_df$Line %in% lines, ]
+
+for(drug in drugs) {
+  gp = ggplot(data = ggplot_df[ggplot_df$Drug == drug, ]) +
+    geom_ribbon(aes(x = ConcentrationInt, ymin = Min, ymax = Max,
+                    color = Type, fill = Type), alpha = 0.25) +
+    geom_line(aes(x = ConcentrationInt, y = Mean, color = Type), size = 2) +
+    scale_x_continuous(labels = conc_inv_transform) +
+    facet_wrap(~Line, nrow = 3) +
+    xlab("Concentration") + ylab("Percent Live Organoids") +
+    ggtitle(sprintf("Dose Response Curves for '%s'", drug)) + 
+    theme_vignette() + theme_vignette_fill() + theme_vignette_color() + 
+    theme(
+      legend.position = "right", legend.direction = "vertical",
+      legend.key.size = unit(0.5, "cm"))
+  plot(gp)
+}
+
+drug_aucs = melt(
+  auc[auc$Product.Name %in% drugs, 
+      c("Line", "Image.AUC", "CTG.AUC", "Product.Name")], 
+  id.vars = c("Product.Name", "Line"))
+ggplot(data = drug_aucs, mapping = aes(x = variable, y = value)) +
+  geom_boxplot(mapping = aes(fill = Product.Name), width = 0.5) + 
+  geom_point(
+    mapping = aes(group = 1), 
+    position = position_jitter(width = 0.05)) + 
+  facet_wrap(facets = ~Product.Name) + 
+  theme_vignette() + 
+  scale_fill_manual(values = c("#e6194b", "#0082c8")) + 
+  labs(x = "", y = "", title = "Dose-Response AUC") + 
+  scale_x_discrete(labels = c("Images", "CTG")) + 
+  theme(legend.position = "none") + 
+  coord_fixed(ratio = 3)
+if(save_images) ggsave(
+  filename = file.path(
+    img_output_dir, "Outliers_DoseResponseAUC_Boxplot.pdf"), 
+  width = 5, height = 5, useDingbats = FALSE)
+
+# Get Wilcoxon results for the two outliers
+wtest = data.frame(
+  "PValue" = rep(NA, length(drugs)), 
+  "Estimate" = rep(NA, length(drugs)), 
+  row.names = drugs)
+for(drug in drugs) {
+  wt = wilcox.test(
+    x = drug_aucs[drug_aucs$Product.Name == drug & 
+                  drug_aucs$variable == "Image.AUC", "value"], 
+    y = drug_aucs[drug_aucs$Product.Name == drug & 
+                  drug_aucs$variable == "CTG.AUC", "value"], 
+    conf.int = TRUE)
+  wtest[drug, ] = c(wt$p.value, wt$estimate)
+}
+wtest$PAdj = p.adjust(wtest$PValue, "BH")
+print(wtest)
+```
+
+## Dose-Response Curves
+I want to compare the dose response curves of the CTG screen with the dose response curves shown above for the image analysis
+```{r}
+example_drugs = c("YM155", "Vorinostat", "Trametinib")
+drug_dat = auc_ctg %>% filter(drug %in% example_drugs)
+drug_dat$Concentration = as.numeric(drug_dat$Concentration)
+
+drug_dat_min = aggregate(
+    x = drug_dat$viability, 
+    by = list("Cell.Line" = drug_dat$Line, 
+              "Concentration" = drug_dat$Concentration, 
+              "Drug" = drug_dat$drug), 
+    FUN = min)
+drug_dat_max = aggregate(
+    x = drug_dat$viability, 
+    by = list("Cell.Line" = drug_dat$Line, 
+              "Concentration" = drug_dat$Concentration, 
+              "Drug" = drug_dat$drug), 
+    FUN = max)
+conc_transform = function(x) {log(x) / log(5) + 5}
+conc_inv_transform = function(x) {exp((x - 5) * log(5))}
+ggplot_df = data.frame(
+  "Cell.Line" = drug_dat_min$Cell.Line, 
+  "Drug" = drug_dat_min$Drug,
+  "Concentration" = drug_dat_min$Concentration,
+  "ConcentrationInt" = conc_transform(drug_dat_min$Concentration), 
+  "Min.Live" = drug_dat_min$x, 
+  "Max.Live" = drug_dat_max$x, 
+  "Mean" = (drug_dat_min$x + drug_dat_max$x) / 2)
+highlighted_drugs = list(
+  "YM155" = c("D018T01", "D027T01"), 
+  "Vorinostat" = c(), 
+  "Trametinib" = c("D004T01", "D020T01"))
+ggplot(data = ggplot_df, mapping = aes(x = ConcentrationInt)) + 
+  # All Lines
+  facet_wrap(facets = ~Drug) + 
+  geom_line(data = ggplot_df, 
+            mapping = aes(y = Mean, group = Cell.Line), 
+            size = 2, color = "gray", alpha = 0.25) + 
+  # Trametinib Highlights
+  geom_line(data = ggplot_df %>% 
+              filter(Drug == "Trametinib", 
+                     Cell.Line %in% highlighted_drugs[["Trametinib"]]), 
+            mapping = aes(y = Mean, color = Cell.Line), size = 2) + 
+  geom_ribbon(data = ggplot_df %>% 
+                filter(Drug == "Trametinib", 
+                       Cell.Line %in% highlighted_drugs[["Trametinib"]]), 
+              mapping = aes(ymin = Min.Live, ymax = Max.Live, 
+                            color = Cell.Line, fill = Cell.Line), 
+              alpha = 0.25) + 
+  # YM155 Highlights
+  geom_line(data = ggplot_df %>% 
+              filter(Drug == "YM155", 
+                     Cell.Line %in% highlighted_drugs[["YM155"]]), 
+            mapping = aes(y = Mean, color = Cell.Line), size = 2) + 
+  geom_ribbon(data = ggplot_df %>% 
+                filter(Drug == "YM155", 
+                       Cell.Line %in% highlighted_drugs[["YM155"]]), 
+              mapping = aes(ymin = Min.Live, ymax = Max.Live, 
+                            color = Cell.Line, fill = Cell.Line), 
+              alpha = 0.25) + 
+  scale_x_continuous(labels = conc_inv_transform) + theme_vignette() + 
+  scale_color_manual(values = colorScale) + 
+  scale_fill_manual(values = colorScale) + 
+  xlab("Concentration") + ylab("") + 
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1), 
+    legend.title = element_blank()) + 
+  coord_fixed(ratio = 4) + 
+  guides(fill = guide_legend(override.aes = list(alpha = 1)))
+if(save_images) ggsave(
+  filename = file.path(img_output_dir, "DoseResponseCurves_combined_CTG.pdf"), 
+  width = 10, height = 4, useDingbats = FALSE)
+```
+
+# Comparison of Reduced Classifier to CTG (only AUC)
+```{r}
+auc_type = "s_AUC_actual"
+ctg_auc = aggregate(
+  x = auc_ctg[[auc_type]], 
+  by = list(
+    "Line" = auc_ctg$Line, 
+    "Drug" = auc_ctg$drug), 
+  FUN = mean)
+ctg_auc$id = paste0(ctg_auc$Line, "__", ctg_auc$Drug)
+
+img_auc = aggregate(
+  x = auc_img_twoChannel[[auc_type]], 
+  by = list(
+    "Line" = auc_img_twoChannel$Line, 
+    "Drug" = auc_img_twoChannel$Product.Name), 
+  FUN = mean)
+img_auc$id = paste0(img_auc$Line, "__", img_auc$Drug)
+
+mortality_dict = aggregate(
+  x = auc_img_twoChannel, 
+  by = list(
+    auc_img_twoChannel$Line, 
+    auc_img_twoChannel$Product.Name), 
+  FUN = first)
+mortality_dict$id = paste0(
+  mortality_dict$Group.1, "__", 
+  mortality_dict$Group.2)
+
+auc = merge(
+  x = img_auc %>% select(-Line, -Drug), 
+  y = ctg_auc %>% select(-Line, -Drug), 
+  by = "id")
+colnames(auc) = c("id", "Image.AUC", "CTG.AUC")
+auc = merge(
+  x = auc, 
+  y = mortality_dict %>% select(Line, Product.Name, id), 
+  by = "id")
+
+correlation = sapply(sort(unique(auc$Line)), function(x) {
+  corr = cor.test(
+    auc[auc$Line == x, "Image.AUC"], 
+    auc[auc$Line == x, "CTG.AUC"])
+  unname(corr$estimate)
+})
+
+full_correlation = cor.test(
+  auc$Image.AUC, 
+  auc$CTG.AUC)$estimate
+
+ggplotdf = auc
+ggplotdf$LineLabel = sprintf(
+  "%s; r = %.2f", substr(ggplotdf$Line, 1, 4), 
+  correlation[ggplotdf$Line])
+ggplot(data = ggplotdf, mapping = aes(x = Image.AUC, y = CTG.AUC)) + 
+  geom_point(alpha = 0.1) + 
+  stat_function(fun = function(x) x, size = 1, color = "red") + 
+  theme_vignette() + theme_vignette_color() + 
+  # facet_wrap(facets = ~ LineLabel) + 
+  xlab("Image Viability") + ylab("CTG Viability") +
+  # scale_x_continuous(breaks = c(0.25, 0.75, 1.0)) +
+  # scale_y_continuous(breaks = c(0.25, 0.75, 1.0)) +
+  theme(legend.title = element_blank()) + xlim(c(0, 1)) + ylim(c(0, 1)) + 
+  ggtitle(
+    label = "AUC Correlation of Image Viability vs. CTG", 
+    subtitle = sprintf("Full Channel Classifier; Correlation = %.4f", 
+                       full_correlation)) + 
+  coord_equal()
+if(save_images) ggsave(
+  filename = file.path(img_output_dir, sprintf(
+    "CorrelationCTGImage_auc_twoChannel.pdf")), 
+  useDingbats = FALSE)
+
+cor_df = data.frame(correlation) %>% 
+  rownames_to_column("Line") %>% 
+  add_column("Loc" = correlation - 0.04) %>%
+  mutate(Label = round(correlation, 2))
+ggplot(data = cor_df, mapping = aes(x = Line, y = correlation)) + geom_col() + 
+  theme_vignette() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  xlab("") + ylab("") + 
+  ggtitle(label = "AUC Correlation of Image Viability vs. CTG", 
+          subtitle = sprintf("Full Channel Classifier; Correlation = %.4f", 
+                             full_correlation)) + 
+  geom_text(aes(x = Line, y = Loc, label = Label), color = "White")
+if(save_images) ggsave(
+  filename = file.path(img_output_dir, sprintf(
+    "CorrelationCTGImage_barplots_auc_twoChannel.pdf")), 
+  useDingbats = FALSE)
+```
+
+### Outliers
+The AUC correlation shows distinct outliers. I define a "typically dead" AUC value as the IQR around the positive controls (the AUC never fully reaches 0 as the lowest concentrations will almost never show any effect) and a "typically" alive AUC value as the IQR around the median of the entire distribution (there are far more inactive drugs than active ones in the dataset, making this approximately correct).
+
+```{r}
+auc_dead = auc %>% filter(
+  Product.Name %in% c("Bortezomib", "Irinotecan / SN-38"))
+dead_thresh_img = median(auc_dead$Image.AUC, na.rm = TRUE) + 
+  IQR(auc_dead$Image.AUC, na.rm = TRUE)
+dead_thresh_ctg = median(auc_dead$CTG.AUC, na.rm = TRUE) + 
+  IQR(auc_dead$CTG.AUC, na.rm = TRUE)
+live_thresh_img = median(auc$Image.AUC, na.rm = TRUE) - 
+  IQR(auc$Image.AUC, na.rm = TRUE)
+live_thresh_ctg = median(auc$CTG.AUC, na.rm = TRUE) - 
+  IQR(auc$CTG.AUC, na.rm = TRUE)
+
+outliers_1 = auc %>% filter(
+  Image.AUC < dead_thresh_img, 
+  CTG.AUC > live_thresh_ctg)
+outliers_1_matrix = as.matrix(table(
+  outliers_1$Line, outliers_1$Product.Name))
+outliers_1_matrix = outliers_1_matrix[
+  order(rowSums(outliers_1_matrix), decreasing = TRUE), , 
+  drop = FALSE]
+outliers_1_matrix = outliers_1_matrix[
+  , order(colSums(outliers_1_matrix), decreasing = TRUE), 
+  drop = FALSE]
+outliers_1_matrix = cbind(
+  outliers_1_matrix, "TOTAL" = rowSums(outliers_1_matrix))
+outliers_1_matrix = rbind(
+  outliers_1_matrix, "TOTAL" = colSums(outliers_1_matrix))
+
+outliers_2 = auc %>% filter(
+  Image.AUC > live_thresh_img, 
+  CTG.AUC < dead_thresh_ctg)
+outliers_2_matrix = as.matrix(table(
+  outliers_2$Line, outliers_2$Product.Name))
+outliers_2_matrix = outliers_2_matrix[
+  order(rowSums(outliers_2_matrix), decreasing = TRUE), , 
+  drop = FALSE]
+outliers_2_matrix = outliers_2_matrix[
+  , order(colSums(outliers_2_matrix), decreasing = TRUE), 
+  drop = FALSE]
+outliers_2_matrix = cbind(
+  outliers_2_matrix, "TOTAL" = rowSums(outliers_2_matrix))
+outliers_2_matrix = rbind(
+  outliers_2_matrix, "TOTAL" = colSums(outliers_2_matrix))
+```
+
+```{r}
+if(!interactive()) {
+  outliers_1_matrix %>%
+    kable(caption = "Alive according to CTG but dead according to RFC") %>%
+    kable_styling(bootstrap_options = "condensed", full_width = FALSE) %>%
+    row_spec(0, bold = TRUE)
+} else {
+  print("Alive according to CTG but dead according to RFC")
+  print(outliers_1_matrix)
+  print("---")
+}
+```
+
+```{r}
+if(!interactive()) {
+  outliers_2_matrix %>%
+      kable(caption = "Dead according to CTG but alive according to RFC") %>%
+      kable_styling(bootstrap_options = "condensed", full_width = FALSE) %>%
+      row_spec(0, bold = TRUE)
+} else {
+  print("Dead according to CTG but alive according to RFC")
+  print(outliers_2_matrix)
+}
+```
+
+Scatter plot but with outliers marked
+```{r}
+ggplot(data = ggplotdf, mapping = aes(x = Image.AUC, y = CTG.AUC)) + 
+  geom_point(size = 0.5, alpha = 0.25) + 
+  geom_point(
+    data = ggplotdf[
+      ggplotdf$Product.Name %in% c("Methotrexate", "Doxorubicin"), ], 
+    mapping = aes(color = Product.Name) , size = 1.5) + 
+  scale_color_manual(values = c("#e6194b", "#0082c8")) + 
+  theme_vignette() + 
+  xlab("Image Viability") + ylab("CTG Viability") +
+  theme(legend.title = element_blank()) + xlim(c(0, 1)) + ylim(c(0, 1)) + 
+  ggtitle(
+    label = "AUC Correlation of Image Viability vs. CTG", 
+    subtitle = sprintf("Full Channel Classifier; Correlation = %.4f", 
+                       full_correlation)) + 
+  coord_equal()
+if(save_images) ggsave(
+  filename = file.path(img_output_dir, sprintf(
+    "CorrelationCTGImage_auc_withOutliers_twoChannel.pdf")), 
+  width = 5, height = 5, useDingbats = FALSE)
+```
