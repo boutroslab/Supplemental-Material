@@ -1,0 +1,1401 @@
+---
+title: "Drug-Induced Phenotypes"
+author: "Jan Sauer"
+date: "`r Sys.Date()`"
+output:
+  BiocStyle::html_document:
+      code_folding: hide
+      df_print: paged
+      toc_depth: 4
+      toc_float: false
+  # BiocStyle::pdf_document
+vignette: >
+  %\VignetteIndexEntry{Drug-Induced Phenotypes}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+library(pheatmap)
+library(ggplot2)
+library(reshape2)
+library(knitr)
+library(igraph)
+library(qgraph)
+library(Matrix)
+library(tidyverse)
+library(Rtsne)
+library(SCOPEAnalysis)
+
+# knitr::opts_chunk$set(
+#   collapse = TRUE,
+#   comment = "#>"
+# )
+
+# Load data
+data("drug_effects", package = "SCOPEAnalysis")
+data("organoid_viability", package = "SCOPEAnalysis")
+
+# Lines
+lines = get_lines()
+colorScale = setNames(
+  object = c("#e6194b", "#3cb44b", "#ffe119", "#0082c8", "#f58231", 
+             "#911eb4", "#46f0f0", "#f032e6", "#d2f53c", "#fabebe", 
+             "#008080", "#e6beff", "#aa6e28", "#fffac8", "#800000"), 
+  nm = lines)
+
+# Define a base theme for the plots
+# Modified from https://rpubs.com/Koundy/71792
+theme_vignette <- function(base_size=14, base_family="Helvetica") {
+  library(grid)
+  library(ggthemes)
+  (theme_foundation(base_size=base_size, base_family=base_family)
+    + theme(plot.title = element_text(face = "bold",
+                                      size = rel(1.2), hjust = 0.5), 
+            plot.subtitle = element_text(hjust = 0.5),
+            plot.caption = element_text(hjust = 0),
+            text = element_text(),
+            panel.background = element_rect(colour = NA),
+            plot.background = element_rect(colour = NA),
+            panel.border = element_rect(colour = NA),
+            axis.title = element_text(face = "bold",size = rel(1)),
+            axis.title.y = element_text(angle=90,vjust =2),
+            axis.title.x = element_text(vjust = -0.2),
+            axis.text = element_text(), 
+            axis.line = element_line(colour="black"),
+            axis.ticks = element_line(),
+            # panel.grid.major = element_line(colour="#f0f0f0"),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            legend.key = element_rect(colour = NA),
+            legend.position = "right",
+            legend.direction = "vertical",
+            legend.key.size= unit(0.5, "cm"),
+            legend.spacing = unit(1, "cm"),
+            legend.title = element_text(face="italic"),
+            plot.margin=unit(c(10,5,5,5),"mm"),
+            strip.background=element_rect(colour="#f0f0f0",fill="#f0f0f0"),
+            strip.text = element_text(face="bold")))
+}
+
+theme_vignette_color <- function(...){
+  library(scales)
+  discrete_scale(
+    aesthetics = c("colour", "color"), scale_name = "theme_vignette",
+    palette = manual_pal(values = unname(colorScale)), ...)
+}
+
+theme_vignette_fill <- function(...){
+  library(scales)
+  discrete_scale(
+    aesthetics = c("fill"), scale_name = "theme_vignette",
+    palette = manual_pal(values = unname(colorScale)), ...)
+}
+
+# Flag whether images should be saved additionally as PDF files
+save_images = FALSE
+img_out_dir = "images"
+if(save_images) if(!dir.exists(img_out_dir)) dir.create(img_out_dir)
+
+# This function gets angles between row vectors
+get_angles = function(row_vectors) {
+  norm_vectors = t(apply(
+    row_vectors, 1, function(x) x / sqrt(sum(x**2, na.rm = TRUE))))
+  dotprod = norm_vectors %*% t(norm_vectors)
+  diag(dotprod) = 1
+  # return(acos(dotprod) * 180/pi)
+  return(dotprod)
+}
+
+# The minimum cluster size for enriched clusters. Clusters smaller than this 
+# are removed independently of p-value adjustment, i.e. in a statistically 
+# sound way.
+min_cluster_size = 3
+
+# The number of PCA components.
+n_components = 25
+
+# Compute the median viability for each drug
+# Set concentration to -1 for all wells without concentration data to avoid 
+# incorrect aggregation as 'aggregate(...)' cannot deal with NA entries
+mortality$Concentration[is.na(mortality$Concentration)] = -1
+mortality$Concentration[mortality$Product.Name == "Staurosporine_500nM"] = -1
+mortality$Concentration[mortality$Product.Name == "DMSO"] = -1
+viability = aggregate(
+  x = mortality$Percent.Live, 
+  by = list(mortality$Product.Name, mortality$Concentration, mortality$Line), 
+  median)
+# Set concentration back to NA
+viability$Group.2[viability$Group.2 == -1] = NA
+colnames(viability) = c("Drug", "Concentration", "Line", "Viability")
+
+# Keep only drugs with both viability and drug-induced phenotype data
+# (NA-merging works...)
+tmp = cbind(drug_effect_profiles, drug_effect_metadata)
+tmp$RowNames = rownames(tmp)
+tmp = merge(tmp, viability,
+  by = c("Drug", "Concentration", "Line"))
+drug_effect_profiles = tmp[, paste0("PC", 1:25)]
+rownames(drug_effect_profiles) = tmp$RowNames
+drug_effect_metadata = tmp[, c(
+  "Drug", "Concentration", "Line", "AUC_Mean", 
+  "AUC_Std", "Distance", "Viability")]
+rownames(drug_effect_metadata) = tmp$RowNames
+```
+
+# Introduction 
+Drug effects are defined as the vector pointing from negative control (DMSO) organoids to treated organoids in feature space. Features are transformed with a PCA and the top 25 components are retained. An SVM with a linear kernel is trained to differentiate DMSO and treated organoids (for each drug individually) and the normal vector to the separating hyperplane is defined as the drug effect vector. It is scaled to be as long as the distance between the DMSO median and the treated organoid median in feature space.
+
+The paper's "story flow" began with the drug-induced phenotypes and then continued onto the organoid viability. However, there are interesting parallels between the two analyses so that I include the lethality of drugs in the annotation of heatmaps here.
+
+# Define Active Drugs
+A histogram of the accuracies (or AUCs to be exact) shows that there are two groups of drugs. The first, normally distributed, group with low AUCs represents the inactive drugs that cannot be sufficiently differentiated from DMSO while the other group represents the active drugs that have significantly different characteristic features than the DMSO organoids and can be separated by a linear SVM hyperplane in feature space.
+```{r auroc_hist}
+ggplot(data = drug_effect_metadata, mapping = aes(x = AUC_Mean)) + 
+  geom_histogram(bins = 100) + 
+  theme_vignette() + ggtitle("AUROC Histogram") + 
+  xlab("Mean AUROC (10-fold Cross Validation)") + ylab("") + 
+if(save_images) ggsave(
+  filename = file.path(img_out_dir, "Histogram_ClassifierAUCs.pdf"), 
+  width = 3, height = 3, useDingbats = FALSE)
+```
+
+The distance in feature space between drugs and DMSO clouds correlates, as expected, with the AUROC.
+```{r dist_vs_auroc}
+ggplot(data = drug_effect_metadata, 
+       mapping = aes(x = AUC_Mean, y = Distance)) + 
+  geom_point(size = 0.5) + 
+  theme_vignette() + labs(
+    caption = paste("Spearman rho =", round(
+      cor(drug_effect_metadata$AUC_Mean, 
+          drug_effect_metadata$Distance, method = "spearman"), 2))) + 
+  xlab("AUROC") + labs(color = "")
+if(save_images) ggsave(
+  filename = file.path(img_out_dir, "Scatterplot_AUCvsDistance.pdf"), 
+  width = 3, height = 3, useDingbats = FALSE)
+```
+
+The SVM was trained with 10-fold cross validation and the resulting means and standard devations of the accuracies are shown below.
+```{r auroc_mean_vs_auroc_std}
+ggplot(data = drug_effect_metadata, 
+       mapping = aes(x = AUC_Mean, y = AUC_Std)) + 
+  geom_point(size = 0.5) + theme_vignette() + 
+  labs(x = "AUROC Mean", y = "AUROC Standard Deviation", color = "")
+if(save_images) ggsave(
+  filename = file.path(img_out_dir, "Scatterplot_AUCMeanvsAUCStd.pdf"), 
+  width = 3, height = 3, useDingbats = FALSE)
+```
+
+Based on the bimodal histogram of active drugs, I define any drug that can be separated with $AUC = 0.85$ from the DMSO controls as "active".
+```{r select_active_profiles}
+auc_thresh = 0.85
+profiles_active = drug_effect_profiles[drug_effect_metadata$AUC_Mean >= auc_thresh, ]
+metadata_active = drug_effect_metadata[drug_effect_metadata$AUC_Mean >= auc_thresh, ]
+```
+
+The number of active drugs varies per line.
+```{r active_drugs_per_line}
+ggplot_df = as.data.frame(table(metadata_active$Line))
+# D054T01 was only imaged with the small library
+ggplot_df = ggplot_df[ggplot_df$Var1 != "D054T01", ]
+ggplot_df$TextLoc = ggplot_df$Freq - 50
+ggplot(data = ggplot_df, mapping = aes(x = Var1, y = Freq)) + 
+  geom_col() + 
+  geom_text(mapping = aes(x = Var1, y = TextLoc, label = Freq), 
+            color = "white", fontface = "bold", size = 3) + 
+  theme_vignette() + 
+  theme(axis.line = element_blank(), axis.text.x = element_blank(), 
+        axis.ticks = element_blank()) + 
+  xlab("") + ylab("") + ggtitle("Number of Active Drugs") + 
+  coord_flip()
+if(save_images) ggsave(
+  filename = file.path(img_out_dir, "Barplot_NumActiveDrugs.pdf"),
+  width = 2.5, height = 3)
+```
+
+Some drugs are active in all cell lines and others only in very few.
+```{r cell_lines_per_drug}
+activity_table = table(metadata_active$Drug, metadata_active$Line)
+activity_table = activity_table[, colnames(activity_table) != "D054T01"]
+ggplot_df = as.data.frame(sort(rowSums(activity_table > 0), decreasing = TRUE))
+
+colnames(ggplot_df) = "Freq"
+ggplot_df$Var1 = factor(rownames(ggplot_df), levels = rownames(ggplot_df))
+ggplot(data = ggplot_df, mapping = aes(x = Var1, y = Freq)) + 
+  geom_col(width = 1) + theme_vignette() + theme(
+    axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
+  xlab("Drugs") + ylab("Number of Lines") + 
+  ggtitle("Number of Lines in which a Drug is Active") + 
+  scale_y_continuous(breaks = seq_len(length(lines)))
+```
+
+A comparison of the viability versus the drug effect shows that all drugs previously identified as lethal are also identified as active. However, a good number of active drugs were previously identified as nonlethal.
+```{r viability_vs_svm}
+ggplot(mapping = aes(y = Viability, x = AUC_Mean)) + 
+  geom_point(data = drug_effect_metadata, color = "lightgrey", size = 0.5) + 
+  geom_point(data = drug_effect_metadata[
+    drug_effect_metadata$AUC_Mean >= auc_thresh, ], 
+             size = 0.5) + 
+  theme_vignette() + ylab("Viability") + xlab("AUROC Mean") + 
+  geom_segment(mapping = aes(
+      y = 0, yend = 1, x = auc_thresh, xend = auc_thresh), 
+    color = "red", size = 1) + coord_equal(ratio = 0.5)
+if(save_images) ggsave(
+  filename = file.path(img_out_dir, "Scatterplot_ViabilityVsSVMAUROC.pdf"), 
+  width = 3, height = 3, useDingbats = FALSE)
+```
+
+Plotting a histogram of the viabilities of all "active" drugs, i.e. with $AUROC \geq 0.85$
+```{r viability_dist_active_drugs}
+ggplot(data = drug_effect_metadata[
+  drug_effect_metadata$AUC_Mean >= auc_thresh, ]) + 
+  geom_histogram(mapping = aes(x = Viability), bins = 25) + 
+  theme_vignette()
+```
+
+# KiStem library
+I analyze the two libraries separately and begin with the KiStem library.
+```{r select_kistem}
+sel_indices = (is.na(drug_effect_metadata$Concentration) | (
+  drug_effect_metadata$Drug %in% c("Bortezomib", "Irinotecan / SN-38") &
+  drug_effect_metadata$Concentration %in% c(0.2, 1))) & 
+  # D054 was only treated with the CCP library
+  drug_effect_metadata$Line != "D054T01"
+profiles = drug_effect_profiles[sel_indices, ]
+metadata = drug_effect_metadata[sel_indices, ]
+```
+
+```{r select_active_kistem}
+sel_indices = metadata$AUC_Mean >= auc_thresh
+profiles_active = profiles[sel_indices, ]
+metadata_active = metadata[sel_indices, ]
+```
+
+## Individual Cell Lines
+I look at the angles between vectors. The SVM generates a profile for all drugs, including inactive ones. However, because they cannot be properly separated from DMSO, the profiles of these drugs will be largely random, ergo I remove them as noise.
+
+```{r calc_svm_clustering}
+killing_anno = rep(NA, nrow(metadata_active))
+killing_anno[metadata_active$Viability <= 0.2] = "0.2"
+killing_anno[
+  metadata_active$Viability > 0.2 & 
+  metadata_active$Viability <= 0.4] = "0.4"
+killing_anno[
+  metadata_active$Viability > 0.4 & 
+  metadata_active$Viability <= 0.6] = "0.6"
+killing_anno[
+  metadata_active$Viability > 0.6 & 
+  metadata_active$Viability <= 0.8] = "0.8"
+killing_anno[
+  metadata_active$Viability > 0.8 & 
+  metadata_active$Viability <= 1] = "1"
+
+annotation = data.frame(
+  "Viability" = killing_anno,
+  "Pathway" = SCOPEAnalysis::get_mode_of_action(metadata_active$Drug),
+  "Target" = SCOPEAnalysis::get_targets(metadata_active$Drug),
+  "Line" = metadata_active$Line,
+  row.names = rownames(profiles_active),
+  stringsAsFactors = FALSE)
+
+# Fix for slashes in targets
+annotation$Target = gsub(
+  pattern = "/", replacement = ", ", annotation$Target)
+
+# Calculate the angles for each line
+line_results = list()
+enriched_drugs = list()
+oddsratio_pathway = list()
+oddsratio_target = list()
+for(line in unique(substr(rownames(annotation), 1, 7))) {
+  line_sel_indices = annotation$Line == line
+  line_annotation = annotation[line_sel_indices, ]
+  line_annotation$Line = NULL
+  line_profiles = profiles_active[line_sel_indices, ]
+  line_metadata = metadata_active[line_sel_indices, ]
+  
+  # Calc angles and cluster
+  angles = get_angles(line_profiles)
+  if(nrow(angles) < 2) next
+  d = acos(angles)*180/pi
+  hc = hclust(as.dist(d), method = "ward.D2")
+  
+  # Also cluster the principal components by correlation just for kicks
+  cor_pca = cor(line_profiles)
+  d_pca = as.dist((1 - cor_pca) / 2)
+  hc_pca = hclust(d_pca, method = "ward.D2")
+  
+  # Annotate Pathway and Targets
+  pathways = list()
+  for(pathway in unique(line_annotation$Pathway)) {
+    pathways[[pathway]] = grep(
+      pattern = paste0("\\b", pathway, "\\b"), 
+      x = line_annotation$Pathway, 
+      ignore.case = TRUE)
+  }
+  # My cluster_enrichment function doesn't play well with NA values yet
+  pathways = pathways[!is.na(names(pathways))]
+  pathways_sig_vec = get_cluster_enrichment(
+    clustering = hc, labels = pathways, min_cluster_size = min_cluster_size, 
+    max_annotated_labels = 7)
+  # 'Others' is too vague
+  pathways_sig_vec$Labels[pathways_sig_vec$Labels == "Others"] = NA
+  
+  targets_split = tolower(line_annotation$Target)
+  targets = list()
+  for(target in unique(unlist(strsplit(targets_split, ", ")))) {
+    targets[[target]] = grep(
+      pattern = paste0("\\b", target, "\\b"), 
+      x = targets_split, ignore.case = TRUE)
+  }
+  # My cluster_enrichment function doesn't play well with NA values yet
+  targets = targets[!is.na(names(targets))]
+  targets_sig_vec = get_cluster_enrichment(
+    clustering = hc, labels = targets, min_cluster_size = min_cluster_size, 
+    max_annotated_labels = 7)
+  
+  line_annotation$Pathway = pathways_sig_vec$Labels
+  line_annotation$Target = targets_sig_vec$Labels
+
+  enriched_drugs[[line]] = data.frame(
+    "Drug" = substr(rownames(line_annotation), 9, 100000L), 
+    "Line" = line,
+    "Pathway" = annotation[annotation$Line == line, "Pathway"], 
+    "Target" = annotation[annotation$Line == line, "Target"],
+    "Enriched.Target" = line_annotation$Target,
+    "is.pathway.enriched" = !is.na(line_annotation$Pathway), 
+    "is.target.enriched" = !is.na(line_annotation$Target),
+    stringsAsFactors = FALSE)
+  
+  if(nrow(pathways_sig_vec$Fisher.Test) > 0) {
+    oddsratio_pathway[[line]] = cbind.data.frame(
+      "Line" = line, pathways_sig_vec$Fisher.Test)
+  }
+  if(nrow(targets_sig_vec$Fisher.Test) > 0) {
+    oddsratio_target[[line]] = cbind.data.frame(
+      "Line" = line, targets_sig_vec$Fisher.Test)
+  }
+  
+  line_results[[line]] = list(
+    "Annotation" = line_annotation, 
+    "Distances" = d, 
+    "Clustering" = hc, 
+    "PCAClustering" = hc_pca)
+}
+```
+
+```{r save_enriched_drugs_and_logodds}
+# Save enriched drugs
+enriched_drugs = do.call(rbind, enriched_drugs)
+rownames(enriched_drugs) = NULL
+if(save_images) write.csv2(
+  x = enriched_drugs, file = "EnrichedDrugs.csv", 
+  quote = FALSE, row.names = FALSE)
+
+# Save oddsratio Ratios
+oddsratio_pathway = do.call(rbind, oddsratio_pathway)
+rownames(oddsratio_pathway) = NULL
+if(save_images) write.csv2(
+  x = oddsratio_pathway, file = "OddsRatio_Pathways.csv", 
+  quote = FALSE, row.names = FALSE)
+oddsratio_target = do.call(rbind, oddsratio_target)
+rownames(oddsratio_target) = NULL
+if(save_images) write.csv2(
+  x = oddsratio_target, file = "OddsRatio_Target.csv", 
+  quote = FALSE, row.names = FALSE)
+```
+
+```{r plot_clustering_kistem_individual_lines}
+anno_colorScale = list(
+  "Viability" = setNames(
+    object = colorRampPalette(c("black", "white"))(
+      length(unique(annotation$Viability))), 
+    nm = sort(unique(annotation$Viability))))
+
+# Plot all results
+for(line in names(line_results)) {
+  line_annotation = line_results[[line]]$Annotation
+  line_profiles = profiles_active[annotation$Line == line,]
+  line_color = anno_colorScale
+  if(sum(!is.na(line_annotation$Pathway)) == 0) line_annotation$Pathway = NULL
+  if(sum(!is.na(line_annotation$Target)) == 0) line_annotation$Target = NULL
+  for(column in colnames(line_annotation)) {
+    if(column %in% names(line_color)) next
+    entries = na.omit(unique(line_annotation[[column]]))
+    line_color[[column]] = setNames(
+      object = unname(colorScale)[seq_along(entries)], 
+      nm = entries)
+  }
+  d = line_results[[line]]$Distances
+  hc = line_results[[line]]$Clustering
+  hc_pca = line_results[[line]]$PCAClustering
+  
+  # Heatmap of PCA components
+  lp = line_profiles
+  lp[lp > 0] = sqrt(lp[lp > 0])
+  lp[lp < 0] = -sqrt(-lp[lp < 0])
+  
+  hm_range_limit = max(abs(lp))
+  hm_breaks = seq(-hm_range_limit, hm_range_limit, length.out = 100)
+  hm_legend_breaks = c(-floor(hm_range_limit), 0, floor(hm_range_limit))
+  hm_legend_labels = hm_legend_breaks**2
+  hm_legend_labels[hm_legend_breaks < 0] = -hm_legend_labels[hm_legend_breaks < 0]
+  hm_colorscale = colorRampPalette(
+    c("#0082c8", "white", "#e6194b"))(length(hm_breaks))
+  pheatmap(
+      t(lp), annotation_col = line_annotation,
+      color = hm_colorscale, breaks = hm_breaks,
+      legend_breaks = hm_legend_breaks, legend_labels = hm_legend_labels,
+      annotation_colors = line_color, show_rownames = TRUE,
+      show_colnames = FALSE, cluster_rows = hc_pca, cluster_cols = hc,
+      main = sprintf("Angles Between Profile Vectors for %s", line),
+      border_color = NA, cellheight = 7, cellwidth = 2)
+  if(save_images) pheatmap(
+      t(lp), annotation_col = line_annotation, 
+      color = hm_colorscale, breaks = hm_breaks,
+      legend_breaks = hm_legend_breaks, legend_labels = hm_legend_labels,
+      annotation_colors = line_color, show_rownames = TRUE, 
+      show_colnames = FALSE, cluster_rows = hc_pca, cluster_cols = hc, 
+      main = sprintf("Angles Between Profile Vectors for %s", line), 
+      border_color = NA, cellheight = 7, cellwidth = 2, height = 10,
+      filename = file.path(img_out_dir, sprintf("EffectVectorHeatmap_PCA_%s.pdf", line)))
+  
+  # Symmetrical Heatmap (save as regular image and as super large image with rownames)
+  hm_colorscale = colorRampPalette(
+    rev(c("#f7f7f7", "#f7f7f7", "#f7f7f7", 
+          "#E0F3F8", "#91BFDB", "#4575B4")))(150)
+  pheatmap(
+      d, annotation_col = line_annotation,
+      color = hm_colorscale, annotation_colors = line_color, 
+      show_rownames = FALSE, show_colnames = FALSE, 
+      cluster_rows = hc, cluster_cols = hc,
+      main = sprintf("Angles Between Profile Vectors for %s", line),
+      border_color = NA, cellheight = 1.25, cellwidth = 1.25)
+  if(save_images) pheatmap(
+      d, annotation_col = line_annotation,
+      color = hm_colorscale, annotation_colors = line_color, 
+      show_rownames = TRUE, show_colnames = FALSE, 
+      cluster_rows = hc, cluster_cols = hc,
+      main = sprintf("Angles Between Profile Vectors for %s", line),
+      # border_color = NA, cellheight = 1.25, cellwidth = 1.25, height = 10,
+      border_color = NA, cellheight = 8, cellwidth = 8, 
+      filename = file.path(img_out_dir, sprintf("EffectVectorHeatmap_superlarge_%s.pdf", line)))
+  if(save_images) pheatmap(
+      d, annotation_col = line_annotation,
+      color = hm_colorscale, annotation_colors = line_color, 
+      show_rownames = FALSE, show_colnames = FALSE, 
+      cluster_rows = hc, cluster_cols = hc,
+      main = sprintf("Angles Between Profile Vectors for %s", line),
+      border_color = NA, cellheight = 1.25, cellwidth = 1.25, height = 10,
+      filename = file.path(img_out_dir, sprintf("EffectVectorHeatmap_%s.pdf", line)))
+  
+  # Force-directed graph of active drugs
+  # Set up adjacency matrix
+  adjmatrix = d
+  adjmatrix[adjmatrix > 45] = 0
+  
+  # Resort matrix to make sure annotated nodes are above unannotated ones
+  sort_order = order(line_annotation$Target, na.last = FALSE)
+  adjmatrix = adjmatrix[sort_order, sort_order]
+  
+  # Remove drugs without any connections
+  sel_indices = colSums(adjmatrix != 0) != 0
+  adjmatrix = adjmatrix[sel_indices, sel_indices]
+  
+  # Generate network
+  adjmatrix = Matrix::Matrix(data = adjmatrix, sparse = TRUE)
+  net = graph_from_adjacency_matrix(
+    adjmatrix = adjmatrix, mode = "undirected", diag = FALSE, weighted = TRUE)
+  
+  # Assign targets and colors
+  V(net)$target = line_annotation[match(
+    V(net)$name, rownames(line_annotation)), "Target"]
+  V(net)$color = V(net)$target
+  for(target in na.omit(unique(V(net)$target))) {
+    regex = paste0("\\b", target, "\\b")
+    V(net)$color = gsub(regex, line_color$Target[target], V(net)$color)}
+  V(net)$color[is.na(V(net)$color)] = "white"
+  
+  # Assign size
+  V(net)$size = 5
+  V(net)[!is.na(V(net)$target)]$size = 7.5
+  
+  # Create plot
+  e = get.edgelist(net, names = FALSE)
+  l = qgraph.layout.fruchtermanreingold(
+    edgelist = e, vcount = vcount(net), 
+    area=20*(vcount(net)^2), repulse.rad=(vcount(net)^3.1))
+  # l = layout_with_graphopt(graph = net, niter = 1000, mass = 100)
+  plot.igraph(net, vertex.label = NA, layout=l, 
+              edge.width = 0.5, edge.color = "lightgray", 
+              main = line)
+  if(save_images) {
+    pdf(file = file.path(img_out_dir, sprintf("EffectVectorNetwork_%s.pdf", line)), 
+        width = 7, height = 7, useDingbats = FALSE)
+    plot.igraph(net, vertex.label = NA, layout=l, 
+                edge.width = 0.5, edge.color = "lightgray", 
+                main = line)
+    dev.off()}
+
+  # # t-SNE of full profiles
+  # line_profiles_full = profiles[metadata$Line == line, ]
+  # tsne = Rtsne(X = line_profiles_full, perplexity = 50, max_iter = 1000)
+  # tsnedf = data.frame(
+  #   "X" = tsne$Y[,1],
+  #   "Y" = tsne$Y[,2],
+  #   "isActive" = rownames(line_profiles_full) %in% rownames(line_profiles),
+  #   "Viability" = line_annotation[rownames(line_profiles_full), "Viability"],
+  #   "Pathway" = line_annotation[rownames(line_profiles_full), "Pathway"],
+  #   "Target" = line_annotation[rownames(line_profiles_full), "Target"],
+  #   row.names = rownames(line_profiles_full)
+  # )
+  # ggplot() + 
+  #   # Inactive drugs
+  #   geom_point(data = tsnedf[!tsnedf$isActive, ], 
+  #              mapping = aes(x = X, y = Y),
+  #              color = "lightgray") + 
+  #   # Active Drugs
+  #   geom_point(data = tsnedf[tsnedf$isActive, ],
+  #              mapping = aes(x = X, y = Y)) + 
+  #   scale_color_manual(values = line_color$Target) + 
+  #   # Enriched Drugs (Target)
+  #   geom_point(data = tsnedf[!is.na(tsnedf$Target), ], 
+  #              mapping = aes(
+  #                x = X, y = Y, 
+  #                color = tsnedf[!is.na(tsnedf$Target), "Target"])) + 
+  #   theme_vignette() + ggtitle(paste0("t-SNE of all drugs ", line)) + 
+  #   labs(color = "Target")
+  # if(save_images) ggsave(
+  #   filename = file.path(img_out_dir, sprintf(
+  #     "EffectVector_allDrugs_tSNE_%s.pdf", line)), 
+  #   width = 8, height = 8, useDingbats = FALSE)
+  # 
+  # # t-SNE of active drugs
+  # tsne = Rtsne(X = line_profiles, perplexity = 20, max_iter = 1000)
+  # tsnedf = data.frame(
+  #   "X" = tsne$Y[,1],
+  #   "Y" = tsne$Y[,2],
+  #   "Viability" = line_annotation[rownames(line_profiles), "Viability"],
+  #   "Pathway" = line_annotation[rownames(line_profiles), "Pathway"],
+  #   "Target" = line_annotation[rownames(line_profiles), "Target"],
+  #   row.names = rownames(line_profiles)
+  # )
+  # ggplot() +
+  #   geom_point(data = tsnedf, mapping = aes(x = X, y = Y)) + 
+  #   scale_color_manual(values = line_color$Target) + 
+  #   # Enriched Drugs (Target)
+  #   geom_point(data = tsnedf[!is.na(tsnedf$Target), ], 
+  #              mapping = aes(
+  #                x = X, y = Y, 
+  #                color = tsnedf[!is.na(tsnedf$Target), "Target"])) + 
+  #   theme_vignette() + ggtitle(paste0("t-SNE of active drugs ", line)) + 
+  #   labs(color = "Target")
+  # if(save_images) ggsave(
+  #   filename = file.path(img_out_dir, sprintf(
+  #     "EffectVector_activeDrugs_tSNE_%s.pdf", line)), 
+  #   width = 8, height = 8, useDingbats = FALSE)
+}
+```
+
+### Closer Look at D004T01
+D004T01 has a notable non-lethal cluster associated with mTOR
+```{r closer_look_d004t01}
+line = "D004T01"
+line_annotation = line_results[[line]]$Annotation
+line_profiles = profiles_active[annotation$Line == line,]
+line_color = anno_colorScale
+if(sum(!is.na(line_annotation$Pathway)) == 0) line_annotation$Pathway = NULL
+if(sum(!is.na(line_annotation$Target)) == 0) line_annotation$Target = NULL
+for(column in colnames(line_annotation)) {
+  if(column %in% names(line_color)) next
+  entries = na.omit(unique(line_annotation[[column]]))
+  line_color[[column]] = setNames(
+    object = unname(colorScale)[seq_along(entries)], 
+    nm = entries)
+}
+d = line_results[[line]]$Distances
+hc = line_results[[line]]$Clustering
+hc_pca = line_results[[line]]$PCAClustering
+
+labels = cutree(tree = hc, k = 2)
+mtor_label = unique(labels[which(line_annotation$Target == "mtor")])
+if(length(mtor_label) != 1) stop(
+  "Critical Error with mTOR label for D004T01")
+mtor_drugs = names(which(labels == mtor_label))
+
+mtor_annotation = annotation[mtor_drugs, ]
+mtor_annotation$Target = ifelse(
+  test = !is.na(line_annotation[mtor_drugs, "Target"]), 
+  yes = line_annotation[mtor_drugs, "Target"], 
+  no = mtor_annotation[mtor_drugs, "Target"])
+mtor_annotation$Line = NULL
+mtor_annoColor = anno_colorScale
+if(sum(!is.na(mtor_annotation$Pathway)) == 0) mtor_annotation$Pathway = NULL
+if(sum(!is.na(mtor_annotation$Target)) == 0) mtor_annotation$Target = NULL
+for(column in colnames(mtor_annotation)) {
+  if(column %in% names(mtor_annoColor)) next
+  entries = na.omit(unique(mtor_annotation[[column]]))
+  mtor_annoColor[[column]] = setNames(
+    object = unname(colorScale)[seq_along(entries)], 
+    nm = entries)
+  }
+
+d_mtor = d[labels == mtor_label, labels == mtor_label]
+hc_mtor = hclust(as.dist(d_mtor), "ward.D2")
+
+hm_colorscale = colorRampPalette(
+    rev(c("#f7f7f7", "#E0F3F8", "#91BFDB", "#4575B4")))(150)
+
+drugnames = substr(mtor_drugs, 9, 100)
+
+pheatmap(
+  mat = d_mtor, color = hm_colorscale, 
+  annotation_col = mtor_annotation, annotation_colors = mtor_annoColor, 
+  cluster_rows = hc_mtor, cluster_cols = hc_mtor, labels_col = drugnames, 
+  show_rownames = FALSE, cellwidth = 10, cellheight = 10, border_color = NA, 
+  height = 5)
+if(save_images) pheatmap(
+  mat = d_mtor, color = hm_colorscale, 
+  annotation_col = mtor_annotation, annotation_colors = mtor_annoColor, 
+  cluster_rows = hc_mtor, cluster_cols = hc_mtor, labels_col = drugnames, 
+  show_rownames = FALSE, cellwidth = 10, cellheight = 10, border_color = NA, 
+  height = 10, filename = file.path(img_out_dir, sprintf(
+    "EffectVectorHeatmap_Detailed_%s.pdf", line)))
+```
+
+## Enrichment Heatmap
+I look at enrichment heatmaps, i.e. which cell lines have an enrichment in which pathways / targets.
+
+### Log-Odds Heatmap
+I create a heatmap of the enrichment (log odds ratio) to determine which pathways and targets are enriched in each cell line
+```{r logodds_enrichement_heatmap}
+heatmap_pathways = oddsratio_pathway[, c("Line", "Label", "OddsRatio")]
+heatmap_pathways = acast(
+  data = heatmap_pathways, 
+  formula = Line ~ Label, value.var = "OddsRatio", 
+  fun.aggregate = max, fill = 0)
+# Replace Inf with the finite maximum
+heatmap_pathways[is.infinite(heatmap_pathways)] = max(
+  heatmap_pathways[!is.infinite(heatmap_pathways)])
+heatmap_pathways[heatmap_pathways != 0] = log2(
+  heatmap_pathways[heatmap_pathways != 0])
+hc_pathways = as.dist((1 - cor(heatmap_pathways)) / 2)
+hc_pathways_line = as.dist((1 - cor(t(heatmap_pathways))) / 2)
+
+heatmap_targets = oddsratio_target[, c("Line", "Label", "OddsRatio")]
+heatmap_targets = acast(
+  data = heatmap_targets, 
+  formula = Line ~ Label, value.var = "OddsRatio", 
+  fun.aggregate = max, fill = 0)
+# Replace Inf with the finite maximum
+heatmap_targets[is.infinite(heatmap_targets)] = max(
+  heatmap_targets[!is.infinite(heatmap_targets)])
+heatmap_targets[heatmap_targets != 0] = log2(
+  heatmap_targets[heatmap_targets != 0])
+hc_targets = as.dist((1 - cor(heatmap_targets)) / 2)
+hc_targets_line = as.dist((1 - cor(t(heatmap_targets))) / 2)
+
+# hm_colorscale = colorRampPalette(
+#   c('#b2182b','#d6604d','#f4a582', '#f7f7f7','#f7f7f7', '#f7f7f7',
+#     '#f7f7f7', '#f7f7f7', '#f7f7f7'))(150)
+
+hm_breaks = seq(0, max(heatmap_pathways, na.rm = TRUE), length.out = 50)
+hm_colorscale = colorRampPalette(c("#f7f7f7", "#4575B4"))(length(hm_breaks))
+pheatmap(
+  heatmap_pathways, cluster_rows = hc_pathways_line, 
+  cluster_cols = hc_pathways, 
+  breaks = hm_breaks, color = hm_colorscale, 
+  cellwidth = 10, cellheight = 10)
+if(save_images) {
+  pheatmap(
+    heatmap_pathways, cluster_rows = hc_pathways_line, 
+    cluster_cols = hc_pathways,
+    breaks = hm_breaks, color = hm_colorscale, 
+    cellwidth = 10, cellheight = 10, 
+    filename = file.path(img_out_dir, "Heatmap_LogOdds_Pathways.pdf"))
+}
+
+hm_breaks = seq(0, max(heatmap_targets, na.rm = TRUE), length.out = 50)
+hm_colorscale = colorRampPalette(c("#f7f7f7", "#4575B4"))(length(hm_breaks))
+pheatmap(
+  heatmap_targets, cluster_rows = hc_targets_line, 
+  cluster_cols = hc_targets,
+  breaks = hm_breaks, color = hm_colorscale, 
+  cellwidth = 10, cellheight = 10)
+if(save_images) {
+  pheatmap(
+    heatmap_targets, cluster_rows = hc_targets_line, 
+    cluster_cols = hc_targets,
+    breaks = hm_breaks, color = hm_colorscale, 
+    cellwidth = 10, cellheight = 10, 
+    filename = file.path(img_out_dir, "Heatmap_LogOdds_Targets.pdf"))
+}
+```
+
+### Binary Heatmap
+```{r binary_enrichement_heatmap}
+binary_heatmap_pathways = heatmap_pathways
+binary_heatmap_pathways[binary_heatmap_pathways > 0] = 1
+binary_heatmap_targets = heatmap_targets
+binary_heatmap_targets[binary_heatmap_targets > 0] = 1
+
+hm_colorscale = colorRampPalette(c("#f7f7f7", "#4575B4"))(2)
+pheatmap(
+  binary_heatmap_pathways, cluster_rows = hc_pathways_line, 
+  cluster_cols = hc_pathways, 
+  color = hm_colorscale, legend = FALSE,
+  cellwidth = 10, cellheight = 10)
+pheatmap(
+  binary_heatmap_targets, cluster_rows = hc_targets_line, 
+  cluster_cols = hc_targets,
+  color = hm_colorscale, legend = FALSE,
+  cellwidth = 10, cellheight = 10)
+
+if(save_images) {
+  pheatmap(
+    binary_heatmap_pathways, cluster_rows = hc_pathways_line, 
+    cluster_cols = hc_pathways,
+    color = hm_colorscale, legend = FALSE,
+    cellwidth = 10, cellheight = 10, 
+    filename = file.path(img_out_dir, "Heatmap_Binary_Pathways.pdf"))
+  pheatmap(
+    binary_heatmap_targets, cluster_rows = hc_targets_line, 
+    cluster_cols = hc_targets,
+    color = hm_colorscale, legend = FALSE,
+    cellwidth = 10, cellheight = 10,
+    filename = file.path(img_out_dir, "Heatmap_Binary_Targets.pdf"))
+}
+```
+
+## Feature Differences
+I look at the vectors from median DMSO to median drug features for each drug per replicate. I use the well-averaged features to improve loading times. For each line, I aggregate all drugs belonging to the enriched clusters.
+
+```{r calc_phenoprints}
+# Extract only key features
+key_features = c(
+  "x.0.s.area_expected" = "Area", 
+  "x.0.m.eccentricity_expected" = "Eccentricity", 
+  "x.a.b.q05_expected" = "Median Actin Intensity", 
+  "x.b.b.q05_expected" = "Median FITC Intensity", 
+  "x.c.b.q05_expected" = "Median DAPI Intensity") 
+
+# Set up color scale
+pheno_color_scale = c(
+  "Median Actin Intensity" = "#e6194b",
+  "Median FITC Intensity" = "#3cb44b", 
+  "Median DAPI Intensity" = "#0082c8", 
+  "Area" = "#ffe119", 
+  "Eccentricity" = "#f58231")
+
+# Load features
+data("well_features", package = "SCOPEAnalysis")
+well_features = well_features[, names(key_features)]
+
+# Z-Scale features for each line and replicate
+for(line in unique(well_metadata$Line)) {
+  for(r in unique(well_metadata$Replicate)) {
+    rep_sel = well_metadata$Line == line & well_metadata$Replicate == r
+    well_features[rep_sel, ] = apply(
+      X = well_features[rep_sel, ], 
+      MARGIN = 2, FUN = function(x) (x - median(x)) / mad(x))
+  }
+}
+
+# Subtract DMSO medians for each line and replicate
+for(line in unique(well_metadata$Line)) {
+  for(r in unique(well_metadata$Replicate)) {
+    rep_sel = well_metadata$Line == line & well_metadata$Replicate == r
+    rep_line_dmso_median = apply(
+      X = well_features[rep_sel & well_metadata$Drug == "DMSO", ], 
+      MARGIN = 2, FUN = median, na.rm = TRUE)
+    well_features[rep_sel, ] = sweep(
+      x = well_features[rep_sel, ], 
+      MARGIN = 2, STATS = rep_line_dmso_median, FUN = "-")
+  }
+}
+
+# Aggregate features for pathways for each line and replicate
+all_pathway_features = list()
+all_target_features = list()
+for(line in unique(well_metadata$Line)) {
+  line_enriched_drugs = enriched_drugs[enriched_drugs$Line == line, ]
+  line_enriched_pathways = unique(line_enriched_drugs[
+    line_enriched_drugs$is.pathway.enriched, "Pathway"])
+  line_enriched_targets = unique(line_enriched_drugs[
+    line_enriched_drugs$is.target.enriched, "Enriched.Target"])
+  
+  # Pathways
+  for(pathway in line_enriched_pathways) {
+    drugs = line_enriched_drugs[
+      line_enriched_drugs$Pathway == pathway & 
+      line_enriched_drugs$is.pathway.enriched, ]
+    sel_indices = well_metadata$Drug %in% drugs$Drug & well_metadata$Line == line
+    relevant_features = well_features[sel_indices, ]
+    relevant_metadata = well_metadata[sel_indices, ]
+    # Aggregate
+    pathway_features = aggregate(
+      x = relevant_features, 
+      by = list("Replicate" = relevant_metadata$Replicate), 
+      FUN = median)
+    pathway_features$Line = line
+    pathway_features$Label = pathway
+    all_pathway_features[[length(all_pathway_features) + 1]] = pathway_features
+  }
+  
+  # Targets
+  for(target in line_enriched_targets) {
+    drugs = line_enriched_drugs[
+      line_enriched_drugs$Enriched.Target == target & 
+      line_enriched_drugs$is.target.enriched, ]
+    sel_indices = well_metadata$Drug %in% drugs$Drug & well_metadata$Line == line
+    relevant_features = well_features[sel_indices, ]
+    relevant_metadata = well_metadata[sel_indices, ]
+    # Aggregate
+    target_features = aggregate(
+      x = relevant_features, 
+      by = list("Replicate" = relevant_metadata$Replicate), 
+      FUN = median)
+    target_features$Line = line
+    target_features$Label = target
+    all_target_features[[length(all_target_features) + 1]] = target_features
+  }
+}
+all_pathway_features = do.call(rbind, all_pathway_features)
+all_target_features = do.call(rbind, all_target_features)
+```
+
+### Phenoprints for Pathways
+```{r phenoprints_pathways}
+for(line in unique(all_pathway_features$Line)) {
+  labels = unique(all_pathway_features[
+    all_pathway_features$Line == line, "Label"])
+  for(label in labels) {
+    ggplot_df = all_pathway_features[all_pathway_features$Line == line & 
+                                     all_pathway_features$Label == label, ]
+    ggplot_df$Line = NULL
+    ggplot_df$Label = NULL
+    ggplot_df = melt(ggplot_df, id.vars = c("Replicate"))
+    ggplot_df$variable = key_features[ggplot_df$variable]
+    ggplot_df$variable = factor(ggplot_df$variable, levels = key_features)
+    ggplot_df_bar = aggregate(
+      x = ggplot_df$value, 
+      by = list("variable" = ggplot_df$variable), 
+      FUN = median)
+    colnames(ggplot_df_bar) = c("variable", "value")
+    gp = ggplot(mapping = aes(x = variable, y = value)) + 
+      geom_col(data = ggplot_df_bar, mapping = aes(fill = variable)) + 
+      geom_point(data = ggplot_df) + 
+      scale_fill_manual(values = pheno_color_scale) + 
+      theme_vignette() + coord_fixed() + 
+      theme(
+        axis.text.x = element_blank(), axis.line.x = element_blank(), 
+        axis.ticks.x = element_blank(), legend.title = element_blank()) + 
+      xlab("") + ylab("") + ggtitle(paste0(line, " ", label))
+    plot(gp)
+    if(save_images) ggsave(
+      filename = file.path(img_out_dir, sprintf(
+        "Phenoprints_Pathways_%s_%s.pdf", line, make.names(label))), 
+      width = 5, height = 5, useDingbats = FALSE)
+  }
+}
+```
+
+### Phenoprints for Targets
+```{r phenoprints_targets}
+for(line in unique(all_target_features$Line)) {
+  labels = unique(all_target_features[
+    all_target_features$Line == line, "Label"])
+  for(label in labels) {
+    ggplot_df = all_target_features[all_target_features$Line == line & 
+                                     all_target_features$Label == label, ]
+    ggplot_df$Line = NULL
+    ggplot_df$Label = NULL
+    ggplot_df = melt(ggplot_df, id.vars = c("Replicate"))
+    ggplot_df$variable = key_features[ggplot_df$variable]
+    ggplot_df$variable = factor(ggplot_df$variable, levels = key_features)
+    ggplot_df_bar = aggregate(
+      x = ggplot_df$value, 
+      by = list("variable" = ggplot_df$variable), 
+      FUN = median)
+    colnames(ggplot_df_bar) = c("variable", "value")
+    gp = ggplot(mapping = aes(x = variable, y = value)) + 
+      geom_col(data = ggplot_df_bar, mapping = aes(fill = variable)) + 
+      geom_point(data = ggplot_df) + 
+      scale_fill_manual(values = pheno_color_scale) + 
+      theme_vignette() + coord_fixed() + 
+      theme(
+        axis.text.x = element_blank(), axis.line.x = element_blank(), 
+        axis.ticks.x = element_blank(), legend.title = element_blank()) + 
+      xlab("") + ylab("") + ggtitle(paste0(line, " ", label))
+    plot(gp)
+    if(save_images) ggsave(
+      filename = file.path(img_out_dir, sprintf(
+        "Phenoprints_Targets_%s_%s.pdf", line, make.names(label))), 
+      width = 5, height = 5, useDingbats = FALSE)
+  }
+}
+```
+
+## Drug Effect Differences across all Lines
+
+### Comparing Drug Effects Directly
+Treating effect vectors of all drugs and all lines equally shows that drug effects on different lines are difficult to compare to each other. Line heterogeneity appears to overpower the effects of drugs. Even the drugs classified as lethal do not cluster together. Notable is that the lines D046T01 and D055T01, which look extremely similar on visual inspection, DO overlap. 
+```{r clustering_panline_noconcat}
+angles = get_angles(profiles_active)
+d = acos(angles)*180/pi
+hc = hclust(as.dist(d), method = "ward.D2")
+
+cor_pca = cor(profiles_active)
+d_pca = as.dist((1 - cor_pca) / 2)
+hc_pca = hclust(d_pca, method = "ward.D2")
+
+killing_anno = rep(NA, nrow(metadata_active))
+killing_anno[metadata_active$Viability <= 0.2] = "0.2"
+killing_anno[
+  metadata_active$Viability > 0.2 & 
+  metadata_active$Viability <= 0.4] = "0.4"
+killing_anno[
+  metadata_active$Viability > 0.4 & 
+  metadata_active$Viability <= 0.6] = "0.6"
+killing_anno[
+  metadata_active$Viability > 0.6 & 
+  metadata_active$Viability <= 0.8] = "0.8"
+killing_anno[
+  metadata_active$Viability > 0.8 & 
+  metadata_active$Viability <= 1] = "1"
+
+annotation = data.frame(
+  "Viability" = killing_anno,
+  "Pathway" = get_mode_of_action(metadata_active$Drug),
+  "Target" = get_targets(metadata_active$Drug),
+  "Line" = metadata_active$Line,
+  row.names = rownames(profiles_active),
+  stringsAsFactors = FALSE)
+
+# Annotate Pathway and Targets
+pathways = list()
+for(pathway in unique(annotation$Pathway)) {
+  pathways[[pathway]] = grep(
+    pattern = paste0("\\b", pathway, "\\b"), 
+    x = annotation$Pathway, 
+    ignore.case = TRUE)
+}
+# My cluster_enrichment function doesn't play well with NA values yet
+pathways = pathways[!is.na(names(pathways))]
+pathways_sig_vec = get_cluster_enrichment(
+  clustering = hc, labels = pathways, min_cluster_size = min_cluster_size)
+# 'Others' is too vague
+pathways_sig_vec$Labels[pathways_sig_vec$Labels == "Others"] = NA
+
+targets_split = tolower(annotation$Target)
+targets = list()
+for(target in unique(unlist(strsplit(targets_split, ", ")))) {
+  targets[[target]] = grep(
+    pattern = paste0("\\b", target, "\\b"), 
+    x = targets_split, ignore.case = TRUE)
+}
+# My cluster_enrichment function doesn't play well with NA values yet
+targets = targets[!is.na(names(targets))]
+targets_sig_vec = get_cluster_enrichment(
+  clustering = hc, labels = targets, min_cluster_size = min_cluster_size)
+
+annotation$Pathway = pathways_sig_vec$Labels
+annotation$Target = targets_sig_vec$Labels
+
+# Set up colors
+anno_colorScale = list(
+  "Viability" = setNames(
+    object = colorRampPalette(c("black", "white"))(
+      length(unique(annotation$Viability))), 
+    nm = sort(unique(annotation$Viability))))
+if(sum(!is.na(annotation$Pathway)) == 0) annotation$Pathway = NULL
+if(sum(!is.na(annotation$Target)) == 0) annotation$Target = NULL
+for(column in colnames(annotation)) {
+  if(column %in% names(anno_colorScale)) next
+  entries = na.omit(unique(annotation[[column]]))
+  anno_colorScale[[column]] = setNames(
+    object = unname(colorScale)[seq_along(entries)], 
+    nm = entries)
+}
+
+# Set up heatmap color scale
+sqrt_profiles = profiles_active
+sqrt_profiles[sqrt_profiles > 0] = sqrt(sqrt_profiles[sqrt_profiles > 0])
+sqrt_profiles[sqrt_profiles < 0] = -sqrt(-sqrt_profiles[sqrt_profiles < 0])
+hm_range_limit = max(abs(sqrt_profiles))
+hm_breaks = seq(-hm_range_limit, hm_range_limit, length.out = 100)
+hm_legend_breaks = c(-floor(hm_range_limit), 0, floor(hm_range_limit))
+hm_legend_labels = hm_legend_breaks**2
+hm_legend_labels[hm_legend_breaks < 0] = -hm_legend_labels[hm_legend_breaks < 0]
+hm_colorscale = colorRampPalette(
+  c("#0082c8", "white", "#e6194b"))(length(hm_breaks))
+
+pheatmap(
+  mat = t(profiles_active), cluster_rows = hc_pca, cluster_cols = hc, 
+  show_colnames = FALSE, annotation_col = annotation, breaks = hm_breaks,
+  legend_breaks = hm_legend_breaks, legend_labels = hm_legend_labels, 
+  color = hm_colorscale, annotation_colors = anno_colorScale, 
+  cellwidth = 0.1, cellheight = 7)
+if(save_images) pheatmap(
+  mat = t(profiles_active), cluster_rows = hc_pca, cluster_cols = hc, 
+  show_colnames = FALSE, annotation_col = annotation, breaks = hm_breaks,
+  legend_breaks = hm_legend_breaks, legend_labels = hm_legend_labels, 
+  color = hm_colorscale, annotation_colors = anno_colorScale, 
+  cellwidth = 0.2, cellheight = 7, width = 10, height = 10, 
+  filename = file.path(
+    img_out_dir, "EffectVectorHeatmap_allDrugs_noConcat_PCA.pdf"))
+
+ hm_colorscale = colorRampPalette(
+    rev(c("#f7f7f7", "#f7f7f7", "#f7f7f7", 
+          "#E0F3F8", "#91BFDB", "#4575B4")))(150)
+
+pheatmap(
+  mat = d, cluster_rows = hc, cluster_cols = hc, color = hm_colorscale,
+  show_colnames = FALSE, show_rownames = FALSE, 
+  annotation_col = annotation, annotation_colors = anno_colorScale, 
+  cellwidth = 0.1, cellheight = 0.1)
+if(save_images) pheatmap(
+  mat = d, cluster_rows = hc, cluster_cols = hc, color = hm_colorscale,
+  show_colnames = FALSE, show_rownames = FALSE, 
+  annotation_col = annotation, annotation_colors = anno_colorScale, 
+  cellwidth = 0.1, cellheight = 0.1, height = 10, 
+  filename = file.path(
+    img_out_dir, "EffectVectorHeatmap_allDrugs_noConcat.pdf"))
+```
+
+There is one notably enriched cluster of mTOR inhibitors, in particular the drug "AZD2014" is enriched in 11 cell lines, as well several times in the pan-cell line clustering.
+```{r azd2014_panline_noconcat}
+sel_indices = metadata_active$Drug == "AZD2014"
+drug_profiles = profiles_active[sel_indices, ]
+drug_annotation = annotation[sel_indices, ]
+
+angles_drug = get_angles(drug_profiles)
+d_drug = acos(angles_drug) * 180 / pi
+hc_drug = hclust(as.dist(d_drug), method = "ward.D2")
+
+hm_colorscale = colorRampPalette(
+  rev(c("#f7f7f7", "#E0F3F8", "#91BFDB", "#4575B4")))(150)
+
+pheatmap(
+  mat = d_drug, cluster_rows = hc_drug, cluster_cols = hc_drug, 
+  color = hm_colorscale, labels_row = drug_annotation$Line, 
+  show_colnames = FALSE)
+```
+
+### Concatenating Vectors
+Instead of treating each drug per line separately, I concatenate the effect vectors on all lines for each drug. The resulting composite vector describes the drug's effect on all cell lines without attempting to compare cell lines.
+```{r panline_concat_vectors}
+profiles_concat = list()
+for(drug in sort(unique(metadata_active$Drug))) {
+# for(drug in sort(unique(metadata$Drug))) {
+  profiles_concat_drug = c()
+  for(line in sort(unique(metadata_active$Line))) {
+  # for(line in sort(unique(metadata$Line))) {
+    tmp = profiles[
+      metadata$Drug == drug & 
+      metadata$Line == line, , drop = FALSE]
+    if(is.null(nrow(tmp))) stop("Critical Error: the code expects a matrix")
+    if(nrow(tmp) == 0) {
+      tmp = matrix(
+        data = NA, nrow = 1, ncol = n_components, 
+        dimnames = list(drug, paste0(line, ".", colnames(tmp))))
+    } else if(nrow(tmp) > 1) {
+      tmp = matrix(
+        colMeans(tmp), nrow=1, 
+        dimnames = list(drug, paste0(line, ".", colnames(tmp))))
+    } else {
+      rownames(tmp) = drug
+      colnames(tmp) = paste0(line, ".", colnames(tmp))
+    }
+    profiles_concat_drug = cbind(profiles_concat_drug, as.matrix(tmp))
+  }
+  profiles_concat[[drug]] = data.frame(
+    profiles_concat_drug)
+}
+profiles_concat = do.call(rbind, profiles_concat)
+
+# Impute missing values with the means for the corresponding PC of all other 
+# lines for that drug
+missing_drugs = which(is.na(profiles_concat), arr.ind = T)
+for(ii in seq_len(nrow(missing_drugs))) {
+  entry = missing_drugs[ii, ]
+  pc = strsplit(colnames(profiles_concat)[entry[2]], ".", fixed = TRUE)[[1]][2]
+  other_pc_cols = sapply(
+    strsplit(colnames(profiles_concat), ".", fixed = TRUE), 
+    "[[", 2) == pc
+  mean_val = mean(as.numeric(
+    profiles_concat[entry[1], other_pc_cols]), na.rm = TRUE)
+  profiles_concat[entry[1], entry[2]] = mean_val
+}
+
+# If a drug has no effect in a line, I set its respective PC values to 0
+# for(drug in rownames(profiles_concat)) {
+#   for(line in sort(unique(metadata_active$Line))) {
+#     drug_is_active = metadata$AUC_Mean[
+#       metadata$Line == line & 
+#       metadata$Drug == drug] >= auc_thresh
+#     if(length(drug_is_active) == 0) next
+#     if(!drug_is_active) profiles_concat[
+#       drug, substr(colnames(profiles_concat), 1, 7) == line] = 0
+#   }
+# }
+
+# Cluster
+angles = get_angles(profiles_concat)
+d = acos(angles) * 180 / pi
+hc = hclust(as.dist(d), method = "ward.D2")
+
+annotation = data.frame(
+  "Pathway" = get_mode_of_action(rownames(profiles_concat)),
+  "Target" = get_targets(rownames(profiles_concat)),
+  row.names = rownames(profiles_concat),
+  stringsAsFactors = FALSE)
+
+# Annotate Pathway and Targets
+pathways = list()
+for(pathway in unique(annotation$Pathway)) {
+  pathways[[pathway]] = grep(
+    pattern = paste0("\\b", pathway, "\\b"), 
+    x = annotation$Pathway, 
+    ignore.case = TRUE)
+}
+pathways_sig_vec = get_cluster_enrichment(
+  clustering = hc, labels = pathways, min_cluster_size = min_cluster_size)
+# 'Others' is too vague
+pathways_sig_vec$Labels[pathways_sig_vec$Labels == "Others"] = NA
+
+targets_split = tolower(annotation$Target)
+targets = list()
+for(target in unique(unlist(strsplit(targets_split, ", ")))) {
+  targets[[target]] = grep(
+    pattern = paste0("\\b", target, "\\b"), 
+    x = targets_split, ignore.case = TRUE)
+}
+targets_sig_vec = get_cluster_enrichment(
+  clustering = hc, labels = targets, min_cluster_size = min_cluster_size)
+
+annotation$Pathway = pathways_sig_vec$Labels
+annotation$Target = targets_sig_vec$Labels
+
+if(sum(!is.na(annotation$Pathway)) == 0) annotation$Pathway = NULL
+if(sum(!is.na(annotation$Target)) == 0) annotation$Target = NULL
+
+# Add a summary statistic for lethality
+lethality_degree = aggregate(
+  x = metadata$Viability <= 0.25, 
+  by = list("Drug" = metadata$Drug), 
+  FUN = sum)
+rownames(lethality_degree) = lethality_degree$Drug
+lethality_degree$Drug = NULL
+# Hack to normalize number of lethal lines for positive controls
+lethality_degree$x[lethality_degree$x > length(unique(metadata$Line))] = length(unique(metadata$Line))
+annotation$Lethality = lethality_degree[rownames(annotation), "x"]
+
+# Set up colors
+anno_colorScale = list()
+for(column in colnames(annotation)) {
+  if(column %in% names(anno_colorScale)) next
+  entries = sort(na.omit(unique(annotation[[column]])))
+  anno_colorScale[[column]] = setNames(
+    object = unname(colorScale)[seq_along(entries)], 
+    nm = entries)
+}
+anno_colorScale$Lethality = colorRampPalette(
+  c("white", "black"))(length(anno_colorScale$Lethality))
+
+# hm_colorscale = colorRampPalette(
+#   rev(c("#f7f7f7", "#f7f7f7", "#f7f7f7", "#f7f7f7",
+#         "#E0F3F8", "#91BFDB", "#4575B4")))(150)
+
+hm_colorscale = colorRampPalette(
+  rev(c("#f7f7f7", "#E0F3F8", "#91BFDB", "#4575B4")))(150)
+
+anno_colorScale$Target = setNames(
+  object = c("#e6194b", "#3cb44b", "#ffe119", "#0082c8", "#f58231", 
+             "#911eb4", "#46f0f0", "#f032e6", "#d2f53c", "#fabebe", 
+             "#008080", "#e6beff", "#aa6e28", "#fffac8", "#800000", 
+             "#aaffc3", "#808000", "#ffd8b1", "#000080", "#808080", 
+             "#d0d0d0", "#000000"), 
+  nm = names(anno_colorScale$Target))
+
+pheatmap(
+    mat = d, annotation_col = annotation, 
+    color = hm_colorscale, annotation_colors = anno_colorScale, 
+    show_rownames = FALSE, show_colnames = FALSE, 
+    cluster_rows = hc, cluster_cols = hc, 
+    main = "Angles Between Profile Vectors for All Lines", 
+    border_color = NA)
+
+if(save_images) pheatmap(
+    d, annotation_col = annotation, 
+    color = hm_colorscale, annotation_colors = anno_colorScale, 
+    show_rownames = FALSE, show_colnames = FALSE, 
+    cluster_rows = hc, cluster_cols = hc, 
+    main = sprintf("Angles Between Profile Vectors for all lines"), 
+    border_color = NA, cellwidth = 1.5, cellheight = 1.5, height = 15, 
+    filename = file.path(img_out_dir, "EffectVectorHeatmap_allDrugs.pdf"))
+```
+
+Shown are the individual drug viabilities for each line according to the clustering for the drug effects to further showcase the compatibility between the methods
+```{r viabilities_with_svm_clustering}
+active_drugs = rownames(d)
+active_viabilities = metadata[metadata$Drug %in% active_drugs, ]
+
+# Aggregate drugs over wells
+active_viabilities = aggregate(
+  x = active_viabilities$Viability, 
+  by = list("Drug" = active_viabilities$Drug, 
+            "Line" = active_viabilities$Line), 
+  FUN = median, na.rm = TRUE)
+
+active_viabilities = acast(
+  data = active_viabilities, 
+  formula = Line ~ Drug, value.var = "x")
+
+# Remove viability from annotation
+anno_noLethality = annotation
+anno_noLethality$Lethality = NULL
+anno_colorScale$Lethality = NULL
+
+pheatmap(
+    mat = active_viabilities, annotation_col = anno_noLethality, 
+    color = hm_colorscale, annotation_colors = anno_colorScale, 
+    show_rownames = TRUE, show_colnames = FALSE, 
+    cluster_rows = TRUE, cluster_cols = hc, 
+    main = "Induced Viabilities of Drugs", 
+    border_color = NA)
+
+if(save_images) pheatmap(
+    mat = active_viabilities, annotation_col = anno_noLethality, 
+    color = hm_colorscale, annotation_colors = anno_colorScale, 
+    show_rownames = TRUE, show_colnames = FALSE, 
+    cluster_rows = TRUE, cluster_cols = hc, 
+    main = "Induced Viabilities of Drugs", 
+    border_color = NA, cellwidth = 1.5, cellheight = 10, height = 15, 
+    filename = file.path(img_out_dir, "EffectVectorHeatmap_Viabilities_allDrugs.pdf"))
+```
+
+Generate a list of column/row names with annotations
+```{r get_annotation_table_kistem_panline}
+annotation_table = annotation[hc$labels[hc$order], ]
+colnames(annotation_table) = c(
+  "EnrichedPathway", "EnrichedTarget", "Lethality")
+annotation_table$Pathway = get_mode_of_action(rownames(annotation_table))
+annotation_table$Targets = tolower(get_targets(rownames(annotation_table)))
+annotation_table = annotation_table[, c(
+  "Pathway", "Targets", "EnrichedPathway", "EnrichedTarget", "Lethality")]
+print(annotation_table)
+```
+
+Generate a force-directed graph from these similarities
+```{r graph_of_panline_drug_similarities}
+# Set up adjacency matrix
+adjmatrix = d
+adjmatrix[adjmatrix > 45] = 0
+
+# Resort matrix to make sure annotated nodes are above unannotated ones
+sort_order = order(annotation$Target, na.last = FALSE)
+adjmatrix = adjmatrix[sort_order, sort_order]
+
+# Remove drugs without any connections
+sel_indices = colSums(adjmatrix != 0) != 0
+adjmatrix = adjmatrix[sel_indices, sel_indices]
+
+# Convert to cosine distance: D = 1 - cos(angle)
+# adjmatrix = 1 - cos(adjmatrix * pi / 180)
+
+# Generate network
+adjmatrix = Matrix::Matrix(data = adjmatrix, sparse = TRUE)
+net = graph_from_adjacency_matrix(
+  adjmatrix = adjmatrix, mode = "undirected", diag = FALSE, weighted = TRUE)
+
+# Assign targets and colors
+V(net)$target = annotation[match(V(net)$name, rownames(annotation)), "Target"]
+V(net)$color = V(net)$target
+for(target in na.omit(unique(V(net)$target))) {
+  regex = paste0("\\b", target, "\\b")
+  V(net)$color = gsub(regex, anno_colorScale$Target[target], V(net)$color)}
+V(net)$color[is.na(V(net)$color)] = "white"
+
+# Assign size
+V(net)$size = 5
+V(net)[!is.na(V(net)$target)]$size = 7.5
+
+# Create plot
+e = get.edgelist(net, names = FALSE)
+l = qgraph.layout.fruchtermanreingold(
+  edgelist = e, vcount = vcount(net), 
+  area=20*(vcount(net)^2), repulse.rad=(vcount(net)^3.1))
+# l = layout_with_graphopt(graph = net, niter = 1000, mass = 100)
+plot.igraph(net, vertex.label = NA, layout=l, 
+            edge.width = 0.5, edge.color = "lightgray")
+if(save_images) {
+  pdf(file = file.path(img_out_dir, "EffectVectorNetwork_allLines.pdf"), 
+      width = 7, height = 7, useDingbats = FALSE)
+  plot.igraph(net, vertex.label = NA, layout=l, 
+            edge.width = 0.5, edge.color = "lightgray")
+  dev.off()}
+```
+
+
+# Clinical Cancer Panel
+```{r select_ccp}
+sel_indices = !is.na(drug_effect_metadata$Concentration)
+profiles = drug_effect_profiles[sel_indices, ]
+metadata = drug_effect_metadata[sel_indices, ]
+# Sort for convenience
+order_indices = order(rownames(profiles))
+profiles = profiles[order_indices, ]
+metadata = metadata[order_indices, ]
+```
+
+## Drugs Active at All Concentrations
+```{r ccp_conc_heatmaps}
+sig_concentrations = aggregate(
+  x = metadata$AUC_Mean >= auc_thresh, 
+  by = list("Drug" = metadata$Drug, 
+            "Line" = metadata$Line), 
+  FUN = sum)
+
+sig_conc_table = as.data.frame(table(sig_concentrations$x))
+sig_conc_table$TextLoc = sig_conc_table$Freq - 50
+ggplot(data = sig_conc_table) + 
+  geom_col(mapping = aes(x = Var1, y = Freq)) + theme_vignette() + 
+  geom_text(mapping = aes(x = Var1, y = TextLoc, label = Freq), 
+            color = "white", fontface = "bold", size = 3) + 
+  xlab("Active Concentrations") + ylab("Number of Drugs") + coord_flip() + 
+  theme(axis.line = element_blank(), axis.text.x = element_blank(), 
+        axis.ticks = element_blank())
+if(save_images) ggsave(
+  filename = file.path(img_out_dir, "Barplot_NumActiveConcentrations.pdf"),
+  width = 2.5, height = 3)
+  
+
+# The number of concentrations at which drugs should be active
+conc_thresh = 5
+sig_concentrations = sig_concentrations[
+  sig_concentrations$x >= conc_thresh, ]
+
+# Create heatmap for each entry
+for(ii in seq_len(nrow(sig_concentrations))) {
+  drug = sig_concentrations[ii, "Drug"]
+  line = sig_concentrations[ii, "Line"]
+  sel_indices = metadata$Line == line & metadata$Drug == drug
+  entry = profiles[sel_indices, ]
+  entry_md = metadata[sel_indices, ]
+  
+  angles = get_angles(entry)
+  d = acos(angles)*180/pi
+  hc = hclust(as.dist(d), method = "ward.D2")
+  
+  hm_colorscale = colorRampPalette(
+    rev(c("#f7f7f7", "#E0F3F8", "#91BFDB", "#4575B4")))(150)
+  
+  pheatmap(
+    d, cluster_rows = hc, cluster_cols = hc, color = hm_colorscale, 
+    display_numbers = round(d), cellwidth = 20, cellheight = 20, 
+    labels_row = entry_md$Concentration, show_colnames = FALSE, 
+    main = paste0(line, " - ", drug))
+}
+```
+
