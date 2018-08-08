@@ -120,7 +120,9 @@ Heigwer et al., 2018
 
 Heigwer et al., 2018, Time-resolved mapping of genetic interactions to model signaling pathway vulnerabilities
 
-Manuscript in submission.
+Manuscript under review.
+
+Available at bioRxiv https://www.biorxiv.org/content/early/2018/08/04/384800[Heigwer _et al._, 2018, preprint]
 
 [[zhan-faehling-rauscher-et-al.-2018]]
 Zhan, Faehling, Rauscher et al., 2018
