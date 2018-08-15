@@ -8,7 +8,7 @@ Cancer genomes often harbor hundreds of molecular aberrations. Such genetic vari
 
 ## Supporting analysis code for the manuscript
 
-This directory contains an R package that can reproduce the figures in the manuscript. The package can be downloaded from the GitHub repository by clicking on the package file ('CGIMhd17.tar.gz') and then clicking the 'Download' button on the right. The package can then be installed from the command line by typing 
+This directory contains an R markdown file that can reproduce the figures in the manuscript. A corresponding R package including all source data required to run the code can be downloaded from [Figshare](https://figshare.com/s/33f68e70fbf6e6ac600f). The package can then be installed from the command line by typing 
 
 ```{sh}
 R CMD INSTALL CGIMhd17_0_1_0.tar.gz
