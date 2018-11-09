@@ -49,7 +49,7 @@ library(RColorBrewer)
 library(ggjoy)
 ```
 
-# Supplemenetary Figure S1,S15: A genome wide chemo-genetic screen.
+# Analysis of the genome wide chemo-genetic screen.
 
 Data used in this analysis were per-well feature data extracted using the pipeline in "Feature_extraction_genome_wide_screens.Rmd" and the genome-wide HD3 dsRNA library annotation.
 
@@ -599,7 +599,7 @@ for(i in names(gene_feature)[5:length(gene_feature)]){
 
 ```
 
-#Supplementary Figure S15 A: Plot correlations of screens
+#Figure 2-supplemental figure 8A: Plot correlations of screens
 
 Screening sets 16 & S17 are DMSO treated genome wide screens.
 Screening sets 18 & S19 are MEKi treated genome wide screens.
@@ -630,7 +630,7 @@ b<-gene_feature %>%
 a+b
 ```
 
-#Supplementary Figure S15 B: Plot correlations of Ras pathway genes
+#Figure 2-supplemental figure 8B: Plot correlations of Ras pathway genes
 
 ```{r, warning=F, message=F}
 tocor<-gene_feature %>% 
@@ -703,7 +703,7 @@ c <- tocor %>%
 a + b + c
 ```
 
-#Supplementary Figure S15 C&D: Plot heatmap of Ras pathway
+#Figure 2-supplemental figure 8C&D: Plot heatmap of Ras pathway
 
 ```{r, warning=F, message=F}
 toplot<-gene_feature %>% 
@@ -731,7 +731,7 @@ feature_heatmap<-pheatmap::pheatmap(t(toplot[,-1])[ordering$tree_row$order,],#
                                           ))(100),border_color = NA)
 ```
 
-# Supplementary Figure S13B: Correlation of biological and chemical perturbation of Ras signaling
+#Figure 2-supplemental figure 6B: Correlation of biological and chemical perturbation of Ras signaling
 
 ```{r, warning=F, message=F}
 gene_feature %<>% tbl_df() %>% filter(screen %in% c("S16","S17","S18","S19"))
@@ -772,7 +772,7 @@ d<-left_join(a,b) %>%
 c+d
 ```
 
-# Supplementary Figure S13D-G: Compound characterization on Dmel2 cells
+#Figure 2-supplemental figure 6D-G: Compound characterization on Dmel2 cells
 
 ```{r, warning=F, message=F}
 
@@ -965,7 +965,7 @@ par(mfrow=c(3,1))
 
 ```
 
-# Supplementary Figure S14: Control separation capacity of our morphological assay
+#Figure 2-supplemental figure 7: Control separation capacity of our morphological assay
 
 ```{r, warning=F, message=F,eval=T}
 
@@ -1074,7 +1074,7 @@ abline(h=mean(cur_z[,4],na.rm = T))
 rm(list = ls())
 ```
 
-# Next we analyzed our time resolved genetic interaction screen
+# Analysis of time-resolved genetic interactions
 
 First we collect data, normalize by per-plate negative controls, glog transform each feature's data, scale the data, annotate the wells and reformat to an array with dimensions according to experimental conditions.
 
@@ -1473,7 +1473,7 @@ rm(sig_df,
 
 Filter non-correlating features
 
-#Supplemetal Figure S2A: Featurewise biological reproducibility analysis
+#Figure 2-supplemental figure 2A: Featurewise biological reproducibility analysis
 
 ```{r, warning=F, message=F}
 correlations=my.data.array.norm.reshaped_df %>% 
@@ -1509,7 +1509,7 @@ allfeature<-
 
 
 
-#Supplemetal Figure S2B: Pairwise feature correlation analysis and redundancy filter
+#Figure 2-supplemental figure 2B: Pairwise feature correlation analysis and redundancy filter
 
 ```{r, warning=F, message=F}
 require(RColorBrewer)
@@ -1571,7 +1571,7 @@ goodfeature=c("cell_number","tubulin.b.mad.tmean",goodfeature) %>% unique()
 
 ```
 
-#Supplemetal Figure S2C: Scatterplot of uncorrelating features after redundancy checks
+#Figure 2-supplemental figure 2C: Scatterplot of uncorrelating features after redundancy checks
 
 ```{r, warning=F, message=F}
 #show that they are independent
@@ -1590,7 +1590,7 @@ my.data.array.norm.reshaped_df %>%
   theme_classic()
 ```
 
-#Supplemetal Figure S2D: Check if features enrich for non-redundant information content of correlated residuals
+#Figure 2-supplemental figure 2D: Check if features enrich for non-redundant information content of correlated residuals
 
 ```{r, warning=F, message=F}
 data=my.data.array.norm.reshaped_df %>% 
@@ -1642,7 +1642,7 @@ barplot(stabilitySelection$correlation[
         ylim=c(-1,1), las=2, ylab="information gain")
 ```
 
-# Figure 2B Figure S3A,B: Biological replicate correlation
+# Figure 2B Figure 2-supplemental figure 3A,B: Biological replicate correlation
 
 ```{r, warning=F, message=F}
 my.data.array.norm.reshaped_df %>% 
@@ -1660,7 +1660,7 @@ my.data.array.norm.reshaped_df %>%
     theme_classic()
 ```
 
-# Figure S3D: dsRNA design replicate correlation
+# Figure 2-supplemental figure 3D: dsRNA design replicate correlation
 
 ```{r, warning=F, message=F}
 data=my.data.array.norm.reshaped_df %>% 
@@ -1688,7 +1688,7 @@ abline(h=mean(c_avg_q_all_f$correlation2),col="black",lty=2)
 title(main=mean(c_avg_q_all_f$correlation2))
 ```
 
-# Figure S3D: Biological control separation
+# Figure 2-supplemental figure 3D: Biological control separation
 
 ```{r, warning=F, message=F,eval=T}
 
@@ -1848,7 +1848,7 @@ rm(test_sub)
 rm(test1)
 ```
 
-# Supplentary Figure 4A-C: Feature comparison to Fischer et al. 2015
+# Figure 2-supplemental figure 4A-C: Feature comparison to Fischer et al. 2015
 
 ```{r, warning=F, message=F}
 #load pi score matrix from Fischer et al., Elife 2015
@@ -1989,7 +1989,7 @@ a+b+c+d+e
             
 ```
 
-# Supplementary Figure 5D-G: Feature comparison to Horn et al. 2011
+#Figure 2-supplemental figure 5D-G: Feature comparison to Horn et al. 2011
 
 ```{r, warning=F, message=F}
 #load the pi-score data produced by Horn et al. 2011
@@ -2135,7 +2135,7 @@ plot(fit1,counts = T)
 rm(heigweretal)
 ```
 
-# Supplementary Figure S5: Quality control metrics of gene-gene combinatorial screening
+#Figure 2-supplemental figure 5: Quality control metrics of gene-gene combinatorial screening
 
 ```{r, warning=F, message=F}
 rm(Interactions)
@@ -2649,7 +2649,7 @@ d<-sample_data %>%
 a+b+c+d
 ```
 
-# Figure 4E: Proof that the linear model does predict equal amounts of interactions for every feature independently
+# Figure 4E: Test that the linear model does predict equal amounts of interactions for every feature independently
 
 ```{r}
  p1 <- analyzed %>% 
@@ -2716,7 +2716,7 @@ p1 + p2 + p3 + p4 + plot_layout(ncol = 2,nrow = 2)
 
 ```
 
-# Figure S7: Test if all model residuals can be explained by measurement variance
+#Figure 3-supplemental figure 1: Test if all model residuals can be explained by measurement variance
 
 This analysis tests if the residuals of the linear model fit can be explained by the variance in the data. If the variance scales smaller than the residuals it is indicative that the model does not explain the data well. If variance and residuals scale equally we can conclude that the model fits the data well. And if the model fails it is because the data has to high variance rather than the wrong model was chosen.
 
@@ -3427,7 +3427,7 @@ write_delim(df,"correlations_of_differential_interactions_v5.tab",delim = "\t")
 ```
 
 
-# Supplementary Figure S8: A differential correlation anaylsis according to Billmann et al.
+#Figure 7-supplemental figure 1: A differential correlation anaylsis according to Billmann et al.
 
 ```{r}
 x=data_df %>%
@@ -3502,8 +3502,87 @@ a+b
 
 ```
 
+#Figure 8-supplemental figure 1: Rel-pnt differential interactions
 
-# Supplementary Figure S10: dsRNA correlations
+```{r}
+plot_effects<-function(target=22,query=68,timepoint="96h",treatment="DMSO",
+                       feature="cell_number",ymin,ymax,main="plot"){
+  if(is.numeric(target)){
+    targetoi=dimnames(Interactions$piscore)[[1]][target]
+  }else{
+    targetoi=target
+  }
+  if(is.numeric(query)){
+    queryoi=dimnames(Interactions$piscore)[[2]][query]
+  }else{
+    queryoi=query
+  }
+  
+  targetmain=mainEffects$target[grep(
+    targetoi,dimnames(mainEffects$target)[[1]]),feature,,timepoint,treatment]
+  querymain=mainEffects$query[grep(
+    queryoi,dimnames(mainEffects$query)[[1]]),feature,,timepoint,treatment]
+  pi=interaction_scores[grep(targetoi,
+                             dimnames(interaction_scores)[[1]]),
+                        grep(queryoi,
+                             dimnames(interaction_scores)[[2]]),
+                        feature,timepoint,treatment,]
+  
+  combieffect=my.data.array.norm.reshaped[
+    grep(targetoi,
+         dimnames(my.data.array.norm.reshaped)[[1]]),
+    grep(queryoi,
+         dimnames(my.data.array.norm.reshaped)[[2]])
+    ,feature,timepoint,treatment,]
+  targetdt=cbind.data.frame(targetoi,c(targetmain))
+  querydt=cbind.data.frame(queryoi,c(querymain))
+  expecteddt=cbind.data.frame(paste(targetoi,queryoi,"expected",sep="_"),
+                              mean(c(targetmain))+mean(c(querymain)))
+  combidt=cbind.data.frame(paste(targetoi,queryoi,sep="_"),c(combieffect))
+  pidt=cbind.data.frame("pi",c(pi))
+  names(targetdt)=c("gene","data")
+  names(querydt)=c("gene","data")
+  names(combidt)=c("gene","data")
+  names(pidt)=c("gene","data")
+  names(expecteddt)=c("gene","data")
+  alldt=rbind.data.frame(targetdt,querydt,expecteddt,combidt,pidt)
+  mean_Data=dcast(formula = gene~.,data = alldt,fun.aggregate = mean)
+  if(missing(ymax)){
+    ymax=0
+    if(max(alldt$data)>0){
+      ymax=max(alldt$data)+0.1
+    }
+  }
+  if(missing(ymin)){
+    ymin=0
+    if(min(alldt$data)<0){
+      ymin=min(alldt$data)-0.1
+    }
+  }
+  
+  x=barplot(mean_Data[,2],names.arg = mean_Data[,1],
+            ylim=c(ymin,ymax)
+            ,col = c("white","black","grey"),
+            main=main)
+  alldt$gene=as.character(alldt$gene)
+  for(k in 1:nrow(mean_Data)){
+    alldt$gene[alldt$gene %in% mean_Data[k,1]]=x[k,1]
+  }
+  points(alldt,pch=16)
+}
+
+par(mfrow=c(1,2))
+plot_effects(target="Rel",query="pnt",timepoint="96h",treatment="DMSO",
+             feature="cell_number",ymin=-3,ymax=2,
+             main="96h DMSO\ncell number")
+
+plot_effects(target="Rel",query="pnt",timepoint="96h",treatment="DMSO",
+             feature="actin.m.majoraxis.tmean",ymin=-3,ymax=2,
+             main="96h DMSO\nactin.m.majoraxis.tmean")
+```
+
+
+#Figure 8-supplemental figure 2: dsRNA correlations
 
 ```{r}
 
@@ -3566,8 +3645,7 @@ tocor<-sub_df %>%
 
 ```
 
-
-# Figure S8C-C': Rel-pnt differential interactions
+#Figure 8C-C': Rel-pnt differential interactions
 
 ```{r}
 a<-sample_data %>%
@@ -3793,7 +3871,7 @@ result %>%
 
 ```
 
-# Supplementary Figure S12: Short term expression changes after Rel/Ras signaling co-perturbations
+#Figure 8-supplemental figure 4: Short term expression changes after Rel/Ras signaling co-perturbations
 
 ```{r}
 #read in raw Cp values
@@ -3923,7 +4001,7 @@ a+b+plot_layout(ncol = 1)
 
 ```
 
-# Supplementary Figure S6: Short term expression changes after Rel/Ras signaling co-perturbations
+#Figure 4-supplemental figure 1: Short term expression changes after Rel/Ras signaling co-perturbations
 
 ```{r}
 
