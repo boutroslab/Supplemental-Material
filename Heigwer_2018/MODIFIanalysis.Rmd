@@ -19,7 +19,7 @@ editor_options:
 
 # About {-}
 
-This vignette summarizes all source code needed to reprocude all data containing main and supplementary figures. The netowrks shown in figure 6 can be reproduced using the Cytoscape Session file in the supplements.
+This vignette summarizes all source code needed to reproduce all data containing main and supplementary figures. The networks shown in figure 6 can be reproduced using the Cytoscape Session file in the supplements.
 
 ```{r, echo=F, message=F, warning=F, results='hide',}
 Sys.setenv("R_MAX_NUM_DLLS"=1000)
@@ -44,12 +44,12 @@ library(scales)
 library(eulerr)
 library(ggrepel)
 library(drc)
-library(Modifi)
+library(MODIFIanalysis)
 library(RColorBrewer)
 library(ggjoy)
 ```
 
-# Figure 1: A genome wide chemo-genetic screen.
+# Analysis of the genome wide chemo-genetic screen.
 
 Data used in this analysis were per-well feature data extracted using the pipeline in "Feature_extraction_genome_wide_screens.Rmd" and the genome-wide HD3 dsRNA library annotation.
 
@@ -110,7 +110,8 @@ b_score_norm=function(x){
   }
 }
 
-## load DMSO and MEK Screens (Geldanamycin and Diap1 co-perturbation screens are also loaded but only included for reasons of completeness)
+## load DMSO and MEK Screens (Geldanamycin and Diap1 co-perturbation screens 
+#are also loaded but only included for reasons of completeness)
 data('genome_wide_gene_drug_feature_data_raw', package='MODIFIdata')
 
 genome_wide_gene_drug_feature_data=genome_wide_gene_drug_feature_data[
@@ -128,13 +129,18 @@ screenIDs=c("S16","S17","S18","S19","S20","S21","S30","S22","S23")
 plates = as.character(c(1001:1047,2001:2041))
 wells = sort(unique(genome_wide_gene_drug_feature_data$well))
 
-feature.list=as.list(names(genome_wide_gene_drug_feature_data)[!(names(genome_wide_gene_drug_feature_data) %in% c("well","plate","screenID"))])
-names(feature.list)=names(genome_wide_gene_drug_feature_data)[!(names(genome_wide_gene_drug_feature_data) %in% c("well","plate","screenID"))]
+feature.list=as.list(names(genome_wide_gene_drug_feature_data)[!(
+  names(genome_wide_gene_drug_feature_data) %in% c("well","plate","screenID"))])
+names(feature.list)=names(genome_wide_gene_drug_feature_data)[!(
+  names(genome_wide_gene_drug_feature_data) %in% c("well","plate","screenID"))]
 
 arraylist = lapply(
   feature.list,
   function(feature){
-    acast( genome_wide_gene_drug_feature_data, well ~ plate ~ screenID, value.var =feature, drop=TRUE)
+    acast( genome_wide_gene_drug_feature_data, 
+           well ~ plate ~ screenID, 
+           value.var =feature, 
+           drop=TRUE)
   }
 )
 
@@ -145,7 +151,7 @@ myarray=myarray[-grep("dark|fussel|cx|cy|theta",dimnames(myarray)$feature),,,]
 
 ```
 
-create a list of control names with assoiated wells
+create a list of control names with associated wells
 
 ```{r, results='hide', warning=F, message=F,eval=T}
 well_array = list(1:8, 1:2, 1:2, 1:2, 1:2, 1:2)
@@ -160,30 +166,48 @@ well_array$gap1 = c("H2","P2")
 #creates a list of screen.id names
 screen_array = names(myarray[1,1,1,])
 
-#two plates entirely failed as assessed by manual inspection -> probable contamination
+#two plates entirely failed as assessed by manual inspection -> 
+#probable contamination
 myarray[,,"1013","S30"]=NA
 myarray[,,"2028","S19"]=NA
-feature_choice=c("actin.b.mad.sd","actin.b.mad.tmean","actin.b.mean.sd","actin.b.mean.tmean","actin.h.cor.s1.sd","actin.h.cor.s1.tmean","actin.h.ent.s1.sd","actin.h.ent.s1.tmean","actin.m.eccentricity.sd","actin.m.eccentricity.tmean"
-                      ,"actin.s.perimeter.sd","actin.s.perimeter.tmean","actin.s.radius.mean.sd","actin.s.radius.mean.tmean","actin.s.radius.sd.sd","actin.s.radius.sd.tmean","cell_number","dist.20.nn.sd","dist.20.nn.tmean","DNA.b.mad.sd"
-                      ,"DNA.b.mad.tmean","DNA.b.mean.tmean","DNA.h.ent.s1.sd","DNA.h.ent.s1.tmean","DNA.h.var.s1.tmean","DNA.m.eccentricity.tmean","DNA.s.perimeter.sd","DNA.s.perimeter.tmean","DNA.s.radius.mean.sd","DNA.s.radius.mean.tmean"
-                      ,"DNA.s.radius.sd.sd","DNA.s.radius.sd.tmean","nuclear.displacement.tmean","tubulin.b.mad.sd","tubulin.b.mad.tmean","tubulin.b.mean.sd","tubulin.b.mean.tmean","tubulin.b.sd.tmean")
+feature_choice=c("actin.b.mad.sd","actin.b.mad.tmean","actin.b.mean.sd",
+                 "actin.b.mean.tmean","actin.h.cor.s1.sd",
+                 "actin.h.cor.s1.tmean","actin.h.ent.s1.sd",
+                 "actin.h.ent.s1.tmean","actin.m.eccentricity.sd",
+                 "actin.m.eccentricity.tmean","actin.s.perimeter.sd",
+                 "actin.s.perimeter.tmean","actin.s.radius.mean.sd",
+                 "actin.s.radius.mean.tmean","actin.s.radius.sd.sd",
+                 "actin.s.radius.sd.tmean","cell_number","dist.20.nn.sd",
+                 "dist.20.nn.tmean","DNA.b.mad.sd","DNA.b.mad.tmean",
+                 "DNA.b.mean.tmean","DNA.h.ent.s1.sd","DNA.h.ent.s1.tmean",
+                 "DNA.h.var.s1.tmean","DNA.m.eccentricity.tmean",
+                 "DNA.s.perimeter.sd","DNA.s.perimeter.tmean",
+                 "DNA.s.radius.mean.sd","DNA.s.radius.mean.tmean",
+                 "DNA.s.radius.sd.sd","DNA.s.radius.sd.tmean",
+                 "nuclear.displacement.tmean","tubulin.b.mad.sd",
+                 "tubulin.b.mad.tmean","tubulin.b.mean.sd",
+                 "tubulin.b.mean.tmean","tubulin.b.sd.tmean")
 ```
 
 # Data normalization
 
 ```{r, results='hide', warning=F, message=F,eval=T}
 
-#new_features_data is the data of the reduced number of clusters to be used in further analysis
+#new_features_data is the data of the reduced number of clusters to 
+#be used in further analysis
 wnorm_array <- myarray[feature_choice,,,]
-#Add the minimum of each feature to the respective feature, to reduce problems with log()
+#Add the minimum of each feature to the respective feature, 
+#to reduce problems with log()
 for(feature in dimnames(wnorm_array)$feature){
-  wnorm_array[feature,,,] <- wnorm_array[feature,,,] + abs(min(wnorm_array[feature,,,],na.rm=TRUE))  
+  wnorm_array[feature,,,] <- 
+    wnorm_array[feature,,,] + abs(min(wnorm_array[feature,,,],na.rm=TRUE))  
 }
 
 #Transform the data with log(x+1)
 log_array <- log1p(wnorm_array) #the actual data for later usage
 
-#dividing all well by the plates median, setting the plate to 0, if the median is 0 and do nothing if the median is NA
+#dividing all well by the plates median, setting the plate to 0, if the median 
+#is 0 and do nothing if the median is NA
 new_features_data <- apply(wnorm_array, c(1,3,4), b_score_norm)
 
 #rearranges the array to the same format as myarray
@@ -199,21 +223,33 @@ names(dimnames(new_features_data))[2] <- "well"
 ```{r, results='hide', warning=F, message=F,eval=T}
 
 #we filter out technically failed wells 
-bad_wells=which(is.na(apply(new_features_data,c(2,3,4),function(x){if(max(x,na.rm = T)>50){return(NA)}else{return(1)}})),arr.ind = T)
+bad_wells=which(is.na(apply(new_features_data,c(2,3,4),function(x){
+  if(max(x,na.rm = T)>50){return(NA)}else{return(1)}})),arr.ind = T)
 for(i in 1:nrow(bad_wells)){
-  filtered_wells[,bad_wells[i,"well"],bad_wells[i,"plate"],bad_wells[i,"screen.id"]]=NA
+  filtered_wells[,bad_wells[i,"well"],bad_wells[i,"plate"]
+                 ,bad_wells[i,"screen.id"]]=NA
 }
 
-#we calculate average data for each treatment thread is Diap1 knockdown, hsp90 is Geldanamycin treatment, control is DMSO treatment, mek is MEK inhibitor treatment
+#we calculate average data for each treatment thread is Diap1 knockdown, hsp90 
+#is Geldanamycin treatment, control is DMSO treatment, mek is MEK inhibitor 
+#treatment
 mean_data <- filtered_wells[,,,c("S16", "S18", "S20","S22")]
 dimnames(mean_data)$screen.id <- c("control", "mek", "hsp90","thread")
 
 for(well in dimnames(filtered_wells)$well){
   for(plate in dimnames(filtered_wells)$plate){
-    mean_data[,well,plate,"control"]=conditional_mean(filtered_wells[,well,plate,"S16"],filtered_wells[,well,plate,"S17"])
-    mean_data[,well,plate,"mek"]=conditional_mean(filtered_wells[,well,plate,"S18"],filtered_wells[,well,plate,"S19"])
-    mean_data[,well,plate,"hsp90"]=conditional_mean(filtered_wells[,well,plate,"S20"],filtered_wells[,well,plate,"S21"])
-    mean_data[,well,plate,"thread"]=conditional_mean(filtered_wells[,well,plate,"S22"],filtered_wells[,well,plate,"S23"])
+    mean_data[,well,plate,"control"]=
+      conditional_mean(filtered_wells[,well,plate,"S16"],
+                       filtered_wells[,well,plate,"S17"])
+    mean_data[,well,plate,"mek"]=
+      conditional_mean(filtered_wells[,well,plate,"S18"],
+                       filtered_wells[,well,plate,"S19"])
+    mean_data[,well,plate,"hsp90"]=
+      conditional_mean(filtered_wells[,well,plate,"S20"],
+                       filtered_wells[,well,plate,"S21"])
+    mean_data[,well,plate,"thread"]=
+      conditional_mean(filtered_wells[,well,plate,"S22"],
+                       filtered_wells[,well,plate,"S23"])
   }
 }
 
@@ -235,8 +271,10 @@ row.names(go)=go[,1]
 well_to_gene_mapping=list()
 annotation_list=list()
 for(i in 1:nrow(annotation)){
-  well_to_gene_mapping[[as.character(annotation[i,1])]][[annotation[i,2]]]=annotation[i,"gene"]
-  annotation_list[[paste(as.character(annotation[i,1]),annotation[i,2],annotation[i,"gene"], sep = ".")]]= annotation[i,]
+  well_to_gene_mapping[[as.character(annotation[i,1])]][[annotation[i,2]]]=
+    annotation[i,"gene"]
+  annotation_list[[paste(as.character(annotation[i,1]),annotation[i,2],
+                         annotation[i,"gene"], sep = ".")]]= annotation[i,]
 }
 
 
@@ -247,17 +285,24 @@ for(perturbation in dimnames(mean_data)$screen.id){
   #generating the mean gfp feature vector for the perturbation
   mean_gfp_control <- list()
   for(feature in dimnames(new_features_data)$feature){
-    mean_gfp_control[[feature]] <- mean(mean_data[feature,well_array$gfp,,perturbation], na.rm = TRUE)
+    mean_gfp_control[[feature]] <- mean(mean_data[feature,well_array$gfp,,
+                                                  perturbation], na.rm = TRUE)
   }
   mean_gfp_control=unlist(mean_gfp_control)
-  #calculating the distances of each well in the first screen group to the gfp feature vector:
-  dist_control <- apply(mean_data[,,,perturbation],c(2,3),function(x){sqrt(sum((x-mean_gfp_control)^2))})
-  strongest_dist_control <- apply(mean_data[,,,perturbation],c(2,3),function(x){names(sort((x-mean_gfp_control)^2,decreasing=T)[c(1,2)])})
+  #calculating the distances of each well in the first screen group 
+  #to the gfp feature vector:
+  dist_control <- apply(mean_data[,,,perturbation],c(2,3),
+                        function(x){sqrt(sum((x-mean_gfp_control)^2))})
+  strongest_dist_control <- apply(mean_data[,,,perturbation],c(2,3),
+        function(x){names(sort((x-mean_gfp_control)^2,decreasing=T)[c(1,2)])})
   #extracting the features with the biggest distance to the gfp controls
   for(i in rownames(dist_control)){
     for(j in colnames(dist_control)){
-      distances_to_gfp[[perturbation]][[paste(j,i,well_to_gene_mapping[[j]][[i]], sep = ".")]]= dist_control[i,j]
-      strongest_distances_to_gfp[[perturbation]][[paste(j,i,well_to_gene_mapping[[j]][[i]], sep = ".")]]=paste(strongest_dist_control[1,i,j],strongest_dist_control[2,i,j],sep="_")
+      distances_to_gfp[[perturbation]][[
+      paste(j,i,well_to_gene_mapping[[j]][[i]], sep = ".")]]= dist_control[i,j]
+      strongest_distances_to_gfp[[perturbation]][[
+      paste(j,i,well_to_gene_mapping[[j]][[i]], sep = ".")]]=
+      paste(strongest_dist_control[1,i,j],strongest_dist_control[2,i,j],sep="_")
     }
   }
 }
@@ -265,28 +310,34 @@ for(perturbation in dimnames(mean_data)$screen.id){
 #Calculating the distances between the control screens and the mek screens
 dist_mek <- list() 
 
-distmek=apply(mean_data,c(2,3),function(x){sqrt(sum((x[,"control"]-x[,"mek"])^2))})
+distmek=apply(mean_data,c(2,3),function(x){
+  sqrt(sum((x[,"control"]-x[,"mek"])^2))})
 for(i in rownames(distmek)){
   for(j in colnames(distmek)){
-    dist_mek[[paste(j,i,well_to_gene_mapping[[j]][[i]], sep = ".")]]= distmek[i,j]
+    dist_mek[[paste(j,i,well_to_gene_mapping[[j]][[i]], sep = ".")]]= 
+      distmek[i,j]
   }
 }
 #Calculating the distances between the control screens and the hsp90 screens
 dist_hsp <- list() 
 
-disthsp=apply(mean_data,c(2,3),function(x){sqrt(sum((x[,"control"]-x[,"hsp90"])^2))})
+disthsp=apply(mean_data,c(2,3),function(x){
+  sqrt(sum((x[,"control"]-x[,"hsp90"])^2))})
 for(i in rownames(disthsp)){
   for(j in colnames(disthsp)){
-    dist_hsp[[paste(j,i,well_to_gene_mapping[[j]][[i]], sep = ".")]]= disthsp[i,j]
+    dist_hsp[[paste(j,i,well_to_gene_mapping[[j]][[i]], sep = ".")]]= 
+      disthsp[i,j]
   }
 }
 #Calculating the distances between the control screens and the thread screens
 dist_thread <- list() 
 
-distthread=apply(mean_data,c(2,3),function(x){sqrt(sum((x[,"control"]-x[,"thread"])^2))})
+distthread=apply(mean_data,c(2,3),function(x){
+  sqrt(sum((x[,"control"]-x[,"thread"])^2))})
 for(i in rownames(distthread)){
   for(j in colnames(distthread)){
-    dist_thread[[paste(j,i,well_to_gene_mapping[[j]][[i]], sep = ".")]]= distthread[i,j]
+    dist_thread[[
+      paste(j,i,well_to_gene_mapping[[j]][[i]], sep = ".")]]= distthread[i,j]
   }
 }
 
@@ -311,32 +362,51 @@ designs=list()
 
 for(i in names(fbgn)){
   if(!is.na(i)){
-    designs[[paste(fbgn[[i]][[1]][2],fbgn[[i]][[1]][1],fbgn[[i]][[1]][3],sep=".")]]=paste(fbgn[[i]][[2]][2],fbgn[[i]][[2]][1],fbgn[[i]][[2]][3],sep=".")
-    designs[[paste(fbgn[[i]][[2]][2],fbgn[[i]][[2]][1],fbgn[[i]][[2]][3],sep=".")]]=paste(fbgn[[i]][[1]][2],fbgn[[i]][[1]][1],fbgn[[i]][[1]][3],sep=".")
+    designs[[paste(fbgn[[i]][[1]][2],
+                   fbgn[[i]][[1]][1],
+                   fbgn[[i]][[1]][3],sep=".")]]=
+      paste(fbgn[[i]][[2]][2],fbgn[[i]][[2]][1],fbgn[[i]][[2]][3],sep=".")
+    designs[[paste(fbgn[[i]][[2]][2],
+                   fbgn[[i]][[2]][1],
+                   fbgn[[i]][[2]][3],sep=".")]]=
+      paste(fbgn[[i]][[1]][2],fbgn[[i]][[1]][1],fbgn[[i]][[1]][3],sep=".")
   }
 }
 x=list()
-design1=new_features_data[c("cell_number","actin.s.perimeter.tmean","actin.m.eccentricity.tmean","DNA.s.perimeter.tmean","DNA.m.eccentricity.tmean","tubulin.b.mad.tmean"),,,"S30"]
+design1=new_features_data[c("cell_number","actin.s.perimeter.tmean",
+                            "actin.m.eccentricity.tmean",
+                            "DNA.s.perimeter.tmean","DNA.m.eccentricity.tmean",
+                            "tubulin.b.mad.tmean"),,,"S30"]
 for(wellplategene in names(designs)){
   if(wellplategene != "NA.NA.NA" & designs[[wellplategene]] != "NA.NA.NA"){
-    x[["S30"]][[wellplategene]] <- cor(design1[,unlist(strsplit(wellplategene,split = "\\."))[2],unlist(strsplit(wellplategene,split = "\\."))[1]],
-                                       design1[,unlist(strsplit(designs[[wellplategene]],split = "\\."))[2],unlist(strsplit(designs[[wellplategene]],split = "\\."))[1]],
+    x[["S30"]][[wellplategene]] <-
+      cor(design1[,unlist(strsplit(wellplategene,split = "\\."))[2],
+                  unlist(strsplit(wellplategene,split = "\\."))[1]],
+          design1[,unlist(strsplit(designs[[wellplategene]],split = "\\."))[2],
+                  unlist(strsplit(designs[[wellplategene]],split = "\\."))[1]],
                                        use = "pairwise.complete.obs")
   }
 }
-design1=new_features_data[c("cell_number","actin.s.perimeter.tmean","actin.m.eccentricity.tmean","DNA.s.perimeter.tmean","DNA.m.eccentricity.tmean","tubulin.b.mad.tmean"),,,"S17"]
+design1=new_features_data[c("cell_number","actin.s.perimeter.tmean",
+                            "actin.m.eccentricity.tmean",
+                            "DNA.s.perimeter.tmean","DNA.m.eccentricity.tmean",
+                            "tubulin.b.mad.tmean"),,,"S17"]
 for(wellplategene in names(designs)){
   if(wellplategene != "NA.NA.NA" & designs[[wellplategene]] != "NA.NA.NA"){
-    x[["S17"]][[wellplategene]] <- cor(design1[,unlist(strsplit(wellplategene,split = "\\."))[2],unlist(strsplit(wellplategene,split = "\\."))[1]],
-                                       design1[,unlist(strsplit(designs[[wellplategene]],split = "\\."))[2],unlist(strsplit(designs[[wellplategene]],split = "\\."))[1]],
-                                       use = "pairwise.complete.obs")
+    x[["S17"]][[wellplategene]] <- cor(
+      design1[,unlist(strsplit(wellplategene,split = "\\."))[2],
+              unlist(strsplit(wellplategene,split = "\\."))[1]],
+      design1[,unlist(strsplit(designs[[wellplategene]],split = "\\."))[2],
+              unlist(strsplit(designs[[wellplategene]],split = "\\."))[1]],
+        use = "pairwise.complete.obs")
   }
 }
 #Correlation between screen 16 and 17
 #Calculating the distances between the control screens and the hsp90 screens
 z16_17 <- list() 
 
-z1617=apply(new_features_data,c(2,3),function(x){cor(x[,"S16"],x[,"S17"],use="pairwise.complete.obs")})
+z1617=apply(new_features_data,c(2,3),function(x){cor(x[,"S16"],x[,"S17"],
+                                                use="pairwise.complete.obs")})
 for(i in rownames(disthsp)){
   for(j in colnames(disthsp)){
     z16_17[[paste(j,i,well_to_gene_mapping[[j]][[i]], sep = ".")]]= z1617[i,j]
@@ -345,7 +415,8 @@ for(i in rownames(disthsp)){
 
 z18_19 <- list() 
 
-z1819=apply(new_features_data,c(2,3),function(x){cor(x[,"S18"],x[,"S19"],use="pairwise.complete.obs")})
+z1819=apply(new_features_data,c(2,3),function(x){cor(x[,"S18"],x[,"S19"],
+                                                use="pairwise.complete.obs")})
 for(i in rownames(disthsp)){
   for(j in colnames(disthsp)){
     z18_19[[paste(j,i,well_to_gene_mapping[[j]][[i]], sep = ".")]]= z1819[i,j]
@@ -354,7 +425,8 @@ for(i in rownames(disthsp)){
 
 z20_21 <- list() 
 
-z2021=apply(new_features_data,c(2,3),function(x){cor(x[,"S20"],x[,"S21"],use="pairwise.complete.obs")})
+z2021=apply(new_features_data,c(2,3),function(x){cor(x[,"S20"],x[,"S21"],
+                                              use="pairwise.complete.obs")})
 for(i in rownames(disthsp)){
   for(j in colnames(disthsp)){
     z20_21[[paste(j,i,well_to_gene_mapping[[j]][[i]], sep = ".")]]= z2021[i,j]
@@ -363,7 +435,8 @@ for(i in rownames(disthsp)){
 
 z22_23 <- list() 
 
-z2223=apply(new_features_data,c(2,3),function(x){cor(x[,"S22"],x[,"S23"],use="pairwise.complete.obs")})
+z2223=apply(new_features_data,c(2,3),function(x){cor(x[,"S22"],x[,"S23"],
+                                              use="pairwise.complete.obs")})
 for(i in rownames(disthsp)){
   for(j in colnames(disthsp)){
     z22_23[[paste(j,i,well_to_gene_mapping[[j]][[i]], sep = ".")]]= z2223[i,j]
@@ -372,7 +445,8 @@ for(i in rownames(disthsp)){
 
 z18_30 <- list() 
 
-z1830=apply(new_features_data,c(2,3),function(x){cor(x[,"S18"],x[,"S30"],use="pairwise.complete.obs")})
+z1830=apply(new_features_data,c(2,3),function(x){cor(x[,"S18"],x[,"S30"],
+                                              use="pairwise.complete.obs")})
 for(i in rownames(disthsp)){
   for(j in colnames(disthsp)){
     z18_30[[paste(j,i,well_to_gene_mapping[[j]][[i]], sep = ".")]]= z1830[i,j]
@@ -381,7 +455,8 @@ for(i in rownames(disthsp)){
 
 z19_30 <- list() 
 
-z1930=apply(new_features_data,c(2,3),function(x){cor(x[,"S19"],x[,"S30"],use="pairwise.complete.obs")})
+z1930=apply(new_features_data,c(2,3),function(x){cor(x[,"S19"],x[,"S30"],
+                                            use="pairwise.complete.obs")})
 for(i in rownames(disthsp)){
   for(j in colnames(disthsp)){
     z19_30[[paste(j,i,well_to_gene_mapping[[j]][[i]], sep = ".")]]= z1930[i,j]
@@ -429,20 +504,31 @@ for(wellplategene in names(dist_mek)){
            z19_30[[wellplategene]],
            NA)
   }
-  temp=c(temp,expression_values[as.character(annotation_list[[wellplategene]]["fbgn"]),1])
+  temp=c(temp,expression_values[as.character(
+    annotation_list[[wellplategene]]["fbgn"]),1])
   temp=c(temp,go[as.character(annotation_list[[wellplategene]]["fbgn"]),2])
   #print(length(temp))
   res[[wellplategene]]=temp
 }
 
 res=do.call("rbind.data.frame",res)
-names(res)=c("plate","well","id","content","query_id","fbgn","gene",paste(names(distances_to_gfp),"dist_to_gfp_Q1",sep="_"),paste(names(strongest_distances_to_gfp),"strongest_dist_to_gfp_Q2",sep="_"),"dist_to_mek_Q3","dist_to_hsp_Q3","dist_to_thread_Q3","design_corr_S17_Q4","design_corr_S30_Q4","biol_corr_DMSO1_DMSO2_Q5","biol_corr_MEK1_MEK2_Q5","biol_corr_HSP1_HSP2_Q5","biol_corr_MEK1_MEK3_Q5","biol_corr_MEK2_MEK3_Q5","biol_corr_THREAD1_THREAD2_Q5","design_pair_position","log2_expression_Q6","go_knowledge_sum_Q7")
+names(res)=c("plate","well","id","content","query_id","fbgn","gene",
+        paste(names(distances_to_gfp),"dist_to_gfp_Q1",sep="_"),
+        paste(names(strongest_distances_to_gfp),
+              "strongest_dist_to_gfp_Q2",sep="_"),"dist_to_mek_Q3",
+        "dist_to_hsp_Q3","dist_to_thread_Q3","design_corr_S17_Q4",
+        "design_corr_S30_Q4","biol_corr_DMSO1_DMSO2_Q5",
+        "biol_corr_MEK1_MEK2_Q5","biol_corr_HSP1_HSP2_Q5",
+        "biol_corr_MEK1_MEK3_Q5","biol_corr_MEK2_MEK3_Q5",
+        "biol_corr_THREAD1_THREAD2_Q5","design_pair_position",
+        "log2_expression_Q6","go_knowledge_sum_Q7")
 
 #creating the lists for the shiny app / hit identification
 #gene_feature contains all genes/wells on all plates with all screens 
 columns <- list()
 i <- 1
-setup <- melt(new_features_data[1,,,], value.name = feature, varnames = c("well", "plate", "screen"),as.is = T)
+setup <- melt(new_features_data[1,,,], value.name = feature, 
+              varnames = c("well", "plate", "screen"),as.is = T)
 for(feature in names(new_features_data[,1,1,1])){
   columns[[feature]] <- melt(new_features_data[feature,,,])[,4]
   i <- i + 1
@@ -450,9 +536,11 @@ for(feature in names(new_features_data[,1,1,1])){
 columns <- append(columns, setup[1:3],0)
 
 columns[["merger"]] <- paste(columns[["well"]],columns[["plate"]] ,sep=".")
-annotation[["merger"]] <- paste(annotation[["well"]],annotation[["plate"]] ,sep=".")
+annotation[["merger"]] <- paste(annotation[["well"]],annotation[["plate"]] ,
+                                sep=".")
 
-gene_feature <- merge(as.data.frame(columns),annotation[,c("gene","merger")], by=c("merger"))
+gene_feature <- merge(as.data.frame(columns),annotation[,c("gene","merger")],
+                      by=c("merger"))
 gene_feature <- gene_feature[-1]
 gene_feature=cbind(gene_feature[,"gene"],gene_feature)
 gene_feature <- gene_feature[-ncol(gene_feature)]
@@ -480,7 +568,8 @@ for(i in c("control_dist_to_gfp_Q1"  ,
 )){
   res[[i]]=as.numeric(res[[i]])
 }
-res$differnces_in_phenotype_strength_ctrl_mek_Q10=res$mek_dist_to_gfp_Q1-res$control_dist_to_gfp_Q1
+res$differnces_in_phenotype_strength_ctrl_mek_Q10=
+  res$mek_dist_to_gfp_Q1-res$control_dist_to_gfp_Q1
 for(i in c("control_dist_to_gfp_Q1"  , 
            "mek_dist_to_gfp_Q1"    ,   
            "hsp90_dist_to_gfp_Q1"    ,
@@ -510,7 +599,7 @@ for(i in names(gene_feature)[5:length(gene_feature)]){
 
 ```
 
-#Figure 1 B: Plot correlations of screens
+#Figure 2-supplemental figure 8A: Plot correlations of screens
 
 Screening sets 16 & S17 are DMSO treated genome wide screens.
 Screening sets 18 & S19 are MEKi treated genome wide screens.
@@ -541,7 +630,7 @@ b<-gene_feature %>%
 a+b
 ```
 
-#Figure 1 C: Plot correlations of Ras pathway genes
+#Figure 2-supplemental figure 8B: Plot correlations of Ras pathway genes
 
 ```{r, warning=F, message=F}
 tocor<-gene_feature %>% 
@@ -560,7 +649,11 @@ a <- tocor %>%
     geom_point() +
     geom_smooth(method = "rlm") +
     labs(x="drk",y="Dsor1") +
-    ggtitle(paste0("r= ",rcorr(x=tocor[[1]],y=tocor[[2]],type = "pearson")$r[2]," p~ ",rcorr(x=tocor[[1]],y=tocor[[2]],type = "pearson")$P[2] ))
+    ggtitle(paste0("r= ",
+                   rcorr(x=tocor[[1]],y=tocor[[2]],
+                               type = "pearson")$r[2],
+                   " p~ ",rcorr(x=tocor[[1]],y=tocor[[2]],
+                                type = "pearson")$P[2] ))
 
 tocor<-gene_feature %>% 
   tbl_df() %>% 
@@ -578,7 +671,10 @@ b <- tocor %>%
     geom_point() +
     geom_smooth(method = "rlm") +
     labs(x="Dsor1",y="RasGAP1") +
-    ggtitle(paste0("r= ",rcorr(x=tocor[[1]],y=tocor[[2]],type = "pearson")$r[2]," p~ ",rcorr(x=tocor[[1]],y=tocor[[2]],type = "pearson")$P[2] ))
+    ggtitle(paste0("r= ",rcorr(x=tocor[[1]],y=tocor[[2]],
+                               type = "pearson")$r[2],
+                   " p~ ",rcorr(x=tocor[[1]],y=tocor[[2]],
+                                type = "pearson")$P[2] ))
 
 tocor <-gene_feature %>% 
   tbl_df() %>% 
@@ -599,17 +695,23 @@ c <- tocor %>%
     geom_point() +
     geom_smooth(method = "rlm") +
     labs(x="RasGAP #1",y="RasGAP #2") +
-    ggtitle(paste0("r= ",rcorr(x=tocor[[1]],y=tocor[[2]],type = "spearman")$r[2]," p~ ",rcorr(x=tocor[[1]],y=tocor[[2]],type = "spearman")$P[2] ))
+    ggtitle(paste0("r= ",rcorr(x=tocor[[1]],y=tocor[[2]],
+                               type = "spearman")$r[2],
+                   " p~ ",rcorr(x=tocor[[1]],y=tocor[[2]],
+                                type = "spearman")$P[2] ))
 
 a + b + c
 ```
 
-#Figure 1 D&E: Plot heatmap of Ras pathway
+#Figure 2-supplemental figure 8C&D: Plot heatmap of Ras pathway
 
 ```{r, warning=F, message=F}
 toplot<-gene_feature %>% 
   tbl_df() %>% 
-  filter(screen %in% c("S18","S19"),gene %in% c("Ras85D","phl","rl","pnt","Sos","dos","Pvr","RasGAP1","Dsor1","eIF-4a","eIF-1A","RpL31")) %>%
+  filter(screen %in% c("S18","S19"),gene %in% c("Ras85D","phl","rl","pnt",
+                                                "Sos","dos","Pvr","RasGAP1",
+                                                "Dsor1","eIF-4a","eIF-1A",
+                                                "RpL31")) %>%
   gather(feature,value,-gene,-well,-plate,-screen) %>%
   filter(feature!="actin.h.cor.s1.sd") %>%
   group_by(gene,feature) %>%
@@ -619,39 +721,68 @@ toplot<-gene_feature %>%
 
 row.names(toplot)=toplot$feature
 
-ordering <- cor(toplot[,-1]) %>% pheatmap::pheatmap( color = colorRampPalette(rev(brewer.pal(n = 7, name =
+ordering <- cor(toplot[,-1]) %>% pheatmap::pheatmap( color = 
+                                colorRampPalette(rev(brewer.pal(n = 7, name =
   "RdBu")))(100),border_color = NA,treeheight_col = 0,show_colnames = F)
 
 feature_heatmap<-pheatmap::pheatmap(t(toplot[,-1])[ordering$tree_row$order,],#
-                   cluster_rows = F,show_colnames = F,color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdBu")))(100),border_color = NA)
+                   cluster_rows = F,show_colnames = F,color =
+                     colorRampPalette(rev(brewer.pal(n = 7, name ="RdBu")
+                                          ))(100),border_color = NA)
 ```
 
-# Supplementary Figure S1B: Correlation of biological and chemical perturbation of Ras signaling
+#Figure 2-supplemental figure 6B: Correlation of biological and chemical perturbation of Ras signaling
 
 ```{r, warning=F, message=F}
 gene_feature %<>% tbl_df() %>% filter(screen %in% c("S16","S17","S18","S19"))
-a<-gene_feature  %>% filter(well %in% c("B1","A2"),screen %in% c("S18"),grepl("10*",plate)) %>% gather(feature,value,-gene,-well,-screen,-plate) %>% group_by(feature) %>% summarise(MEKi=median(value,na.rm=T))
-b<-gene_feature  %>% filter(well %in% c("D2","L2"),screen %in% c("S16","S17"),grepl("10*",plate)) %>% gather(feature,value,-gene,-well,-screen,-plate) %>% group_by(feature) %>% summarise(Dsor1=median(value,na.rm=T))
+a<-gene_feature  %>% 
+  filter(well %in% c("B1","A2"),screen %in% c("S18"),
+                            grepl("10*",plate)) %>% 
+  gather(feature,value,-gene,-well,-screen,-plate) %>% 
+  group_by(feature) %>% 
+  summarise(MEKi=median(value,na.rm=T))
 
-c<-left_join(a,b) %>% ggplot(aes(x=Dsor1,y=MEKi)) + geom_point() +geom_smooth(method="lm") + ggtitle(paste0("Pearson's r = ",cor(b$Dsor1,a$MEKi))) + theme_classic()
+b<-gene_feature  %>% 
+  filter(well %in% c("D2","L2"),screen %in% c("S16","S17"),
+                            grepl("10*",plate)) %>% 
+  gather(feature,value,-gene,-well,-screen,-plate) %>% 
+  group_by(feature) %>% summarise(Dsor1=median(value,na.rm=T))
 
-b<-gene_feature  %>% filter(well %in% c("H2","P2"),screen %in% c("S16","S17"),grepl("10*",plate)) %>% gather(feature,value,-gene,-well,-screen,-plate) %>% group_by(feature) %>% summarise(RasGAP1=median(value,na.rm=T))
+c<-left_join(a,b) %>% 
+  ggplot(aes(x=Dsor1,y=MEKi)) + 
+  geom_point() +
+  geom_smooth(method="lm") + 
+  ggtitle(paste0("Pearson's r = ",cor(b$Dsor1,a$MEKi))) + 
+  theme_classic()
 
-d<-left_join(a,b) %>% ggplot(aes(x=RasGAP1,y=MEKi)) + geom_point() +geom_smooth(method="lm") + ggtitle(paste0("Pearson's r = ",cor(b$RasGAP1,a$MEKi))) + theme_classic()
+b<-gene_feature  %>% 
+  filter(well %in% c("H2","P2"),screen %in% c("S16","S17"),
+         grepl("10*",plate)) %>% 
+  gather(feature,value,-gene,-well,-screen,-plate) %>% 
+  group_by(feature) %>% 
+  summarise(RasGAP1=median(value,na.rm=T))
+
+d<-left_join(a,b) %>% 
+  ggplot(aes(x=RasGAP1,y=MEKi)) + 
+  geom_point() +
+  geom_smooth(method="lm") + 
+  ggtitle(paste0("Pearson's r = ",cor(b$RasGAP1,a$MEKi))) + 
+  theme_classic()
 
 c+d
 ```
 
-# Supplementary Figure S1D-G: Compound characterization on Dmel2 cells
+#Figure 2-supplemental figure 6D-G: Compound characterization on Dmel2 cells
 
 ```{r, warning=F, message=F}
 
 data('ED50_feature_data', package='MODIFIdata')
 
 par(mfrow=c(3,1))
-#####################################################################################################################################################
-# plot dose-response of PD-0325901 treated cells; all conentractions are nM; GFP dsRNA is a non-targeting construct against GFP expression plasmid
-#####################################################################################################################################################
+###############################################################################
+# plot dose-response of PD-0325901 treated cells; all conentractions are nM; 
+#GFP dsRNA is a non-targeting construct against GFP expression plasmid
+###############################################################################
 
   feature="cells"
   x=100000
@@ -659,36 +790,45 @@ par(mfrow=c(3,1))
   for(i in c(2:23)){
     x=x/2
     wells=grep(paste0("^EC50_GFP_..",i,"$"),
-               paste0(measured_data$mean_per_field_mapping$plate,measured_data$mean_per_field_mapping$well))
+               paste0(measured_data$mean_per_field_mapping$plate,
+                      measured_data$mean_per_field_mapping$well))
     tobind=cbind(rep(x,
-                     times=length(measured_data$mean_per_field_data[wells,feature])
+                     times=length(
+                       measured_data$mean_per_field_data[wells,feature])
     ),
     measured_data$mean_per_field_data[wells,feature]
     )
-    row.names(tobind)=paste0(measured_data$mean_per_field_mapping$plate,measured_data$mean_per_field_mapping$well)[wells]
+    row.names(tobind)=paste0(measured_data$mean_per_field_mapping$plate,
+                             measured_data$mean_per_field_mapping$well)[wells]
     feature_vector=rbind(feature_vector,tobind)  
   }
   
   feature_vector=as.data.frame(feature_vector)
   print(feature)
   colnames(feature_vector)=c("conc",as.character(feature))
-  mdl=drm(cells ~ conc, data = as.data.frame(feature_vector), fct = LL.4(names=c("Slope","Lower Limit","Upper Limit", "ED50")))
+  mdl=drm(cells ~ conc, data = as.data.frame(feature_vector), 
+          fct = LL.4(names=c("Slope","Lower Limit","Upper Limit", "ED50")))
   ed50=ED(mdl,50,interval="delta")
-  mean=aggregate.data.frame(feature_vector,by = list(feature_vector$conc),mean)[,c(1,3)]
+  mean=aggregate.data.frame(feature_vector,
+                            by = list(feature_vector$conc),mean)[,c(1,3)]
   names(mean)=c("conc","mean")
-  plot(mdl,col="blue",type="none",main=paste("GFP_rec","ED50 = ",round(ed50[1],digits = 3),"+-",round(ed50[2],digits = 3),"nM"))
+  plot(mdl,col="blue",type="none",main=paste("GFP_rec","ED50 = ",
+            round(ed50[1],digits = 3),"+-",round(ed50[2],digits = 3),"nM"))
   
   points(mean,pch=19,cex=0.8,col="red",main=feature)
   
   
-  sem=aggregate.data.frame(feature_vector,by = list(feature_vector$conc),function(x){sd(x)/sqrt(length(x))})[,c(1,3)]#
+  sem=aggregate.data.frame(feature_vector,by = list(feature_vector$conc),
+                           function(x){sd(x)/sqrt(length(x))})[,c(1,3)]#
   names(sem)=c("conc","sem")
-  arrows(sem$conc, mean$mean-sem$sem, sem$conc, mean$mean+sem$sem, length=0.05, angle=90, code=3,"red")
+  arrows(sem$conc, mean$mean-sem$sem, sem$conc, mean$mean+sem$sem, 
+         length=0.05, angle=90, code=3,"red")
   abline(  v =  ed50[1],col="blue",lwd=2)
   
-  #################################################################################################################################################
-  # plot dose-response of fresh medium on compound treated cells after compound washout
-  #################################################################################################################################################
+  #############################################################################
+  # plot dose-response of fresh medium on compound treated cells 
+  #after compound washout
+  ############################################################################
   
   feature="cells"
   x=100000
@@ -696,36 +836,44 @@ par(mfrow=c(3,1))
   for(i in c(2:23)){
     x=x/2
     wells=grep(paste0("^EC50_rec.",i,"$"),
-               paste0(measured_data$mean_per_field_mapping$plate,measured_data$mean_per_field_mapping$well))
+               paste0(measured_data$mean_per_field_mapping$plate,
+                      measured_data$mean_per_field_mapping$well))
     tobind=cbind(rep(x,
-                     times=length(measured_data$mean_per_field_data[wells,feature])
+                     times=length(
+                       measured_data$mean_per_field_data[wells,feature])
     ),
     measured_data$mean_per_field_data[wells,feature]
     )
-    row.names(tobind)=paste0(measured_data$mean_per_field_mapping$plate,measured_data$mean_per_field_mapping$well)[wells]
+    row.names(tobind)=paste0(measured_data$mean_per_field_mapping$plate,
+                             measured_data$mean_per_field_mapping$well)[wells]
     feature_vector=rbind(feature_vector,tobind)  
   }
   
   feature_vector=as.data.frame(feature_vector)
   print(feature)
   colnames(feature_vector)=c("conc",as.character(feature))
-  mdl=drm(cells ~ conc, data = as.data.frame(feature_vector), fct = LL.4(names=c("Slope","Lower Limit","Upper Limit", "ED50")))
+  mdl=drm(cells ~ conc, data = as.data.frame(feature_vector), 
+          fct = LL.4(names=c("Slope","Lower Limit","Upper Limit", "ED50")))
   ed50=ED(mdl,50,interval="delta")
-  mean=aggregate.data.frame(feature_vector,by = list(feature_vector$conc),mean)[,c(1,3)]
+  mean=aggregate.data.frame(feature_vector,
+                            by = list(feature_vector$conc),mean)[,c(1,3)]
   names(mean)=c("conc","mean")
-  plot(mdl,col="blue",type="none",main=paste("GFP_rec","ED50 = ",round(ed50[1],digits = 3),"+-",round(ed50[2],digits = 3),"nM"))
+  plot(mdl,col="blue",type="none",main=paste("GFP_rec","ED50 = ",
+          round(ed50[1],digits = 3),"+-",round(ed50[2],digits = 3),"nM"))
   
   points(mean,pch=19,cex=0.8,col="red",main=feature)#,log="x",plot.new=F
   
   
-  sem=aggregate.data.frame(feature_vector,by = list(feature_vector$conc),function(x){sd(x)/sqrt(length(x))})[,c(1,3)]#
+  sem=aggregate.data.frame(feature_vector,by = list(feature_vector$conc),
+                           function(x){sd(x)/sqrt(length(x))})[,c(1,3)]#
   names(sem)=c("conc","sem")
-  arrows(sem$conc, mean$mean-sem$sem, sem$conc, mean$mean+sem$sem, length=0.05, angle=90, code=3,"red")
+  arrows(sem$conc, mean$mean-sem$sem, sem$conc, mean$mean+sem$sem,
+         length=0.05, angle=90, code=3,"red")
   abline(  v =  ed50[1],col="blue",lwd=2)
   
-  #################################################################################################################################################
+  #####################################################################
   # plot dose-response of used compound on fresh cells
-  #################################################################################################################################################
+  #####################################################################
   
   feature="cells"
   x=100000
@@ -733,66 +881,83 @@ par(mfrow=c(3,1))
   for(i in c(2:23)){
     x=x/2
     wells=grep(paste0("^EC50_stab_..",i,"$"),
-               paste0(measured_data$mean_per_field_mapping$plate,measured_data$mean_per_field_mapping$well))
+               paste0(measured_data$mean_per_field_mapping$plate,
+                      measured_data$mean_per_field_mapping$well))
     tobind=cbind(rep(x,
-                     times=length(measured_data$mean_per_field_data[wells,feature])
+        times=length(measured_data$mean_per_field_data[wells,feature])
     ),
     measured_data$mean_per_field_data[wells,feature]
     )
-    row.names(tobind)=paste0(measured_data$mean_per_field_mapping$plate,measured_data$mean_per_field_mapping$well)[wells]
+    row.names(tobind)=paste0(measured_data$mean_per_field_mapping$plate,
+                             measured_data$mean_per_field_mapping$well)[wells]
     feature_vector=rbind(feature_vector,tobind)  
   }
   
   feature_vector=as.data.frame(feature_vector)
   print(feature)
   colnames(feature_vector)=c("conc",as.character(feature))
-  mdl=drm(cells ~ conc, data = as.data.frame(feature_vector), fct = LL.4(names=c("Slope","Lower Limit","Upper Limit", "ED50")))
+  mdl=drm(cells ~ conc, data = as.data.frame(feature_vector), 
+          fct = LL.4(names=c("Slope","Lower Limit","Upper Limit", "ED50")))
   ed50=ED(mdl,50,interval="delta")
-  mean=aggregate.data.frame(feature_vector,by = list(feature_vector$conc),mean)[,c(1,3)]
+  mean=aggregate.data.frame(feature_vector,
+                            by = list(feature_vector$conc),mean)[,c(1,3)]
   names(mean)=c("conc","mean")
-  plot(mdl,col="blue",type="none",main=paste("GFP_stab","ED50 = ",round(ed50[1],digits = 3),"+-",round(ed50[2],digits = 3),"nM"))
+  plot(mdl,col="blue",type="none",main=paste("GFP_stab","ED50 = ",
+            round(ed50[1],digits = 3),"+-",round(ed50[2],digits = 3),"nM"))
   
   points(mean,pch=19,cex=0.8,col="red",main=feature)#,log="x",plot.new=F
   
   
-  sem=aggregate.data.frame(feature_vector,by = list(feature_vector$conc),function(x){sd(x)/sqrt(length(x))})[,c(1,3)]#
+  sem=aggregate.data.frame(feature_vector,by = list(feature_vector$conc),
+                           function(x){sd(x)/sqrt(length(x))})[,c(1,3)]#
   names(sem)=c("conc","sem")
-  arrows(sem$conc, mean$mean-sem$sem, sem$conc, mean$mean+sem$sem, length=0.05, angle=90, code=3,"red")
+  arrows(sem$conc, mean$mean-sem$sem, sem$conc, mean$mean+sem$sem,
+         length=0.05, angle=90, code=3,"red")
   abline(  v =  ed50[1],col="blue",lwd=2)
   
-  #################################################################################################################################################
+  ###########################################################################
   # plot dose-response of different cellular features
-  #################################################################################################################################################
+  ###########################################################################
   
   par(mfrow=c(1,4))
   
-  for(feature in c("cells","tubulin.b.mad.median","DNA.b.mean.median","DNA.s.radius.mean.median")){
+  for(feature in c("cells","tubulin.b.mad.median","DNA.b.mean.median",
+                   "DNA.s.radius.mean.median")){
     x=100000
     feature_vector=c()
     for(i in c(3:23)){
       x=x/2
       wells=grep(paste0("^EC50_stab_..",i,"$"),
-                 paste0(measured_data$mean_per_field_mapping$plate,measured_data$mean_per_field_mapping$well))
+                 paste0(measured_data$mean_per_field_mapping$plate,
+                        measured_data$mean_per_field_mapping$well))
       tobind=cbind(rep(x,
-                       times=length(measured_data$mean_per_field_data[wells,feature])
+                       times=length(
+                         measured_data$mean_per_field_data[wells,feature])
       ),
       measured_data$mean_per_field_data[wells,feature]
       )
-      row.names(tobind)=paste0(measured_data$mean_per_field_mapping$plate,measured_data$mean_per_field_mapping$well)[wells]
+      row.names(tobind)=paste0(measured_data$mean_per_field_mapping$plate,
+                              measured_data$mean_per_field_mapping$well)[wells]
       feature_vector=rbind(feature_vector,tobind)  
     }
     
     feature_vector=as.data.frame(feature_vector)
     print(feature)
     colnames(feature_vector)=c("conc",as.character(feature))
-    feature_vector$cells=(feature_vector[[feature]]-min(feature_vector[[feature]]))/(max(feature_vector[[feature]])-min(feature_vector[[feature]]))
-    mean=aggregate.data.frame(feature_vector,by = list(feature_vector$conc),mean)[,c(1,3)]
+    feature_vector$cells=(feature_vector[[feature]]-
+                            min(feature_vector[[feature]]))/(
+                              max(feature_vector[[feature]])-
+                                min(feature_vector[[feature]]))
+    mean=aggregate.data.frame(feature_vector,
+                              by = list(feature_vector$conc),mean)[,c(1,3)]
     names(mean)=c("conc","mean")
     plot(mean,pch=19,cex=0.8,col="red",log="x",main=feature)
     
-    sem=aggregate.data.frame(feature_vector,by = list(feature_vector$conc),function(x){sd(x)/sqrt(length(x))})[,c(1,3)]#
+    sem=aggregate.data.frame(feature_vector,by = list(feature_vector$conc),
+                             function(x){sd(x)/sqrt(length(x))})[,c(1,3)]#
     names(sem)=c("conc","sem")
-    arrows(sem$conc, mean$mean-sem$sem, sem$conc, mean$mean+sem$sem, length=0.05, angle=90, code=3,"red")
+    arrows(sem$conc, mean$mean-sem$sem, sem$conc, mean$mean+sem$sem,
+           length=0.05, angle=90, code=3,"red")
     abline(  v =  77,
              col="blue",lwd=2)
   }
@@ -800,7 +965,7 @@ par(mfrow=c(3,1))
 
 ```
 
-# Supplementary Figure S2: Control separation capacity of our morphological assay
+#Figure 2-supplemental figure 7: Control separation capacity of our morphological assay
 
 ```{r, warning=F, message=F,eval=T}
 
@@ -856,17 +1021,27 @@ multi=cur_z=do.call("rbind.data.frame",plates)
 pos=cur_z[,2]
 neg=cur_z[,3]
 par(mfrow = c(2,3))
-plot(cur_z[,1],cur_z[,2],pch=16,col="green",ylim=c(-10,10),ylab="weighted sum of features",xlab="plate-index")
+plot(cur_z[,1],cur_z[,2],pch=16,col="green",ylim=c(-10,10),
+     ylab="weighted sum of features",xlab="plate-index")
 points(cur_z[,1],cur_z[,3],pch=16,col="red")
 
-plot(2,2,xlim=c(-10,10),ylim=c(0,1),sub=paste("Z'-factor =",round(mean(cur_z[,4],na.rm = T),digits=3)),ylab="density estimate",xlab="weigthed score over all wells",type="n")
+plot(2,2,xlim=c(-10,10),ylim=c(0,1),
+     sub=paste("Z'-factor =",
+                      round(mean(cur_z[,4],na.rm = T),digits=3)),
+     ylab="density estimate",
+     xlab="weigthed score over all wells",type="n")
 lines(density(cur_z[,2],na.rm = T),col="green",lwd=2)
 lines(density(cur_z[,3],na.rm = T),col="red",lwd=2)
 
-plot(cur_z[,1],cur_z[,4],pch=16,col="black",ylim=c(-1,1),main=paste("Multifactorial-Z' =",round(mean(cur_z[,4],na.rm = T),digits=3)),ylab="Z'-factor",xlab="plate-index")
+plot(cur_z[,1],cur_z[,4],
+     pch=16,col="black",ylim=c(-1,1),
+     main=paste("Multifactorial-Z' =",
+                round(mean(cur_z[,4],na.rm = T),digits=3)),
+     ylab="Z'-factor",
+     xlab="plate-index")
 abline(h=mean(cur_z[,4],na.rm = T))
 
-########################################################################################################################################################################
+#############################################################################
 
 plates=list()
 for(i in plates_that_correlate.idx){
@@ -879,24 +1054,35 @@ uni=cur_z=do.call("rbind.data.frame",plates)
 pos=cur_z[,2]
 neg=cur_z[,3]
 
-plot(cur_z[,1],cur_z[,2],pch=16,col="green",ylim=c(-10,10),ylab="features",xlab="plate-index")
+plot(cur_z[,1],cur_z[,2],pch=16,col="green",ylim=c(-10,10),
+     ylab="features",xlab="plate-index")
 points(cur_z[,1],cur_z[,3],pch=16,col="red")
 
-plot(2,2,xlim=c(-10,10),ylim=c(0,1),sub=paste("Z'-factor =",round(mean(cur_z[,4],na.rm = T),digits=3)),ylab="density estimate",xlab="Z-score cell count",type="n")
+plot(2,2,xlim=c(-10,10),ylim=c(0,1),sub=paste("Z'-factor =",
+        round(mean(cur_z[,4],na.rm = T),digits=3)),
+     ylab="density estimate",
+     xlab="Z-score cell count",type="n")
 lines(density(cur_z[,2],na.rm = T),col="green",lwd=2)
 lines(density(cur_z[,3],na.rm = T),col="red",lwd=2)
 
-plot(cur_z[,1],cur_z[,4],pch=16,col="black",ylim=c(-1,1),main=paste("univariate-Z' =",round(mean(cur_z[,4],na.rm = T),digits=3)),ylab="Z'-factor",xlab="plate-index")
+plot(cur_z[,1],cur_z[,4],pch=16,col="black",
+     ylim=c(-1,1),
+     main=paste("univariate-Z' =",round(mean(cur_z[,4],na.rm = T),digits=3)),
+     ylab="Z'-factor",
+     xlab="plate-index")
 abline(h=mean(cur_z[,4],na.rm = T))
 rm(list = ls())
 ```
 
-# Next we analyzed our time resolved genetic interaction screen
+# Analysis of time-resolved genetic interactions
 
 First we collect data, normalize by per-plate negative controls, glog transform each feature's data, scale the data, annotate the wells and reformat to an array with dimensions according to experimental conditions.
 
+We started this analysis on raw feature data produced from fluorescent images using R/EBImage as described in the methods.
+
 ```{r, results='hide', warning=F, message=F,eval=T}
-## load raw per-well level data in the form of a four dimensional array as well-set-plate-feature
+## load raw per-well level data in the form of a four dimensional array as 
+#well-set-plate-feature
 data('raw_data_array_wCTRL', package='MODIFIdata')
 
 ##normalize to negative controls that did not see any query gene
@@ -921,14 +1107,18 @@ my.data.array.norm=apply(my.data.array,
 for(i in dimnames(my.data.array)[[4]]){
   c=quantile(my.data.array.norm[,,,i],probs = 0.03,na.rm = T)
   my.data.array.norm[,,,i]=glog(x = my.data.array.norm[,,,i] , a = c)
-  my.data.array.norm[,,,i]=(my.data.array.norm[,,,i]-median(my.data.array.norm[,,,i],na.rm = T))/mad(my.data.array.norm[,,,i],na.rm = T)
+  my.data.array.norm[,,,i]=
+    (my.data.array.norm[,,,i]-
+       median(my.data.array.norm[,,,i],na.rm = T))/
+    mad(my.data.array.norm[,,,i],na.rm = T)
 }
 my.data.array.norm_zprime<-my.data.array.norm
 
 #extract the cell count data
 my.data.array.norm.qc=my.data.array.norm[,,,'cell_number']
 
-#calculate the Z-prime-factor for each assay plate between drk and RasGAP1 knockdown
+#calculate the Z-prime-factor for each 
+#assay plate between drk and RasGAP1 knockdown
 my.data.array.zprime=apply(my.data.array.norm.qc,
                          c(2,3),
                          function(x){
@@ -938,12 +1128,18 @@ my.data.array.zprime=apply(my.data.array.norm.qc,
                          }
 )
 
-bad_S1S7=which(diag(cor(my.data.array.norm[,"S01",,1],my.data.array.norm[,"S07",,1], use = "p" ))<=0.6)
-bad_S2S8=which(diag(cor(my.data.array.norm[,"S02",,1],my.data.array.norm[,"S08",,1], use = "p" ))<=0.6)
-bad_S3S9=which(diag(cor(my.data.array.norm[,"S03",,1],my.data.array.norm[,"S09",,1], use = "p" ))<=0.6)
-bad_S4S10=which(diag(cor(my.data.array.norm[,"S04",,1],my.data.array.norm[,"S10",,1], use = "p" ))<=0.6)
-bad_S5S11=which(diag(cor(my.data.array.norm[,"S05",,1],my.data.array.norm[,"S11",,1], use = "p" ))<=0.6)
-bad_S6S12=which(diag(cor(my.data.array.norm[,"S06",,1],my.data.array.norm[,"S12",,1], use = "p" ))<=0.6)
+bad_S1S7=which(diag(cor(my.data.array.norm[,"S01",,1],
+                        my.data.array.norm[,"S07",,1], use = "p" ))<=0.6)
+bad_S2S8=which(diag(cor(my.data.array.norm[,"S02",,1],
+                        my.data.array.norm[,"S08",,1], use = "p" ))<=0.6)
+bad_S3S9=which(diag(cor(my.data.array.norm[,"S03",,1],
+                        my.data.array.norm[,"S09",,1], use = "p" ))<=0.6)
+bad_S4S10=which(diag(cor(my.data.array.norm[,"S04",,1],
+                         my.data.array.norm[,"S10",,1], use = "p" ))<=0.6)
+bad_S5S11=which(diag(cor(my.data.array.norm[,"S05",,1],
+                         my.data.array.norm[,"S11",,1], use = "p" ))<=0.6)
+bad_S6S12=which(diag(cor(my.data.array.norm[,"S06",,1],
+                         my.data.array.norm[,"S12",,1], use = "p" ))<=0.6)
 
 #only the S1S7 and S2S8 had plates which do not correlate <0.6
 my.data.array.norm[,"S07",bad_S1S7,]=NA_real_
@@ -959,55 +1155,95 @@ for(i in 1:nrow(bad_zprime)){
 data('query_mapping', package='MODIFIdata')
 data('target_mapping', package='MODIFIdata')
 
-dimnames(my.data.array.norm)[[1]][grep("B02$",dimnames(my.data.array.norm)[[1]])]="HD31RLUC_1"
-dimnames(my.data.array.norm)[[1]][grep("D02$",dimnames(my.data.array.norm)[[1]])]="HD31RLUC_2"
-dimnames(my.data.array.norm)[[1]][grep("F02$",dimnames(my.data.array.norm)[[1]])]="HD31RLUC_3"
-dimnames(my.data.array.norm)[[1]][grep("H02$",dimnames(my.data.array.norm)[[1]])]="HD31RLUC_4"
-dimnames(my.data.array.norm)[[1]][grep("J02$",dimnames(my.data.array.norm)[[1]])]="HD31RLUC_5"
-dimnames(my.data.array.norm)[[1]][grep("L02$",dimnames(my.data.array.norm)[[1]])]="HD31RLUC_6"
-dimnames(my.data.array.norm)[[1]][grep("N02$",dimnames(my.data.array.norm)[[1]])]="HD31RLUC_7"
-dimnames(my.data.array.norm)[[1]][grep("P02$",dimnames(my.data.array.norm)[[1]])]="HD31RLUC_8"
-dimnames(my.data.array.norm)[[1]][grep("B23$",dimnames(my.data.array.norm)[[1]])]="HD32RLUC_1"
-dimnames(my.data.array.norm)[[1]][grep("D23$",dimnames(my.data.array.norm)[[1]])]="HD32RLUC_2"
-dimnames(my.data.array.norm)[[1]][grep("F23$",dimnames(my.data.array.norm)[[1]])]="HD32RLUC_3"
-dimnames(my.data.array.norm)[[1]][grep("H23$",dimnames(my.data.array.norm)[[1]])]="HD32RLUC_4"
-dimnames(my.data.array.norm)[[1]][grep("J23$",dimnames(my.data.array.norm)[[1]])]="HD32RLUC_5"
-dimnames(my.data.array.norm)[[1]][grep("L23$",dimnames(my.data.array.norm)[[1]])]="HD32RLUC_6"
-dimnames(my.data.array.norm)[[1]][grep("N23$",dimnames(my.data.array.norm)[[1]])]="HD32RLUC_7"
-dimnames(my.data.array.norm)[[1]][grep("P23$",dimnames(my.data.array.norm)[[1]])]="HD32RLUC_8"
+dimnames(my.data.array.norm)[[1]][
+  grep("B02$",dimnames(my.data.array.norm)[[1]])]="HD31RLUC_1"
+dimnames(my.data.array.norm)[[1]][
+  grep("D02$",dimnames(my.data.array.norm)[[1]])]="HD31RLUC_2"
+dimnames(my.data.array.norm)[[1]][
+  grep("F02$",dimnames(my.data.array.norm)[[1]])]="HD31RLUC_3"
+dimnames(my.data.array.norm)[[1]][
+  grep("H02$",dimnames(my.data.array.norm)[[1]])]="HD31RLUC_4"
+dimnames(my.data.array.norm)[[1]][
+  grep("J02$",dimnames(my.data.array.norm)[[1]])]="HD31RLUC_5"
+dimnames(my.data.array.norm)[[1]][
+  grep("L02$",dimnames(my.data.array.norm)[[1]])]="HD31RLUC_6"
+dimnames(my.data.array.norm)[[1]][
+  grep("N02$",dimnames(my.data.array.norm)[[1]])]="HD31RLUC_7"
+dimnames(my.data.array.norm)[[1]][
+  grep("P02$",dimnames(my.data.array.norm)[[1]])]="HD31RLUC_8"
+dimnames(my.data.array.norm)[[1]][
+  grep("B23$",dimnames(my.data.array.norm)[[1]])]="HD32RLUC_1"
+dimnames(my.data.array.norm)[[1]][
+  grep("D23$",dimnames(my.data.array.norm)[[1]])]="HD32RLUC_2"
+dimnames(my.data.array.norm)[[1]][
+  grep("F23$",dimnames(my.data.array.norm)[[1]])]="HD32RLUC_3"
+dimnames(my.data.array.norm)[[1]][
+  grep("H23$",dimnames(my.data.array.norm)[[1]])]="HD32RLUC_4"
+dimnames(my.data.array.norm)[[1]][
+  grep("J23$",dimnames(my.data.array.norm)[[1]])]="HD32RLUC_5"
+dimnames(my.data.array.norm)[[1]][
+  grep("L23$",dimnames(my.data.array.norm)[[1]])]="HD32RLUC_6"
+dimnames(my.data.array.norm)[[1]][
+  grep("N23$",dimnames(my.data.array.norm)[[1]])]="HD32RLUC_7"
+dimnames(my.data.array.norm)[[1]][
+  grep("P23$",dimnames(my.data.array.norm)[[1]])]="HD32RLUC_8"
 
 for(i in 1:length(dimnames(my.data.array.norm)[[3]])){
-  if(length(grep(paste0("^",dimnames(my.data.array.norm)[[3]][i],"$"),query_mappin$V2))!=0){
-    dimnames(my.data.array.norm)[[3]][i]=query_mappin$V3[grep(paste0("^",dimnames(my.data.array.norm)[[3]][i],"$"),query_mappin$V2)]
+  if(length(grep(paste0("^",
+          dimnames(my.data.array.norm)[[3]][i],"$"),query_mappin$V2))!=0){
+    dimnames(my.data.array.norm)[[3]][i]=
+    query_mappin$V3[grep(paste0("^",
+                dimnames(my.data.array.norm)[[3]][i],"$"),query_mappin$V2)]
   }
 }
 
 for(i in 1:length(dimnames(my.data.array.norm)[[1]])){
-  if(length(grep(paste0("^",dimnames(my.data.array.norm)[[1]][i],"$"),target_mappin$V2))!=0){
-    dimnames(my.data.array.norm)[[1]][i]=target_mappin$V1[grep(paste0("^",dimnames(my.data.array.norm)[[1]][i],"$"),target_mappin$V2)]
+  if(length(grep(paste0("^",
+  dimnames(my.data.array.norm)[[1]][i],"$"),target_mappin$V2))!=0){
+    dimnames(my.data.array.norm)[[1]][i]=target_mappin$V1[
+      grep(paste0("^",
+                dimnames(my.data.array.norm)[[1]][i],"$"),target_mappin$V2)]
   }
 }
 
-my.data.array.norm_repl1.1=my.data.array.norm[grep("^HD3",dimnames(my.data.array.norm)[[1]]),c("S01","S02","S03","S04","S05","S06"),,]
-my.data.array.norm_repl1.2=my.data.array.norm[grep("^HD3",dimnames(my.data.array.norm)[[1]]),c("S07","S08","S09","S10","S11","S12"),,]
+my.data.array.norm_repl1.1=my.data.array.norm[
+  grep("^HD3",dimnames(my.data.array.norm)[[1]]),
+  c("S01","S02","S03","S04","S05","S06"),,]
+my.data.array.norm_repl1.2=my.data.array.norm[
+  grep("^HD3",dimnames(my.data.array.norm)[[1]]),
+  c("S07","S08","S09","S10","S11","S12"),,]
 
-my.data.array.norm=abind(my.data.array.norm_repl1.1,my.data.array.norm_repl1.2,rev.along = 0)
+my.data.array.norm=abind(my.data.array.norm_repl1.1,
+                         my.data.array.norm_repl1.2,rev.along = 0)
 dimnames(my.data.array.norm)[[5]]=c("repl1","repl2")
 
 rm(my.data.array.norm_repl1.1,my.data.array.norm_repl1.2)
 my.data.array.norm_DMSO_48=my.data.array.norm[,"S07",,,]
 my.data.array.norm_DMSO_72=my.data.array.norm[,"S08",,,]
 my.data.array.norm_DMSO_96=my.data.array.norm[,"S09",,,]
-my.data.array.norm_DMSO=abind(my.data.array.norm_DMSO_48,my.data.array.norm_DMSO_72,my.data.array.norm_DMSO_96,rev.along = 0)
+my.data.array.norm_DMSO=abind(my.data.array.norm_DMSO_48,
+                              my.data.array.norm_DMSO_72,
+                              my.data.array.norm_DMSO_96,
+                              rev.along = 0)
 dimnames(my.data.array.norm_DMSO)[[5]]=c("48h","72h","96h")
 my.data.array.norm_MEKi_48=my.data.array.norm[,"S10",,,]
 my.data.array.norm_MEKi_72=my.data.array.norm[,"S11",,,]
 my.data.array.norm_MEKi_96=my.data.array.norm[,"S12",,,]
-my.data.array.norm_MEKi=abind(my.data.array.norm_MEKi_48,my.data.array.norm_MEKi_72,my.data.array.norm_MEKi_96,rev.along = 0)
+my.data.array.norm_MEKi=abind(my.data.array.norm_MEKi_48,
+                              my.data.array.norm_MEKi_72,
+                              my.data.array.norm_MEKi_96,
+                              rev.along = 0)
 dimnames(my.data.array.norm_MEKi)[[5]]=c("48h","72h","96h")
-my.data.array.norm=abind(my.data.array.norm_DMSO,my.data.array.norm_MEKi,rev.along = 0)
+my.data.array.norm=abind(my.data.array.norm_DMSO,
+                         my.data.array.norm_MEKi,
+                         rev.along = 0)
 dimnames(my.data.array.norm)[[6]]=c("DMSO","MEKi")
-names(dimnames(my.data.array.norm))=c("target gene","query gene","feature","replicate","time point","perturbation")
+names(dimnames(my.data.array.norm))=c("target gene",
+                                      "query gene",
+                                      "feature",
+                                      "replicate",
+                                      "time point",
+                                      "perturbation")
 
 rm(my.data.array.norm_DMSO_48,
    my.data.array.norm_DMSO_72,
@@ -1021,7 +1257,7 @@ rm(my.data.array.norm_DMSO_48,
 
 ```
 
-Next we apply the med-polish to call statistic genetic interactions according to methods established by Bernd Fischer. Input is normed and quality controlled data. Output are genetic interactions as pi-scores, maineffects and reformatted measurements and p-value associated to interactions in each individual condition.
+Next we apply the med-polish to call statistic genetic interactions according to methods established by Bernd Fischer. Input is normed and quality controlled data. Output are genetic interactions as pi-scores, main effects and reformatted measurements and p-value associated to interactions in each individual condition.
 
 ```{r, results='hide', warning=F, message=F,eval=T}
 
@@ -1042,19 +1278,21 @@ mainEffects = list(target = interaction_scores[,1,,,,],
                    query = interaction_scores[1,,,,,],
                    overall = interaction_scores[1,1,,,,]
                    )
-#interactions are called using the HD2013SGImaineffects function implemented in the R-package whcih supplemented Laufer et al. 2013, Nature methods
-# we called interactions indepently for each dsRNA, biological replicates, feature, time point and treatment 
+#interactions are called using the HD2013SGImaineffects function implemented 
+#in the R-package whcih supplemented Laufer et al. 2013, Nature methods
+#we called interactions indepently for each dsRNA, biological replicates, 
+#feature, time point and treatment 
 for(i in 1:155){
   for(j in 1:2){
     for(k in 1:3){
       for(l in 1:2){
         MP=HD2013SGI::HD2013SGImaineffects(x = my.data.array.norm[,,i,j,k,l],
-                                                           TargetNeg = c("HD31RLUC_1","HD32RLUC_1","HD31RLUC_2","HD32RLUC_2",
-                                                                         "HD31RLUC_3","HD32RLUC_3","HD31RLUC_4","HD32RLUC_4",
-                                                                         "HD31RLUC_5","HD32RLUC_5","HD31RLUC_6","HD32RLUC_6",
-                                                                         "HD31RLUC_7","HD32RLUC_7","HD31RLUC_8","HD32RLUC_8"),
-                                                           na.rm=T
-                                                           )
+           TargetNeg = c("HD31RLUC_1","HD32RLUC_1","HD31RLUC_2","HD32RLUC_2",
+                         "HD31RLUC_3","HD32RLUC_3","HD31RLUC_4","HD32RLUC_4",
+                         "HD31RLUC_5","HD32RLUC_5","HD31RLUC_6","HD32RLUC_6",
+                         "HD31RLUC_7","HD32RLUC_7","HD31RLUC_8","HD32RLUC_8"),
+           na.rm=T
+           )
         interaction_scores[,,i,j,k,l]=MP$pi
         mainEffects$query[,i,j,k,l]=MP$queryMainEffect
         mainEffects$target[,i,j,k,l]=MP$targetMainEffect
@@ -1067,79 +1305,115 @@ for(i in 1:155){
 }
 
 # annotate genes from dsRNA identifiers
-interaction_scores.des1=interaction_scores[grep("HD31",dimnames(interaction_scores)[[1]]),,,,,]
-interaction_scores.des2=interaction_scores[grep("HD32",dimnames(interaction_scores)[[1]]),,,,,]
+interaction_scores.des1=interaction_scores[
+  grep("HD31",dimnames(interaction_scores)[[1]]),,,,,]
+interaction_scores.des2=interaction_scores[
+  grep("HD32",dimnames(interaction_scores)[[1]]),,,,,]
 
 for(i in 1:length(dimnames(interaction_scores.des1)[[1]])){
   if(dimnames(interaction_scores.des1)[[1]][i] %in% names(id_to_gene)){
-    dimnames(interaction_scores.des1)[[1]][i]=id_to_gene[[dimnames(interaction_scores.des1)[[1]][i]]]
+    dimnames(interaction_scores.des1)[[1]][i]=
+      id_to_gene[[dimnames(interaction_scores.des1)[[1]][i]]]
   }else{
-    dimnames(interaction_scores.des1)[[1]][i]=gsub("HD31(.+)","\\1",dimnames(interaction_scores.des1)[[1]][i])
+    dimnames(interaction_scores.des1)[[1]][i]=
+      gsub("HD31(.+)","\\1",dimnames(interaction_scores.des1)[[1]][i])
   }
 }
 
 for(i in 1:length(dimnames(interaction_scores.des2)[[1]])){
   if(dimnames(interaction_scores.des2)[[1]][i] %in% names(id_to_gene)){
-    dimnames(interaction_scores.des2)[[1]][i]=id_to_gene[[dimnames(interaction_scores.des2)[[1]][i]]]
+    dimnames(interaction_scores.des2)[[1]][i]=
+      id_to_gene[[dimnames(interaction_scores.des2)[[1]][i]]]
   }else{
-    dimnames(interaction_scores.des2)[[1]][i]=gsub("HD32(.+)","\\1",dimnames(interaction_scores.des2)[[1]][i])
+    dimnames(interaction_scores.des2)[[1]][i]=
+      gsub("HD32(.+)","\\1",dimnames(interaction_scores.des2)[[1]][i])
   }
 }
 
 for(i in 1:length(dimnames(mainEffects$target)[[1]])){
   if(dimnames(mainEffects$target)[[1]][i] %in% names(id_to_gene)){
-    dimnames(mainEffects$target)[[1]][i]=id_to_gene[[dimnames(mainEffects$target)[[1]][i]]]
+    dimnames(mainEffects$target)[[1]][i]=
+      id_to_gene[[dimnames(mainEffects$target)[[1]][i]]]
   }
 }
 
-# resort interaction, maineffect and measured effect array such that dsRNA designs and biological replicates are in one dimension
+# resort interaction, maineffect and measured effect array such that 
+# dsRNA designs and biological replicates are in one dimension
 
-# main effects, interactions and measured data, do now have the dimensions: target.gene-query.gene-feature-time-treatment-replicate
-interaction_scores.des2=interaction_scores.des2[dimnames(interaction_scores.des1)[[1]],,,,,]
+# main effects, interactions and measured data, do now have the 
+#dimensions: target.gene-query.gene-feature-time-treatment-replicate
+interaction_scores.des2=
+  interaction_scores.des2[dimnames(interaction_scores.des1)[[1]],,,,,]
 interaction_scores.des1.1=interaction_scores.des1[,,,1,,]
 interaction_scores.des1.2=interaction_scores.des1[,,,2,,]
 interaction_scores.des2.1=interaction_scores.des2[,,,1,,]
 interaction_scores.des2.2=interaction_scores.des2[,,,2,,]
-interaction_scores=abind(interaction_scores.des1.1,interaction_scores.des1.2,interaction_scores.des2.1,interaction_scores.des2.2,rev.along = 0)
-dimnames(interaction_scores)[[6]]=c("des1repl1","des1repl2","des2repl1","des2repl2")
+interaction_scores=abind(interaction_scores.des1.1,
+                         interaction_scores.des1.2,
+                         interaction_scores.des2.1,
+                         interaction_scores.des2.2,
+                         rev.along = 0)
+dimnames(interaction_scores)[[6]]=c("des1repl1","des1repl2",
+                                    "des2repl1","des2repl2")
 
-rm(interaction_scores.des1,interaction_scores.des2,interaction_scores.des1.1,interaction_scores.des1.2,interaction_scores.des2.1,interaction_scores.des2.2)
-my.data.array.norm.des1=my.data.array.norm[grep("HD31",dimnames(my.data.array.norm)[[1]]),,,,,]
-my.data.array.norm.des2=my.data.array.norm[grep("HD32",dimnames(my.data.array.norm)[[1]]),,,,,]
+rm(interaction_scores.des1,interaction_scores.des2,
+   interaction_scores.des1.1,interaction_scores.des1.2,
+   interaction_scores.des2.1,interaction_scores.des2.2)
+my.data.array.norm.des1=my.data.array.norm[grep("HD31",
+                        dimnames(my.data.array.norm)[[1]]),,,,,]
+my.data.array.norm.des2=my.data.array.norm[grep("HD32",
+                        dimnames(my.data.array.norm)[[1]]),,,,,]
 
 for(i in 1:length(dimnames(my.data.array.norm.des1)[[1]])){
   if(dimnames(my.data.array.norm.des1)[[1]][i] %in% names(id_to_gene)){
-    dimnames(my.data.array.norm.des1)[[1]][i]=id_to_gene[[dimnames(my.data.array.norm.des1)[[1]][i]]]
+    dimnames(my.data.array.norm.des1)[[1]][i]=
+      id_to_gene[[dimnames(my.data.array.norm.des1)[[1]][i]]]
   }else{
-    dimnames(my.data.array.norm.des1)[[1]][i]=gsub("HD31(.+)","\\1",dimnames(my.data.array.norm.des1)[[1]][i])
+    dimnames(my.data.array.norm.des1)[[1]][i]=
+      gsub("HD31(.+)","\\1",dimnames(my.data.array.norm.des1)[[1]][i])
   }
 }
 
 for(i in 1:length(dimnames(my.data.array.norm.des2)[[1]])){
   if(dimnames(my.data.array.norm.des2)[[1]][i] %in% names(id_to_gene)){
-    dimnames(my.data.array.norm.des2)[[1]][i]=id_to_gene[[dimnames(my.data.array.norm.des2)[[1]][i]]]
+    dimnames(my.data.array.norm.des2)[[1]][i]=
+      id_to_gene[[dimnames(my.data.array.norm.des2)[[1]][i]]]
   }else{
-    dimnames(my.data.array.norm.des2)[[1]][i]=gsub("HD32(.+)","\\1",dimnames(my.data.array.norm.des2)[[1]][i])
+    dimnames(my.data.array.norm.des2)[[1]][i]=
+      gsub("HD32(.+)","\\1",dimnames(my.data.array.norm.des2)[[1]][i])
   }
 }
 
 for(i in 1:length(dimnames(mainEffects$target)[[1]])){
   if(dimnames(mainEffects$target)[[1]][i] %in% names(id_to_gene)){
-    dimnames(mainEffects$target)[[1]][i]=id_to_gene[[dimnames(mainEffects$target)[[1]][i]]]
+    dimnames(mainEffects$target)[[1]][i]=
+      id_to_gene[[dimnames(mainEffects$target)[[1]][i]]]
   }
 }
 
 
-my.data.array.norm.des2=my.data.array.norm.des2[dimnames(my.data.array.norm.des1)[[1]],,,,,]
+my.data.array.norm.des2=
+  my.data.array.norm.des2[dimnames(my.data.array.norm.des1)[[1]],,,,,]
 my.data.array.norm.des1.1=my.data.array.norm.des1[,,,1,,]
 my.data.array.norm.des1.2=my.data.array.norm.des1[,,,2,,]
 my.data.array.norm.des2.1=my.data.array.norm.des2[,,,1,,]
 my.data.array.norm.des2.2=my.data.array.norm.des2[,,,2,,]
-my.data.array.norm.reshaped=abind(my.data.array.norm.des1.1,my.data.array.norm.des1.2,my.data.array.norm.des2.1,my.data.array.norm.des2.2,rev.along = 0)
-dimnames(my.data.array.norm.reshaped)[[6]]=c("des1repl1","des1repl2","des2repl1","des2repl2")
-rm(my.data.array.norm.des1,my.data.array.norm.des2,my.data.array.norm.des1.1,my.data.array.norm.des1.2,my.data.array.norm.des2.1,my.data.array.norm.des2.2)
+my.data.array.norm.reshaped=abind(my.data.array.norm.des1.1,
+                                  my.data.array.norm.des1.2,
+                                  my.data.array.norm.des2.1,
+                                  my.data.array.norm.des2.2,
+                                  rev.along = 0)
+dimnames(my.data.array.norm.reshaped)[[6]]=c("des1repl1","des1repl2",
+                                             "des2repl1","des2repl2")
+rm(my.data.array.norm.des1,
+   my.data.array.norm.des2,
+   my.data.array.norm.des1.1,
+   my.data.array.norm.des1.2,
+   my.data.array.norm.des2.1,
+   my.data.array.norm.des2.2)
 
-#statistically analyze the interactions of every condition separately as was done in Laufer et al. 2013 or Fischer et al. 2015
+#statistically analyze the interactions of every condition separately as 
+#was done in Laufer et al. 2013 or Fischer et al. 2015
 
 D=aperm(interaction_scores,perm = c(1,2,4,5,3,6))
 PADJ = D[,,,,,1]
@@ -1157,7 +1431,7 @@ for (i in seq_len(dim(D)[5])) {
     PADJ[,,,,i] = padj
     cat(sprintf("i=%2d",i),
                  " nr int (1%) = ", sum(padj <= 0.01, na.rm=TRUE)/nrow(Data),
-                " nr int (3%) = ", sum(padj <= 0.03, na.rm=TRUE)/nrow(Data), "\n")
+           " nr int (3%) = ", sum(padj <= 0.03, na.rm=TRUE)/nrow(Data), "\n")
 }
 
 D=(D[,,,,,1]+D[,,,,,2]+D[,,,,,3]+D[,,,,,4])/4
@@ -1169,21 +1443,29 @@ Interactions = list(piscore = D,
                     padj = PADJ
                 )
 
-inter_df=melt(Interactions$piscore,varnames = c("target","query","time","drug","feature"),value.name = "piscore")
-sig_df=melt(Interactions$padj,varnames = c("target","query","time","drug","feature"),value.name = "fdr")
+inter_df=melt(Interactions$piscore,varnames = 
+                c("target","query",
+                  "time","drug","feature"),
+              value.name = "piscore")
+sig_df=melt(Interactions$padj,varnames = 
+              c("target","query",
+                "time","drug",
+                "feature"),value.name = "fdr")
 data_df=tbl_df(full_join(inter_df,sig_df))
 
 my.data.array.norm.reshaped_df<-
-  melt(my.data.array.norm.reshaped,varnames=c("target","query","feature","time","drug","replicate"),value.name = "value") %>% tbl_df()
+  melt(my.data.array.norm.reshaped,varnames=
+         c("target","query",
+           "feature","time",
+           "drug","replicate"),
+       value.name = "value") %>% tbl_df()
 
 rm(sig_df,
-   Interactions,
-   inter_df,
-   my.data.array.norm.reshaped,
-    my.data.array.norm,
-   D,
-   s,
-   PADJ)
+  inter_df,
+  my.data.array.norm,
+  D,
+  s,
+  PADJ)
 
 ```
 
@@ -1191,7 +1473,7 @@ rm(sig_df,
 
 Filter non-correlating features
 
-#Supplemetal Figure 3A: Featurewise biological reprtoducibility analysis
+#Figure 2-supplemental figure 2A: Featurewise biological reproducibility analysis
 
 ```{r, warning=F, message=F}
 correlations=my.data.array.norm.reshaped_df %>% 
@@ -1227,7 +1509,7 @@ allfeature<-
 
 
 
-#Supplemetal Figure 3B: Pairwise feature correlation analysis and redundancy filter
+#Figure 2-supplemental figure 2B: Pairwise feature correlation analysis and redundancy filter
 
 ```{r, warning=F, message=F}
 require(RColorBrewer)
@@ -1239,9 +1521,10 @@ goodfeature=data_df %>%
   unique() %>% 
   as.character()
 
-#######################################################################################
-# compute features wise correlations or load them from previous session (takes a long time! do not run)
-#######################################################################################
+##########################################################################
+# compute features wise correlations or load them from previous session 
+#(takes a long time! do not run)
+##########################################################################
 # subdf=data_df %>% filter(time=="96h",drug=="MEKi",feature %in% goodfeature)
 # tmp=combn(as.character(goodfeature),2,simplify = F)
 # fun<-function(x){
@@ -1253,23 +1536,29 @@ goodfeature=data_df %>%
 # correllations=bplapply(tmp,fun, BPPARAM = multicoreParam)
 # cors=do.call("rbind.data.frame",correllations)
 # names(cors) = c("corr","feat1","feat2")
-# cors %<>% tbl_df() %>% mutate(corr=as.numeric(as.character(corr))) %>% arrange(desc(corr))
+# cors %<>% tbl_df() %>% mutate(corr=as.numeric(as.character(corr))) %>% 
+# arrange(desc(corr))
 
 data('feature_correlations_interactions', package='MODIFIdata')
 upperiag=cors 
 lowerdiag=upperiag %>% dplyr::select(corr,feat1=feat2,feat2=feat1) 
-diag=cbind.data.frame("corr"=1,"feat1"=levels(upperiag$feat1),"feat2"=levels(upperiag$feat1))
+diag=cbind.data.frame("corr"=1,
+                      "feat1"=levels(upperiag$feat1),
+                      "feat2"=levels(upperiag$feat1))
 
-feature_corrs=bind_rows(upperiag,lowerdiag,diag) %>% spread(feat2,corr) %>% dplyr::select(-feat1) %>% t()
+feature_corrs=bind_rows(upperiag,lowerdiag,diag) %>% 
+  spread(feat2,corr) %>% dplyr::select(-feat1) %>% t()
 
-x=pheatmap::pheatmap(feature_corrs,color = colorRampPalette(rev(brewer.pal(n = 11, name ="RdBu")))(100))
+x=pheatmap::pheatmap(feature_corrs,color = 
+          colorRampPalette(rev(brewer.pal(n = 11, name ="RdBu")))(100))
 
-###############################################################################################################
+#############################################################################
 # filter features such that highest reproducible features are chosen first
-# second each feature that shows a pearson correlation higher than 0.7 with this feature is disregarded
+# second each feature that shows a pearson correlation higher than 0.7 with 
+# this feature is disregarded
 # iteratively test that for all remaining features
 # fix cell_number and tubulin.b.mad.mean
-###############################################################################################################
+############################################################################
 
 for(i in allfeature){
   if(i %in% goodfeature){
@@ -1282,7 +1571,7 @@ goodfeature=c("cell_number","tubulin.b.mad.tmean",goodfeature) %>% unique()
 
 ```
 
-#Supplemetal Figure 3C: Scatterplot of uncorrelating features after redundancy checks
+#Figure 2-supplemental figure 2C: Scatterplot of uncorrelating features after redundancy checks
 
 ```{r, warning=F, message=F}
 #show that they are independent
@@ -1290,7 +1579,8 @@ colfunc <- colorRampPalette(c("#555555", "black"))
 colfunc(30)
 
 my.data.array.norm.reshaped_df %>% 
-  filter(time=="96h",drug=="MEKi",feature %in% c("cell_number","actin.m.eccentricity.tmean")) %>% 
+  filter(time=="96h",drug=="MEKi",feature %in% c("cell_number",
+                                         "actin.m.eccentricity.tmean")) %>% 
   extract(replicate,c("design","bio"),regex="(des\\d)(repl\\d)") %>%
   spread(feature,value) %>%
   ggplot() + 
@@ -1300,7 +1590,7 @@ my.data.array.norm.reshaped_df %>%
   theme_classic()
 ```
 
-#Supplemetal Figure 3D: Check if features enrich for non-redundant information content of correlated residuals
+#Figure 2-supplemental figure 2D: Check if features enrich for non-redundant information content of correlated residuals
 
 ```{r, warning=F, message=F}
 data=my.data.array.norm.reshaped_df %>% 
@@ -1309,9 +1599,9 @@ data=my.data.array.norm.reshaped_df %>%
   group_by(bio,feature,target,query) %>%
   summarise(value=mean(value,na.rm=T))
 
-################################################################################################################
+###############################################################################
 # reformat data to fit the bernd scheme of target ~ query ~ feature ~ replicate
-#################################################################################################################
+###############################################################################
 
 test1 = drop_na(data)
 
@@ -1337,20 +1627,27 @@ subSampleForStabilitySelection = list(D = test[sample,,],
                                       sample = sample,
                                       phenotype = dimnames(test1)[[3]])
 #calculate the information gain per selected feature
-stabilitySelection = HD2013SGI::HD2013SGIselectByStability(subSampleForStabilitySelection,verbose = T,preselect = c("cell_number"),Rdim=15)
+stabilitySelection = HD2013SGI::HD2013SGIselectByStability(
+                      subSampleForStabilitySelection,
+                      verbose = T,preselect = c("cell_number"),Rdim=15)
 
 #plot the information gain
 par(mar=c(10, 4, 2, 0))
-barplot(stabilitySelection$correlation[order(stabilitySelection$correlation,decreasing = T)],
-        names.arg=stabilitySelection$selected[order(stabilitySelection$correlation,decreasing = T)],
+barplot(stabilitySelection$correlation[
+                  order(stabilitySelection$correlation,
+                  decreasing = T)],
+        names.arg=stabilitySelection$selected[
+          order(stabilitySelection$correlation,
+                decreasing = T)],
         ylim=c(-1,1), las=2, ylab="information gain")
 ```
 
-# Figure 2C: Biological replicate correlation
+# Figure 2B Figure 2-supplemental figure 3A,B: Biological replicate correlation
 
 ```{r, warning=F, message=F}
 my.data.array.norm.reshaped_df %>% 
-  filter(time=="96h",drug=="MEKi",feature %in% c("cell_number","actin.m.eccentricity.tmean")) %>% 
+  filter(time=="96h",drug=="MEKi",feature %in% c("cell_number",
+                                        "actin.m.eccentricity.tmean")) %>% 
   extract(replicate,c("design","bio"),regex="(des\\d)(repl\\d)") %>%
   spread(bio,value) %>%
    ggplot(aes(x=repl1, y=repl2)) + 
@@ -1363,7 +1660,7 @@ my.data.array.norm.reshaped_df %>%
     theme_classic()
 ```
 
-# Figure 2D: dsRNA design replicate correlation
+# Figure 2-supplemental figure 3D: dsRNA design replicate correlation
 
 ```{r, warning=F, message=F}
 data=my.data.array.norm.reshaped_df %>% 
@@ -1373,7 +1670,9 @@ data=my.data.array.norm.reshaped_df %>%
   group_by(target,query,feature) %>%
   summarise(des1=mean(des1),des2=mean(des2))
 
-#calculate the correlation between design replicates for all good features separated by queries such that query effects are not compromising the correlation
+# calculate the correlation between design replicates for all good 
+# features separated by queries such that query effects are 
+# not compromising the correlation
 # the target gene design correlations are then averaged over all queries
 c_avg_q_all_f <- 
   data %>% 
@@ -1383,12 +1682,13 @@ c_avg_q_all_f <-
   summarise(correlation2=mean(correlation,na.rm=T)) %>%
   mutate(target=factor(target,levels=target[order(correlation2,decreasing=T)]))
 
-plot(sort(c_avg_q_all_f$correlation2,decreasing = T),ylab="avg. design correlation",xlab="target gene",pch=19)
+plot(sort(c_avg_q_all_f$correlation2,decreasing = T),
+     ylab="avg. design correlation",xlab="target gene",pch=19)
 abline(h=mean(c_avg_q_all_f$correlation2),col="black",lty=2)
 title(main=mean(c_avg_q_all_f$correlation2))
 ```
 
-# Figure 2E: Biological control separation
+# Figure 2-supplemental figure 3D: Biological control separation
 
 ```{r, warning=F, message=F,eval=T}
 
@@ -1442,17 +1742,24 @@ multi=cur_z=do.call("rbind.data.frame",plates)
 pos=cur_z[,2]
 neg=cur_z[,3]
 par(mfrow = c(2,3))
-plot(cur_z[,1],cur_z[,2],pch=16,col="green",ylim=c(-30,15),ylab="weighted sum of features",xlab="plate-index")
+plot(cur_z[,1],cur_z[,2],pch=16,col="green",ylim=c(-30,15),
+     ylab="weighted sum of features",xlab="plate-index")
 points(cur_z[,1],cur_z[,3],pch=16,col="red")
 
-plot(2,2,xlim=c(-30,15),ylim=c(0,1),sub=paste("Z'-factor =",round(mean(cur_z[,4],na.rm = T),digits=3)),ylab="density estimate",xlab="weigthed score over all wells",type="n")
+plot(2,2,xlim=c(-30,15),ylim=c(0,1),sub=paste("Z'-factor =",
+    round(mean(cur_z[,4],na.rm = T),digits=3)),
+    ylab="density estimate",
+    xlab="weigthed score over all wells",type="n")
 lines(density(cur_z[,2],na.rm = T),col="green",lwd=2)
 lines(density(cur_z[,3],na.rm = T),col="red",lwd=2)
 
-plot(cur_z[,1],cur_z[,4],pch=16,col="black",ylim=c(-1,1),main=paste("Multifactorial-Z' =",round(mean(cur_z[,4],na.rm = T),digits=3)),ylab="Z'-factor",xlab="plate-index")
+plot(cur_z[,1],cur_z[,4],pch=16,col="black",ylim=c(-1,1),
+     main=paste("Multifactorial-Z' =",
+          round(mean(cur_z[,4],na.rm = T),digits=3)),
+     ylab="Z'-factor",xlab="plate-index")
 abline(h=mean(cur_z[,4],na.rm = T))
 
-########################################################################################################################################################################
+#############################################################################
 
 plates=list()
 for(i in plates_that_correlate.idx){
@@ -1465,24 +1772,30 @@ uni=cur_z=do.call("rbind.data.frame",plates)
 pos=cur_z[,2]
 neg=cur_z[,3]
 
-plot(cur_z[,1],cur_z[,2],pch=16,col="green",ylim=c(-4,2),ylab="features",xlab="plate-index")
+plot(cur_z[,1],cur_z[,2],pch=16,col="green",ylim=c(-4,2),ylab="features",
+     xlab="plate-index")
 points(cur_z[,1],cur_z[,3],pch=16,col="red")
 
-plot(2,2,xlim=c(-4,2),ylim=c(0,5),sub=paste("Z'-factor =",round(mean(cur_z[,4],na.rm = T),digits=3)),ylab="density estimate",xlab="Z-score cell count",type="n")
+plot(2,2,xlim=c(-4,2),ylim=c(0,5),sub=paste("Z'-factor =",
+          round(mean(cur_z[,4],na.rm = T),digits=3)),
+     ylab="density estimate",xlab="Z-score cell count",type="n")
 lines(density(cur_z[,2],na.rm = T),col="green",lwd=2)
 lines(density(cur_z[,3],na.rm = T),col="red",lwd=2)
 
-plot(cur_z[,1],cur_z[,4],pch=16,col="black",ylim=c(-1,1),main=paste("univariate-Z' =",round(mean(cur_z[,4],na.rm = T),digits=3)),ylab="Z'-factor",xlab="plate-index")
+plot(cur_z[,1],cur_z[,4],pch=16,col="black",ylim=c(-1,1),
+     main=paste("univariate-Z' =",round(mean(cur_z[,4],na.rm = T),digits=3)),
+     ylab="Z'-factor",xlab="plate-index")
 abline(h=mean(cur_z[,4],na.rm = T))
 
 
 ```
 
-# Figure 2F: Example interaction heatmap
+# Figure 2C: Example interaction heatmap
 
 ```{r, warning=F, message=F}
 test<-melt(interaction_scores) %>% tbl_df()
-colnames(test) <- c("target","query","feature","time","drug","replicate","piscore")
+colnames(test) <- c("target","query","feature","time",
+                    "drug","replicate","piscore")
 test_sub <- test %>%   
   filter(feature %in% goodfeature) %>% 
   group_by(target,query,feature,time,drug) %>% 
@@ -1499,8 +1812,10 @@ eccentr_DMSO_96 <- test_sub %>%
   spread(query,piscore) %>%
   `row.names<-`(.$target) %>%
   dplyr::select_if(is.numeric) %>%
-  pheatmap(cluster_rows=TRUE, cluster_cols=TRUE,color = colorRampPalette(c("blue", "black", "yellow"))(1000),clustering_method = 'ward.D2')
-
+  pheatmap(cluster_rows=TRUE, 
+           cluster_cols=TRUE,
+           color = colorRampPalette(c("blue",
+          "black", "yellow"))(1000),clustering_method = 'ward.D2')
 
 test_sub %>% 
   filter(
@@ -1509,23 +1824,31 @@ test_sub %>%
          !grepl("RLUC",target)
          ) %>%
   dplyr::select(target,query,piscore,drug,time) %>%
-  mutate(target=factor(target,levels = eccentr_DMSO_96$tree_row$labels[eccentr_DMSO_96$tree_row$order])) %>%
-  mutate(query=factor(query,levels = eccentr_DMSO_96$tree_col$labels[eccentr_DMSO_96$tree_col$order])) %>%
-  filter(query %in% c("raw","Rho1","Cka","dome","Stat92E","mts","polo","Cdk1","CG5844","brm"),target %in% c("Rel","dos","Sos","Ras85D","Fur1","Pvr","Cka","pnt")) %>%
+  mutate(target=factor(target,levels = 
+      eccentr_DMSO_96$tree_row$labels[eccentr_DMSO_96$tree_row$order])) %>%
+  mutate(query=factor(query,levels = 
+      eccentr_DMSO_96$tree_col$labels[eccentr_DMSO_96$tree_col$order])) %>%
+  filter(query %in% c("raw","Rho1","Cka","dome","Stat92E","mts","polo",
+                    "Cdk1","CG5844","brm"),target %in% c("Rel","dos","Sos",
+                      "Ras85D","Fur1","Pvr","Cka","pnt")) %>%
   ggplot(aes(x=query,y=target,fill=piscore)) + 
   facet_wrap(~drug+time) +
     geom_raster() +
-    scale_fill_gradientn(na.value = 'black',colours = c("#5087C8","black","#F2EE35"),
-                         guide = "colorbar",values = rescale(c(-5,-1.5,0,1.5,5)), limits=c(-5,5)) + 
+    scale_fill_gradientn(na.value = 'black',
+                         colours = c("#5087C8","black","#F2EE35"),
+                         guide = "colorbar",
+                         values = rescale(c(-5,-1.5,0,1.5,5)), 
+                         limits=c(-5,5)) + 
     theme(axis.text.x = element_text(angle = 90, hjust = 1) ) +
-    theme(axis.text=element_text(size=5),axis.title=element_text(size=14,face="bold"))+
+    theme(axis.text=element_text(size=5),
+          axis.title=element_text(size=14,face="bold"))+
     ggtitle("Time and treatment resolved interactions of cell eccentricity")
 rm(test)
 rm(test_sub)
 rm(test1)
 ```
 
-# Supplentary Figure 5A-C: Feature comparison to Fischer et al. 2015
+# Figure 2-supplemental figure 4A-C: Feature comparison to Fischer et al. 2015
 
 ```{r, warning=F, message=F}
 #load pi score matrix from Fischer et al., Elife 2015
@@ -1534,26 +1857,34 @@ fisheretal=melt(pimatrix$D) %>% tbl_df()
 
 #loadpi-score matrix from Heigwer et al.
 heigweretal=melt(interaction_scores) %>% tbl_df()
-names(heigweretal)=c("target","query","feature","time","treatment","replicate","value")
+names(heigweretal)=c("target","query","feature","time",
+                     "treatment","replicate","value")
 
 #identify common query genes
-commonqueries=levels(heigweretal$query)[levels(heigweretal$query) %in% levels(fisheretal$query)]
+commonqueries=levels(heigweretal$query)[levels(heigweretal$query) %in% 
+                                          levels(fisheretal$query)]
 #it is actually only RasGAP1
 
 #identify common target genes
-commontargets=levels(heigweretal$target)[levels(heigweretal$target) %in% levels(fisheretal$target)]
+commontargets=levels(heigweretal$target)[levels(heigweretal$target) %in% 
+                                           levels(fisheretal$target)]
 
 
 #filter the data set for the common data points to Fischer et al
 heigwercommon=heigweretal %>% 
-  filter(treatment=="DMSO",time=="72h",query=="RasGAP1",target %in% commontargets) %>% #,feature=="DNA.m.majoraxis.tmean"
+  filter(treatment=="DMSO",
+         time=="72h",
+         query=="RasGAP1",
+         target %in% commontargets
+         ) %>% 
   dplyr::select(target,query,feature,heigwer=value) %>%
   group_by(target,query,feature) %>%
   summarise(heigwer=mean(heigwer,na.rm=T)) %>%
   ungroup()
 
 #filter the data set for the common data points to Heigwer et al
-fishercommon=fisheretal %>% filter(query=="RasGAP1",target %in% commontargets) %>% #phenotype=="10x.meanNonmitotic.nucleus.DAPI.m.majoraxis",
+fishercommon=fisheretal %>% 
+  filter(query=="RasGAP1",target %in% commontargets) %>% 
   dplyr::select(target,query,phenotype,fisher=value) %>%
   group_by(target,query,phenotype) %>%
   summarise(fisher=mean(fisher,na.rm=T))%>%
@@ -1562,8 +1893,11 @@ fishercommon=fisheretal %>% filter(query=="RasGAP1",target %in% commontargets) %
 #join the commonalities
 common=left_join(heigwercommon,fishercommon)
 
-#analyze linear dependency between two features of the different screens by linear modeling and anova
-#one needs to note that these interdependencies are actually in interaction score space! meaning the a significant reproducibility is a very high achievement here
+#analyze linear dependency between two features of the different screens 
+#by linear modeling and anova one needs to note that these interdependencies 
+#are actually in interaction score space! meaning the a significant 
+#reproducibility is a very high achievement here
+
 significant_dependencies<-
   common %>% 
   group_by(feature,phenotype) %>% 
@@ -1575,7 +1909,8 @@ significant_dependencies<-
   filter(fdr<0.05) %>%
   arrange(fdr)
 
-#we found that the following features can be translated from heigwer et al to fisher et al
+#we found that the following features can be translated from heigwer et al 
+#to fisher et al
 
 "DNA.s.perimeter.tmean" = "10x.meanNonmitotic.cell.0.s.area"
 "DNA.s.radius.sd.tmean" = "4x.areaNucAll"
@@ -1585,14 +1920,18 @@ significant_dependencies<-
 
 #as control we plot these pairwise dependencies
 a<-common %>%
-  filter(feature=="DNA.m.eccentricity.tmean",phenotype=="10x.meanNonmitotic.nucleus.DAPI.m.majoraxis") %>%
+  filter(feature=="DNA.m.eccentricity.tmean",
+         phenotype=="10x.meanNonmitotic.nucleus.DAPI.m.majoraxis") %>%
   ggplot(aes(x=heigwer,y=fisher)) + 
   geom_point() + 
   geom_smooth(method="rlm",se=F)+
   theme_classic() +
   xlab("Heigwer: DNA.m.eccentricity.tmean") +
   ylab("Fischer: 10x.meanNonmitotic.nucleus.DAPI.m.majoraxis") +
-  ggtitle(paste0('FDR =',significant_dependencies %>% filter(feature=="DNA.m.eccentricity.tmean",phenotype=="10x.meanNonmitotic.nucleus.DAPI.m.majoraxis") %>% .$fdr %>% format(digits =3,scientific=T)))
+  ggtitle(paste0('FDR =',significant_dependencies %>% 
+         filter(feature=="DNA.m.eccentricity.tmean",
+                phenotype=="10x.meanNonmitotic.nucleus.DAPI.m.majoraxis") %>% 
+         .$fdr %>% format(digits =3,scientific=T)))
  
 b<-common %>%
   filter(feature=="DNA.b.mad.tmean",phenotype=="4x.areapH3All") %>%
@@ -1602,7 +1941,10 @@ b<-common %>%
   theme_classic() +
   xlab("Heigwer: DNA.b.mad.tmean") +
   ylab("Fischer: 4x.areapH3All") +
-  ggtitle(paste0('FDR =',significant_dependencies %>% filter(feature=="DNA.b.mad.tmean",phenotype=="4x.areapH3All") %>% .$fdr %>% format(digits =3,scientific=T)))
+  ggtitle(paste0('FDR =',significant_dependencies %>% 
+                   filter(feature=="DNA.b.mad.tmean",
+                          phenotype=="4x.areapH3All") %>% 
+                   .$fdr %>% format(digits =3,scientific=T)))
   
 c<-common %>%
   filter(feature=="DNA.h.asm.s1.tmean",phenotype=="4x.count") %>%
@@ -1612,17 +1954,23 @@ c<-common %>%
   theme_classic() +
   xlab("Heigwer: DNA.h.asm.s1.tmean") +
   ylab("Fischer: 4x.count") +
-  ggtitle(paste0('FDR =',significant_dependencies %>% filter(feature=="DNA.h.asm.s1.tmean",phenotype=="4x.count") %>% .$fdr %>% format(digits =3,scientific=T)))
+  ggtitle(paste0('FDR =',significant_dependencies %>% 
+        filter(feature=="DNA.h.asm.s1.tmean",phenotype=="4x.count") %>% 
+          .$fdr %>% format(digits =3,scientific=T)))
   
 d<-common %>%
-  filter(feature=="DNA.s.perimeter.tmean",phenotype=="10x.meanNonmitotic.cell.0.s.area") %>%
+  filter(feature=="DNA.s.perimeter.tmean",
+         phenotype=="10x.meanNonmitotic.cell.0.s.area") %>%
   ggplot(aes(x=heigwer,y=fisher)) + 
   geom_point() + 
   geom_smooth(method="rlm",se=F) +
   theme_classic() +
   xlab("Heigwer: DNA.s.perimeter.tmean") +
   ylab("Fischer: 10x.meanNonmitotic.cell.0.s.area") +
-  ggtitle(paste0('FDR =',significant_dependencies %>% filter(feature=="DNA.s.perimeter.tmean",phenotype=="10x.meanNonmitotic.cell.0.s.area") %>% .$fdr %>% format(digits =3,scientific=T)))
+  ggtitle(paste0('FDR =',significant_dependencies %>% 
+    filter(feature=="DNA.s.perimeter.tmean",
+           phenotype=="10x.meanNonmitotic.cell.0.s.area") %>% 
+      .$fdr %>% format(digits =3,scientific=T)))
   
 e<-common %>%
   filter(feature=="DNA.s.radius.sd.tmean",phenotype=="4x.areaNucAll") %>%
@@ -1632,20 +1980,23 @@ e<-common %>%
   theme_classic() +
   xlab("Heigwer: DNA.s.radius.sd.tmean") +
   ylab("Fischer: 4x.areaNucAll") +
-  ggtitle(paste0('FDR =',significant_dependencies %>% filter(feature=="DNA.s.radius.sd.tmean",phenotype=="4x.areaNucAll") %>% .$fdr %>% format(digits =3,scientific=T)))
+  ggtitle(paste0('FDR =',significant_dependencies %>% 
+filter(feature=="DNA.s.radius.sd.tmean",phenotype=="4x.areaNucAll") %>% 
+  .$fdr %>% format(digits =3,scientific=T)))
 
 a+b+c+d+e
   
             
 ```
 
-# Supplementary Figure 5D-G: Feature comparison to Horn et al. 2011
+#Figure 2-supplemental figure 5D-G: Feature comparison to Horn et al. 2011
 
 ```{r, warning=F, message=F}
 #load the pi-score data produced by Horn et al. 2011
 #library(RNAinteractMAPK)
 data("Dmel2PPMAPK", package="RNAinteractMAPK")
-PI <- RNAinteract::getData(Dmel2PPMAPK, type="pi", format="targetMatrix", screen="mean", withoutgroups = c("pos", "neg"))
+PI <- RNAinteract::getData(Dmel2PPMAPK, type="pi", format="targetMatrix", 
+                           screen="mean", withoutgroups = c("pos", "neg"))
 
 hornetal<-melt(PI)
 names(hornetal)=c("target","query","repl","phenotype","horn")
@@ -1653,22 +2004,26 @@ names(hornetal)=c("target","query","repl","phenotype","horn")
 hornetal %<>% tbl_df() %>% dplyr::select(-repl)
 
 #identify common query genes
-commonqueries=levels(heigweretal$query)[levels(heigweretal$query) %in% levels(hornetal$query)]
+commonqueries=levels(heigweretal$query)[levels(heigweretal$query) %in%
+                                          levels(hornetal$query)]
 #it is actually only RasGAP1
 
 #identify common target genes
-commontargets=levels(heigweretal$target)[levels(heigweretal$target) %in% levels(hornetal$target)]
+commontargets=levels(heigweretal$target)[levels(heigweretal$target) %in% 
+                                           levels(hornetal$target)]
 
 #filter the data set for the common data points to Horn et al
 heigwercommon=heigweretal %>% 
-  filter(treatment=="DMSO",time=="72h",query %in% commonqueries,target %in% commontargets) %>% #,feature=="DNA.m.majoraxis.tmean"
+  filter(treatment=="DMSO",time=="72h",query %in% commonqueries,target %in% 
+           commontargets) %>% #,feature=="DNA.m.majoraxis.tmean"
   dplyr::select(target,query,feature,heigwer=value) %>%
   group_by(target,query,feature) %>%
   summarise(heigwer=mean(heigwer,na.rm=T)) %>%
   ungroup()
 
 #filter the data set for the common data points to Heigwer et al
-horncommon=hornetal %>% filter(query %in% commonqueries,target %in% commontargets) %>% #phenotype=="10x.meanNonmitotic.nucleus.DAPI.m.majoraxis",
+horncommon=hornetal %>% 
+  filter(query %in% commonqueries,target %in% commontargets) %>% 
   dplyr::select(target,query,phenotype,horn) %>%
   group_by(target,query,phenotype) %>%
   summarise(horn=mean(horn,na.rm=T))%>%
@@ -1677,8 +2032,11 @@ horncommon=hornetal %>% filter(query %in% commonqueries,target %in% commontarget
 #join the commonalities
 common=left_join(heigwercommon,horncommon)
 
-#analyze linear dependency between two features of the different screens by linear modeling and anova
-#one needs to note that these interdependencies are actually in interaction score space! meaning the a significant reproducibility is a very high achievement here
+#analyze linear dependency between two features of the different 
+#screens by linear modeling and anova
+#one needs to note that these interdependencies are actually in interaction 
+#score space! meaning the a significant reproducibility 
+#is a very high achievement here
 significant_dependencies<-
   common %>% 
   group_by(feature,phenotype) %>% 
@@ -1703,7 +2061,9 @@ common %>%
   theme_classic() +
   xlab("Heigwer: cell_number") +
   ylab("Horn: nrCells") +
-  ggtitle(paste0('FDR =',significant_dependencies %>% filter(feature=="cell_number",phenotype=="nrCells") %>% .$fdr %>% format(digits =3,scientific=T)))
+  ggtitle(paste0('FDR =',significant_dependencies %>% 
+                filter(feature=="cell_number",phenotype=="nrCells") %>% 
+                  .$fdr %>% format(digits =3,scientific=T)))
 
 common %>%
   filter(feature=="actin.m.eccentricity.tmean",phenotype=="area") %>%
@@ -1713,7 +2073,9 @@ common %>%
   theme_classic() +
   xlab("Heigwer: actin.m.eccentricity.tmean") +
   ylab("Horn: area") +
-  ggtitle(paste0('FDR =',significant_dependencies %>% filter(feature=="actin.m.eccentricity.tmean",phenotype=="area") %>% .$fdr %>% format(digits =3,scientific=T)))
+  ggtitle(paste0('FDR =',significant_dependencies %>% 
+      filter(feature=="actin.m.eccentricity.tmean",phenotype=="area") %>% 
+        .$fdr %>% format(digits =3,scientific=T)))
 
 common %>%
   filter(feature=="DNA.h.asm.s1.tmean",phenotype=="intensity") %>%
@@ -1723,7 +2085,9 @@ common %>%
   theme_classic() +
   xlab("Heigwer: DNA.h.asm.s1.tmean") +
   ylab("Horn: intensity") +
-  ggtitle(paste0('FDR =',significant_dependencies %>% filter(feature=="DNA.h.asm.s1.tmean",phenotype=="intensity") %>% .$fdr %>% format(digits =3,scientific=T)))
+  ggtitle(paste0('FDR =',significant_dependencies %>% 
+    filter(feature=="DNA.h.asm.s1.tmean",phenotype=="intensity") %>% 
+      .$fdr %>% format(digits =3,scientific=T)))
 
 #get all interactions screened by Heigwer et al.
 
@@ -1742,7 +2106,8 @@ horn_combis<-hornetal %>%
   dplyr::select(target,query) %>%
   dplyr::distinct() %>%
   filter(!grepl("CTRL",query)) %>%
-  mutate(query=gsub(x = query,pattern="Gap1",replacement="RasGAP1"),target=gsub(x = target,pattern="Gap1",replacement="RasGAP1")) %>%
+  mutate(query=gsub(x = query,pattern="Gap1",replacement="RasGAP1"),
+         target=gsub(x = target,pattern="Gap1",replacement="RasGAP1")) %>%
   mutate(target=as.character(target),query=as.character(query)) %>%
   group_by(target,query) %>%
   filter(target != query) %>%
@@ -1770,7 +2135,7 @@ plot(fit1,counts = T)
 rm(heigweretal)
 ```
 
-# Supplementary Figure 6: Quality control metrics of gene-gene combinatorial screening
+#Figure 2-supplemental figure 5: Quality control metrics of gene-gene combinatorial screening
 
 ```{r, warning=F, message=F}
 rm(Interactions)
@@ -1808,7 +2173,8 @@ data = data_df %>%
 
 #plot correlating features pi-scores
 
-interaction_scores_df<-melt(interaction_scores,varnames=c("target","query","feature","time","drug","replicate"),value.name = "value") %>% tbl_df()
+interaction_scores_df<-melt(interaction_scores,varnames=c("target","query",
+    "feature","time","drug","replicate"),value.name = "value") %>% tbl_df()
 
 interaction_scores_df %>%  
   filter(feature == "DNA.m.eccentricity.tmean", time=="96h",drug=="MEKi") %>% 
@@ -1851,7 +2217,8 @@ cor(d$repl1,d$repl2,use="p",method="p")
 #plot reversibility of interactions DNA.m.eccentricity.tmean
 
 data=data_df %>% 
-  dplyr::filter(time=='96h',drug=='MEKi',feature=="DNA.m.eccentricity.tmean") %>% 
+  dplyr::filter(time=='96h',drug=='MEKi',
+                feature=="DNA.m.eccentricity.tmean") %>% 
   dplyr::select(target,query,piscore) %>%
   filter(target %in% unique(.$query),query %in% unique(.$target)) %>%
   arrange(target,query) %>%
@@ -1911,15 +2278,20 @@ First we calculate and save differential interaction estimates for all the diffe
 
 ```{r, warning=F, message=F,eval=FALSE}
 
-sample_data=interaction_scores[,,goodfeature,,,] %>% melt() %>% tbl_df()
-names(sample_data)=c("target","query","feature","time","treatment","replicate","piscore")
 
-sample_data <- sample_data %>% filter(!grepl("CTRL",query),!grepl("RLUC",target)) 
+sample_data=interaction_scores[,,goodfeature,,,] %>% melt() %>% tbl_df()
+names(sample_data)=c("target","query","feature","time",
+                     "treatment","replicate","piscore")
+
+sample_data <- sample_data %>% filter(!grepl("CTRL",query),
+                                      !grepl("RLUC",target)) 
+
 
 my_rlm<-function(x){
   mdl=rlm(data=x,piscore~time+treatment)
   resi=mdl$residuals %>% sum(.^2)
-  vari=x %>% group_by(time,treatment) %>% summarise(v=var(piscore,na.rm=T)) %>% .$v %>% sum(na.rm=T)
+  vari=x %>% group_by(time,treatment) %>% summarise(v=var(piscore,na.rm=T)) %>% 
+    .$v %>% sum(na.rm=T)
   timesig=f.robftest(mdl,var = "time")$p.value
   treatsig=f.robftest(mdl,var = "treatmentMEKi")$p.value
   res=cbind(c(timesig,treatsig),mdl$coefficients[-1],resi,vari)
@@ -1948,7 +2320,11 @@ analyzed2=sample_data %>%
   ungroup() %>%
   rename(term=`.rownames`)
 
-analyzed %<>% left_join(analyzed2) %>% group_by(feature) %>% mutate(fdr=p.adjust(pval,method = "BH")) %>% ungroup()
+analyzed %<>% left_join(analyzed2) %>% group_by(feature) %>% 
+  mutate(fdr=p.adjust(pval,method = "BH")) %>% ungroup()
+
+save(analyzed,file = 
+    "time_treatment_rlm_model_analyzed_notscaled!_interactions_shuffled.RData")
 
 analyzed=sample_data %>%
   mutate(time=ifelse(time=="48h",48,ifelse(time=="72h",72,96))) %>% 
@@ -1964,12 +2340,17 @@ analyzed2=sample_data %>%
   ungroup() %>%
   rename(term=`.rownames`)
 
-analyzed %<>% left_join(analyzed2) %>% group_by(feature) %>% mutate(fdr=p.adjust(pval,method = "BH")) %>% ungroup()
+analyzed %<>% left_join(analyzed2) %>% group_by(feature) %>% 
+  mutate(fdr=p.adjust(pval,method = "BH")) %>% ungroup()
+
+save(analyzed,file = 
+       "time_treatment_rlm_model_analyzed_notscaled!_interactions.RData")
 
 my_rlm_wotime<-function(x){
   mdl=rlm(data=x,piscore~treatment)
   resi=mdl$residuals %>% sum(.^2)
-  vari=x %>% group_by(treatment) %>% summarise(v=var(piscore,na.rm=T)) %>% .$v %>% sum(na.rm=T)
+  vari=x %>% group_by(treatment) %>% summarise(v=var(piscore,na.rm=T)) %>% 
+    .$v %>% sum(na.rm=T)
   treatsig=f.robftest(mdl,var = "treatmentMEKi")$p.value
   res=cbind(c(treatsig),mdl$coefficients[-1],resi,vari)
   rownames(res)=c("treatmentMEKi")
@@ -1993,23 +2374,12 @@ analyzed2=sample_data %>%
   ungroup() %>%
   rename(term=`.rownames`)
 
-analyzed %<>% left_join(analyzed2) %>% group_by(feature) %>% mutate(fdr=p.adjust(pval,method = "BH")) %>% ungroup()
+analyzed %<>% left_join(analyzed2) %>% group_by(feature) %>% 
+  mutate(fdr=p.adjust(pval,method = "BH")) %>% ungroup()
 
-analyzed=sample_data %>%
-  mutate(time=ifelse(time=="48h",48,ifelse(time=="72h",72,96))) %>% 
-  group_by(target,query,feature) %>%
-  summarise(pi_mean=mean(piscore,na.rm=T)) %>%
-  ungroup()
+save(analyzed,file = 
+       "treatment_rlm_wotime_model_analyzed_time96_interactions.RData")
 
-analyzed2=sample_data %>% 
-  mutate(time=ifelse(time=="48h",48,ifelse(time=="72h",72,96))) %>% 
-  group_by(target,query,feature) %>% 
-  do(mdl=my_rlm_wotime(.)) %>% 
-  tidy(mdl) %>%
-  ungroup() %>%
-  rename(term=`.rownames`)
-
-analyzed %<>% left_join(analyzed2) %>% group_by(feature) %>% mutate(fdr=p.adjust(pval,method = "BH")) %>% ungroup()
 
 analyzed2=sample_data %>% 
   mutate(time=ifelse(time=="48h",48,ifelse(time=="72h",72,96))) %>% 
@@ -2019,7 +2389,41 @@ analyzed2=sample_data %>%
   tidy(mdl) %>%
   ungroup() 
 
-ttested_96h_differentialints<-analyzed2 %>% group_by(feature) %>% mutate(fdr=p.adjust(p.value,method = "BH")) %>% ungroup()
+ttested_96h_differentialints<-analyzed2 %>% group_by(feature) %>% 
+  mutate(fdr=p.adjust(p.value,method = "BH")) %>% ungroup()
+
+save(ttested_96h_differentialints,file = 
+       "treatment_t_test_analyzed_time96_interactions.RData")
+
+analyzed2=sample_data %>% 
+  mutate(time=ifelse(time=="48h",48,ifelse(time=="72h",72,96))) %>% 
+  filter(time==72) %>% 
+  group_by(target,query,feature) %>% 
+  do(mdl=t.test(piscore~treatment,data = .)) %>% 
+  tidy(mdl) %>%
+  ungroup() 
+
+ttested_72h_differentialints<-analyzed2 %>% group_by(feature) %>% 
+  mutate(fdr=p.adjust(p.value,method = "BH")) %>% ungroup()
+
+save(ttested_72h_differentialints,file = 
+       "treatment_t_test_analyzed_time72_interactions.RData")
+
+
+analyzed2=sample_data %>% 
+  mutate(time=ifelse(time=="48h",48,ifelse(time=="72h",72,96))) %>% 
+  filter(time!=48) %>% 
+  group_by(target,query,feature) %>% 
+  do(mdl=t.test(piscore~treatment,data = .)) %>% 
+  tidy(mdl) %>%
+  ungroup() 
+
+ttested_7296h_differentialints<-analyzed2 %>% group_by(feature) %>% 
+  mutate(fdr=p.adjust(p.value,method = "BH")) %>% ungroup()
+
+save(ttested_7296h_differentialints,file = 
+       "treatment_t_test_analyzed_time7296_interactions.RData")
+
 
 analyzed=sample_data %>%
   mutate(time=ifelse(time=="48h",48,ifelse(time=="72h",72,96))) %>% 
@@ -2038,33 +2442,14 @@ analyzed2=sample_data %>%
 
 analyzed=left_join(analyzed,analyzed2)
 
-analyzed <- analyzed %>% group_by(feature) %>% mutate(fdr=p.adjust(p.value,method = "BH"))
+analyzed <- analyzed %>% group_by(feature) %>% 
+  mutate(fdr=p.adjust(p.value,method = "BH"))
 
-analyzed <- analyzed %>% filter(!grepl("CTRL",query),!grepl("RLUC",target)) %>% ungroup()
+analyzed <- analyzed %>% filter(!grepl("CTRL",query),
+                                !grepl("RLUC",target)) %>% ungroup()
 
-ints_from_limma=list()
-
-for(feat in sample_data %>% pull(feature) %>% unique){
-  
-  cell_count_ints_for_limma<-
-    sample_data %>% 
-    filter(time=="96h",feature==feat) %>% 
-    unite(contrast,treatment,replicate) %>% 
-    spread(contrast,piscore) %>% 
-    dplyr::select(-feature,-time)
-  
-  design <- cbind(Untreated=c(1,1,1,1,0,0,0,0),Treated=c(0,0,0,0,1,1,1,1))
-  fit <- limma::lmFit(cell_count_ints_for_limma[,3:10], design)
-  cont.matrix <- limma::makeContrasts(TreatedvsUntreated=Treated-Untreated, levels=design)
-  fit2 <- limma::contrasts.fit(fit, cont.matrix)
-  fit2 <- limma::eBayes(fit2)
-  cell_count_ints_for_limma$fdr=p.adjust(fit2$p.value,method="BH")
-  
-  ints_from_limma[[feat]]=cell_count_ints_for_limma[,c(1,2,11)]
-  
-}
-
-analyzed <- bind_rows(ints_from_limma,.id = "feature")
+save(analyzed,file = 
+       "time_treatment_lm_model_analyzed_notscaled!_interactions.RData")
 
 ```
 
@@ -2081,28 +2466,38 @@ fdrt=0.1
 
 
 data('time_treatment_rlm_model_analyzed_interactions', package='MODIFIdata')
-rlm<-analyzed %>% filter(term=="treatmentMEKi",fdr<fdrt) %>% group_by(feature) %>% summarise(n()) %>% dplyr::rename(rlm='n()')
-total<-analyzed %>% filter(term=="treatmentMEKi",fdr<1) %>% group_by(feature) %>% summarise(n()) %>% dplyr::rename(total='n()')
+rlm<-analyzed %>% filter(term=="treatmentMEKi",fdr<fdrt) %>% 
+  group_by(feature) %>% summarise(n()) %>% dplyr::rename(rlm='n()')
+total<-analyzed %>% filter(term=="treatmentMEKi",fdr<1) %>% 
+  group_by(feature) %>% summarise(n()) %>% dplyr::rename(total='n()')
 
 data('time_treatment_rlm_model_analyzed_interactions_shuffled', package='MODIFIdata')
-rlm_rand<-rlm_shuffled %>% filter(term=="treatmentMEKi",fdr<fdrt) %>% group_by(feature) %>% summarise(n()) %>% dplyr::rename(rlm_rand='n()')
+rlm_rand<-rlm_shuffled %>% filter(term=="treatmentMEKi",fdr<fdrt) %>% 
+  group_by(feature) %>% summarise(n()) %>% dplyr::rename(rlm_rand='n()')
 
 data('time_treatment_lm_model_analyzed_notscaled!_interactions', package='MODIFIdata')
-lm<-lm_analyzed %>% filter(term=="treatmentMEKi",fdr<fdrt) %>% group_by(feature) %>% summarise(n()) %>% dplyr::rename(lm='n()')
+lm<-lm_analyzed %>% filter(term=="treatmentMEKi",fdr<fdrt) %>% 
+  group_by(feature) %>% summarise(n()) %>% dplyr::rename(lm='n()')
 
 data('treatment_rlm_wotime_model_analyzed_time487296_interactions', package='MODIFIdata')
-rlm_notime<-rlm_notime %>% filter(term=="treatmentMEKi",fdr<fdrt) %>% group_by(feature) %>% summarise(n() )%>% dplyr::rename(rlm_notime='n()')
+rlm_notime<-rlm_notime %>% filter(term=="treatmentMEKi",fdr<fdrt) %>% 
+  group_by(feature) %>% summarise(n() )%>% dplyr::rename(rlm_notime='n()')
 
 data('treatment_rlm_wotime_model_analyzed_time96_interactions', package='MODIFIdata')
-rlm_96_only<-rlm96 %>% filter(term=="treatmentMEKi",fdr<fdrt) %>% group_by(feature) %>% summarise(n()) %>% dplyr::rename(rlm_96_only='n()')
+rlm_96_only<-rlm96 %>% filter(term=="treatmentMEKi",fdr<fdrt) %>% 
+  group_by(feature) %>% summarise(n()) %>% dplyr::rename(rlm_96_only='n()')
 
 data('treatment_t_test_analyzed_time96_interactions', package='MODIFIdata')
-ttest_96_only<-ttested_96h_differentialints %>% filter(fdr<fdrt) %>% group_by(feature) %>% summarise(n()) %>% dplyr::rename(ttest_96_only='n()')
+ttest_96_only<-ttested_96h_differentialints %>% filter(fdr<fdrt) %>% 
+  group_by(feature) %>% summarise(n()) %>% dplyr::rename(ttest_96_only='n()')
 
 data('time_treatment_limma_96h_interactions', package='MODIFIdata')
-limma_96_only<-limma96h %>% filter(fdr<fdrt) %>% group_by(feature) %>% summarise(n()) %>% dplyr::rename(limma_96_only='n()')
+limma_96_only<-limma96h %>% filter(fdr<fdrt) %>% group_by(feature) %>% 
+  summarise(n()) %>% dplyr::rename(limma_96_only='n()')
 
-joined <- rlm %>% full_join(rlm_rand) %>% full_join(rlm_notime) %>% full_join(lm) %>% full_join(rlm_96_only) %>% full_join(ttest_96_only) %>% full_join(limma_96_only)
+joined <- rlm %>% full_join(rlm_rand) %>% full_join(rlm_notime) %>% 
+  full_join(lm) %>% full_join(rlm_96_only) %>% 
+  full_join(ttest_96_only) %>% full_join(limma_96_only)
 
 joined[is.na(joined)]=0
 
@@ -2126,7 +2521,8 @@ data('time_treatment_rlm_model_analyzed_interactions', package='MODIFIdata')
 dat <- analyzed %>% 
   left_join(target_annotation) %>% 
   left_join(query_annotation) %>% 
-  dplyr::select(target,query,feature,term,fdr,targetpathway,querypathway,estimate)
+  dplyr::select(target,query,feature,term,fdr,targetpathway,querypathway,
+                estimate)
 
 dat_to_plot <- dat %>% 
   filter(feature=="cell_number",fdr<0.1,term=="treatmentMEKi") %>% #
@@ -2136,11 +2532,15 @@ dat_to_plot <- dat %>%
   dplyr::select(-partner) %>%
   mutate(delta=estimate) %>% 
   bind_rows(mutate(.,pathway="all")) %>%
-  filter( pathway %in% c("Ras/Map","jak/stat","immunity","proteasome","all","translation")) %>%
-  mutate(pathway=factor(pathway,levels = c("all","Ras/Map","jak/stat","immunity","proteasome","translation")))
+  filter( pathway %in% c("Ras/Map","jak/stat","immunity","proteasome",
+                         "all","translation")) %>%
+  mutate(pathway=factor(pathway,levels = c("all","Ras/Map","jak/stat",
+                                           "immunity","proteasome",
+                                           "translation")))
 
 f<-function(x){
-  bind_rows(x,dat_to_plot %>% filter(pathway=="all")) %>% mutate(spec=if_else(pathway=="all","false","true"),grp=x$pathway[1])
+  bind_rows(x,dat_to_plot %>% filter(pathway=="all")) %>% 
+    mutate(spec=if_else(pathway=="all","false","true"),grp=x$pathway[1])
 }
 
 dat_to_plot %>%
@@ -2150,7 +2550,8 @@ dat_to_plot %>%
     ) %>%
   ungroup() %>%
   filter(grp!="all") %>%
-  mutate(grp=factor(grp,levels = c("immunity","Ras/Map","jak/stat","proteasome","translation"))) %>%
+  mutate(grp=factor(grp,levels = c("immunity","Ras/Map","jak/stat",
+                                   "proteasome","translation"))) %>%
   ggplot(aes(delta, y=grp,fill=spec,height=..density..,alpha=0.5)) +
   geom_joy(scale=0.85) +
   scale_fill_manual(values = c("grey", "blue")) +
@@ -2165,7 +2566,9 @@ dat_to_plot %>%
   filter(grp!="all") %>%
   group_by(grp) %>%
   do(
-    mdl=dplyr::select(.,val=delta,grouping=spec) %>% ks.test(.$val[.$grouping=="true"],.$val[.$grouping=="false"],alternative = "two.sided",data=.)
+    mdl=dplyr::select(.,val=delta,grouping=spec) %>% 
+      ks.test(.$val[.$grouping=="true"],
+              .$val[.$grouping=="false"],alternative = "two.sided",data=.)
   ) %>%
   tidy(mdl) %>%
   ungroup() %>%
@@ -2174,11 +2577,13 @@ dat_to_plot %>%
 
 dat_to_plot %>%
   dplyr::select(val=delta,grouping=pathway) %>%
-  ks.test(.$val[.$grouping=="Ras/Map"],.$val[.$grouping=="jak/stat"],alternative = "two.sided",data=.)
+  ks.test(.$val[.$grouping=="Ras/Map"],.$val[.$grouping=="jak/stat"],
+          alternative = "two.sided",data=.)
 
 dat_to_plot %>%
   dplyr::select(val=delta,grouping=pathway) %>%
-  ks.test(.$val[.$grouping=="translation"],.$val[.$grouping=="proteasome"],alternative = "two.sided",data=.)
+  ks.test(.$val[.$grouping=="translation"],.$val[.$grouping=="proteasome"],
+          alternative = "two.sided",data=.)
 
 
 ```
@@ -2188,12 +2593,17 @@ dat_to_plot %>%
 ```{r}
 
 sample_data=interaction_scores[,,goodfeature,,,] %>% melt() %>% tbl_df()
-names(sample_data)=c("target","query","feature","time","treatment","replicate","piscore")
+names(sample_data)=c("target","query","feature","time",
+                     "treatment","replicate","piscore")
 
-sample_data <- sample_data %>% filter(!grepl("CTRL",query),!grepl("RLUC",target)) 
+sample_data <- sample_data %>% filter(!grepl("CTRL",query),
+                                      !grepl("RLUC",target)) 
 
-# to illustrate different types of behaviours that can be observed in such an analysis we plot representative examples
-#condition stable buffering lethal interaction between Proteasome sub unit 4 (Prosbeta4/Prosbeta4) and mikrotubule star (mts/PPP2CA)
+# to illustrate different types of behaviours that can be observed in
+#such an analysis we plot representative examples
+#condition stable buffering lethal interaction between Proteasome
+#sub unit 4 (Prosbeta4/Prosbeta4) and mikrotubule star (mts/PPP2CA)
+
 a<-sample_data %>%
   mutate(time=ifelse(time=="48h",48,ifelse(time=="72h",72,96))) %>% 
   filter(target=="Prosbeta4",query=="mts",feature=="cell_number") %>% 
@@ -2203,7 +2613,8 @@ a<-sample_data %>%
   geom_hline(yintercept = 0,lty=2,lwd=1) +
   theme_classic()
 
-#condition stable synthetic lethal interaction between kinase supressor of ras (ksr) and rolled (rl/ERK)
+#condition stable synthetic lethal interaction between kinase supressor of 
+#ras (ksr) and rolled (rl/ERK)
 b<-sample_data %>%
   mutate(time=ifelse(time=="48h",48,ifelse(time=="72h",72,96))) %>% 
   filter(target=="ksr",query=="rl",feature=="cell_number") %>% 
@@ -2213,7 +2624,8 @@ b<-sample_data %>%
   geom_hline(yintercept = 0,lty=2,lwd=1) +
   theme_classic()
 
-#negative dynamic synthetic lethal interaction between skuld (skd/MED13) and Dstat  (Stat92E/STAT5B)
+#negative dynamic synthetic lethal interaction between skuld (skd/MED13) and
+#Dstat  (Stat92E/STAT5B)
 c<-sample_data %>%
   mutate(time=ifelse(time=="48h",48,ifelse(time=="72h",72,96))) %>% 
   filter(target=="skd",query=="Stat92E",feature=="cell_number") %>% 
@@ -2223,7 +2635,8 @@ c<-sample_data %>%
   geom_hline(yintercept = 0,lty=2,lwd=1) +
   theme_classic()
 
-#positive dynamic synthetic lethal interaction between Relish (Rel/NFkB) and pointed  (pnt/ETS1)
+#positive dynamic synthetic lethal interaction between Relish (Rel/NFkB) and
+#pointed  (pnt/ETS1)
 d<-sample_data %>%
   mutate(time=ifelse(time=="48h",48,ifelse(time=="72h",72,96))) %>% 
   filter(target=="Rel",query=="pnt",feature=="cell_number") %>% 
@@ -2236,7 +2649,7 @@ d<-sample_data %>%
 a+b+c+d
 ```
 
-# Figure 4E: Proof that the linear model does predict equal amounts of interactions for every feature independently
+# Figure 4E: Test that the linear model does predict equal amounts of interactions for every feature independently
 
 ```{r}
  p1 <- analyzed %>% 
@@ -2303,7 +2716,7 @@ p1 + p2 + p3 + p4 + plot_layout(ncol = 2,nrow = 2)
 
 ```
 
-# Figure 4F-F': Test if all model residuals can be explained by measurement variance
+#Figure 3-supplemental figure 1: Test if all model residuals can be explained by measurement variance
 
 This analysis tests if the residuals of the linear model fit can be explained by the variance in the data. If the variance scales smaller than the residuals it is indicative that the model does not explain the data well. If variance and residuals scale equally we can conclude that the model fits the data well. And if the model fails it is because the data has to high variance rather than the wrong model was chosen.
 
@@ -2322,7 +2735,8 @@ a<-analyzed %>%
 
 
 analyzed %>% 
-  filter(term=="time",feature=="cell_number") %>% dplyr::select(residuals,sumofvariance) %>% cor(use="p",method="p")
+  filter(term=="time",feature=="cell_number") %>% 
+  dplyr::select(residuals,sumofvariance) %>% cor(use="p",method="p")
 
 
 b<-analyzed %>% 
@@ -2337,17 +2751,19 @@ b<-analyzed %>%
 
 
 analyzed %>% 
-  filter(term=="time",feature=="actin.m.eccentricity.tmean") %>% dplyr::select(residuals,sumofvariance) %>% cor(use="p",method="p")
+  filter(term=="time",feature=="actin.m.eccentricity.tmean") %>% 
+  dplyr::select(residuals,sumofvariance) %>% cor(use="p",method="p")
 
 a+b
 
 ```
 
-# Figure 4G-H: pathway specific stable and differential genetic interactions
+# Figure 5A-B: pathway specific stable and differential genetic interactions
 
 ```{r}
 #merge annotations and data
-pathwaycoverage <- target_annotation %>% group_by(targetpathway) %>% summarise(n=n())
+pathwaycoverage <- target_annotation %>% group_by(targetpathway) %>%
+  summarise(n=n())
 
 toplot <- analyzed %>% 
   filter(term=="time",fdr<=0.3,feature=="cell_number") %>% #
@@ -2359,7 +2775,8 @@ toplot <- analyzed %>%
 
 names=toplot %>% 
   rowwise() %>% 
-  do(con=paste(sort(c(as.character(.$target),as.character(.$query))),collapse="_")) %>% 
+  do(con=paste(sort(c(as.character(.$target),as.character(.$query))),
+               collapse="_")) %>% 
   unnest()
 
 toplot<-
@@ -2377,17 +2794,22 @@ toplot<-
   mutate(n_count=count/n)
 
 sums <- toplot %>% group_by(direction) %>% summarise_if(is.numeric,sum)
-tempo <-left_join(toplot,sums %>% dplyr::select(countsum=count,nsum=n,-n_count,direction))
+tempo <-left_join(toplot,sums %>% dplyr::select(countsum=count,nsum=n,
+                                                -n_count,direction))
 tempo %<>% 
   group_by(targetpathway,direction) %>% 
   mutate(p=binom.test(count,countsum,p = n/nsum,alternative = "g")$p.value) %>% 
   ungroup() %>% 
   mutate(fdr=p.adjust(p,method = "BH"),sig=ifelse(fdr<=0.1,'good','bad'))
 
-tempo_stable <- tempo %>% dplyr::select(pathway=targetpathway,n_count_stable=n_count,sig_stable=sig,direction_stable=direction) %>% complete(pathway,direction_stable,fill = list(0)) 
+tempo_stable <- tempo %>% dplyr::select(pathway=targetpathway,
+                                        n_count_stable=n_count,
+                                        sig_stable=sig,
+                                        direction_stable=direction) %>% 
+  complete(pathway,direction_stable,fill = list(0)) 
 
 toplot <- analyzed %>% 
-  filter(term=="treatmentMEKi",fdr<=0.3,feature=="cell_number") %>% #,feature=="cell_number"
+  filter(term=="treatmentMEKi",fdr<=0.3,feature=="cell_number") %>% 
   left_join(target_annotation) %>% 
   left_join(query_annotation) %>%
   mutate(direction=ifelse(estimate>0,"positive","negative")) %>%
@@ -2396,7 +2818,8 @@ toplot <- analyzed %>%
 
 names=toplot %>% 
   rowwise() %>% 
-  do(con=paste(sort(c(as.character(.$target),as.character(.$query))),collapse="_")) %>% 
+  do(con=paste(sort(c(as.character(.$target),as.character(.$query))),
+               collapse="_")) %>% 
   unnest()
 
 toplot<-
@@ -2415,42 +2838,56 @@ toplot<-
 
 
 sums <- toplot %>% group_by(direction) %>% summarise_if(is.numeric,sum)
-tempo <-left_join(toplot,sums %>% dplyr::select(countsum=count,nsum=n,-n_count,direction))
+tempo <-left_join(toplot,sums %>% dplyr::select(countsum=count,nsum=n,
+                                                -n_count,direction))
 tempo %<>% 
   group_by(targetpathway,direction) %>% 
   mutate(p=binom.test(count,countsum,p = n/nsum,alternative = "g")$p.value) %>% 
   ungroup() %>% 
   mutate(fdr=p.adjust(p,method = "BH"),sig=ifelse(fdr<=0.1,'good','bad'))
 
-tempo_diff <- tempo %>% dplyr::select(pathway=targetpathway,n_count_diff=n_count,sig_diff=sig,direction_diff=direction) %>% complete(pathway,direction_diff,fill = list(0)) 
+tempo_diff <- tempo %>% dplyr::select(pathway=targetpathway,
+              n_count_diff=n_count,sig_diff=sig,direction_diff=direction) %>% 
+  complete(pathway,direction_diff,fill = list(0)) 
 
-tempo_complete <- full_join(tempo_stable,tempo_diff) %>% complete(pathway,direction_stable,direction_diff) %>% group_by(pathway) %>% mutate(anysig=ifelse(any(c(sig_stable,sig_diff)=="good"),"sig","nonsig")) %>% filter(anysig=="sig") %>% ungroup()
+tempo_complete <- full_join(tempo_stable,tempo_diff) %>% 
+  complete(pathway,direction_stable,direction_diff) %>% 
+  group_by(pathway) %>% 
+  mutate(anysig=ifelse(any(c(sig_stable,sig_diff)=="good"),"sig","nonsig")) %>% 
+  filter(anysig=="sig") %>% ungroup()
 
 a<-tempo_complete %>% 
   dplyr::select(pathway,n_count_stable,direction_stable,sig_stable) %>%
   dplyr::distinct() %>%
-  ggplot(aes(x=reorder(pathway,-n_count_stable,sum),y=n_count_stable,fill=direction_stable,alpha=sig_stable)) +
+  ggplot(aes(x=reorder(pathway,-n_count_stable,sum),y=n_count_stable,
+             fill=direction_stable,alpha=sig_stable)) +
   geom_bar(stat="identity") +  
-  theme(axis.title = element_blank(),panel.background = element_blank(),axis.ticks.x = element_blank(),axis.ticks.y = element_blank(),axis.text.x = element_text(angle = 90))+
+  theme(axis.title = element_blank(),
+        panel.background = element_blank(),axis.ticks.x = element_blank(),
+        axis.ticks.y = element_blank(),axis.text.x = element_text(angle = 90))+
   ggtitle("pathway enriched stable interactions")
 
 
 b<-tempo_complete %>% 
   dplyr::select(pathway,n_count_diff,direction_diff,sig_diff) %>%
   dplyr::distinct() %>%
-  ggplot(aes(x=reorder(pathway,-n_count_diff,sum,ma.rm=T),y=n_count_diff,fill=direction_diff,alpha=sig_diff)) +
+  ggplot(aes(x=reorder(pathway,-n_count_diff,sum,ma.rm=T),y=n_count_diff,
+             fill=direction_diff,alpha=sig_diff)) +
   geom_bar(stat="identity") +  
-  theme(axis.title = element_blank(),panel.background = element_blank(),axis.ticks.x = element_blank(),axis.ticks.y = element_blank(),axis.text.x = element_text(angle = 90))+
+  theme(axis.title = element_blank(),panel.background = element_blank(),
+        axis.ticks.x = element_blank(),axis.ticks.y = element_blank(),
+        axis.text.x = element_text(angle = 90))+
   ggtitle("pathway enriched differential interactions") 
 
 a+b
 
 ``` 
 
-# Figure 4I-J: gene specific stable and differential genetic interactions
+# Figure 5C-D: gene specific stable and differential genetic interactions
 
 ```{r}
-#Plot a diagram, that shows which genes have few or a lot of differential genetic itneractions
+#Plot a diagram, that shows which genes have few or a lot of differential 
+#genetic itneractions
 x <- analyzed %>% 
      filter(term=="treatmentMEKi",fdr<0.3,feature=="cell_number") %>%
       mutate(sign=ifelse(estimate>0,"positive","negative")) %>%
@@ -2466,17 +2903,23 @@ y <- x %>%   rowwise() %>%
 x$target=y$target
 x$query=y$query
 
-x1 <- x %>% dplyr::distinct() %>% group_by(target,sign) %>% summarise(n=n()) %>% ungroup()
-x2 <- x %>% dplyr::distinct() %>% group_by(query,sign) %>% summarise(n=n()) %>% ungroup() %>% dplyr::select(target=query,sign,n)
+x1 <- x %>% dplyr::distinct() %>% group_by(target,sign) %>% 
+  summarise(n=n()) %>% ungroup()
+x2 <- x %>% dplyr::distinct() %>% group_by(query,sign) %>% 
+  summarise(n=n()) %>% ungroup() %>% dplyr::select(target=query,sign,n)
 
 a<-rbind(x1,x2) %>% 
   group_by(target,sign) %>% 
   summarise(n=sum(n)) %>% 
   spread(sign,n,fill = 0) %>% 
   left_join(target_annotation) %>%
-  mutate(targetpathway=ifelse(targetpathway %in% c("Ras/Map","jak/stat","immunity","tor"),targetpathway,NA)) %>%
-  ggplot(aes(x=positive,y=negative,col=targetpathway,label=target)) + geom_point() +
-  geom_text(aes(label=ifelse(positive>15|negative>15,as.character(target),'')),hjust=1,vjust=1) +
+  mutate(targetpathway=ifelse(targetpathway %in% c("Ras/Map",
+                                                   "jak/stat","immunity","tor"),
+                              targetpathway,NA)) %>%
+  ggplot(aes(x=positive,y=negative,col=targetpathway,label=target)) + 
+  geom_point() +
+  geom_text(aes(label=ifelse(positive>15|negative>15,as.character(target),'')),
+            hjust=1,vjust=1) +
   theme_classic()
 
 differential <- analyzed %>% 
@@ -2527,23 +2970,26 @@ b<-dynamic %>%
   left_join(differential) %>% 
   left_join(target_annotation) %>%
   mutate(diff=ifelse(is.na(diff),0,diff)) %>%
-   mutate(targetpathway=ifelse(targetpathway %in% c("Ras/Map","jak/stat","immunity","tor"),targetpathway,NA)) %>%
+   mutate(targetpathway=ifelse(targetpathway %in% c("Ras/Map","jak/stat",
+                                                    "immunity","tor"),
+                               targetpathway,NA)) %>%
   ggplot(aes(x=dyn,y=diff,col=targetpathway,label=target)) + 
   geom_point() +
   geom_smooth(aes(x=dyn,y=diff),method="lm",se=F,inherit.aes = F) +
  # geom_abline(slope = 1,intercept = 0) +
-  geom_text(aes(label=ifelse(dyn>30|diff>30,as.character(target),'')),hjust=1,vjust=1) +
+  geom_text(aes(label=ifelse(dyn>30|diff>30,as.character(target),'')),
+            hjust=1,vjust=1) +
   theme_classic()
 
 a+b
 
 ```
 
-# Figure 5A-D: gene specific stable and differential genetic interactions
+# Figure 6A-D: gene specific stable and differential genetic interactions
 
 ```{r}
 
-#Figure 5A: plot the time dependence of interactions among different core pathways 
+#Figure 6A: plot the time dependence of interactions among different core pathways 
 dat <- analyzed %>% 
   left_join(target_annotation) %>% 
   left_join(query_annotation) %>% 
@@ -2553,10 +2999,14 @@ a<-dat %>%
   filter(feature=="cell_number",fdr<0.1,term=="time") %>% #
   gather(pw,pathway,-estimate,-fdr,-term,-feature,-target,-query) %>% 
   dplyr::select(-pw) %>% 
-  mutate(speed=(abs(estimate)-min(abs(estimate)))/(max(abs(estimate))-min(abs(estimate)))) %>%
+  mutate(speed=(abs(estimate)-min(abs(estimate)))/
+           (max(abs(estimate))-min(abs(estimate)))) %>%
   bind_rows(mutate(.,pathway="all")) %>%
-  filter( pathway %in% c("all","Ras/Map","jak/stat","immunity","proteasome","translation")) %>%
-  mutate( pathway=factor(pathway,levels=c("all","immunity","jak/stat","Ras/Map","proteasome","translation"))) %>%
+  filter( pathway %in% c("all","Ras/Map","jak/stat",
+                         "immunity","proteasome","translation")) %>%
+  mutate( pathway=factor(pathway,levels=c("all","immunity",
+                                          "jak/stat","Ras/Map",
+                                          "proteasome","translation"))) %>%
   ggplot(aes(x=pathway,y=speed)) + 
   geom_boxplot() + 
   theme_classic() +
@@ -2571,7 +3021,8 @@ a<-dat %>%
   test.args = list(alternative="two.sided")
   )
 
-#Figure 5B: plot the time dependence of interaction differences among different core pathways 
+#Figure 6B: plot the time dependence of interaction differences among 
+#different core pathways 
 
 #first filter significant differential interactions:
 set<-
@@ -2584,7 +3035,8 @@ set<-
 interaction_scores_df<-
   melt(interaction_scores) %>% 
   tbl_df() %>% 
-  dplyr::select(target=Var1,query=Var2,feature=Var3,time=Var4,treatment=Var5,replicate=Var6,pi=value) %>% 
+  dplyr::select(target=Var1,query=Var2,feature=Var3,time=Var4,
+                treatment=Var5,replicate=Var6,pi=value) %>% 
   unite(chosen,target,query,feature,sep = "&",remove = F)
 
 candidates_an <- interaction_scores_df %>%
@@ -2597,22 +3049,28 @@ b<-candidates_an %>%
   filter(chosen %in% set
          ,time!="72h"
          ) %>%
-  dplyr::select(target,query,targetpathway,querypathway,pi,treatment,time) %>%
+  dplyr::select(target,query,targetpathway,querypathway,pi,
+                treatment,time) %>%
   gather(pw,pathway,-target,-query,-pi,-treatment,-time) %>%
   dplyr::select(-pw) %>%
-  filter( pathway %in% c("Ras/Map","jak/stat","immunity","proteasome","translation")) %>%
+  filter( pathway %in% c("Ras/Map","jak/stat","immunity",
+                         "proteasome","translation")) %>%
   group_by(target,query,pathway,time) %>%
-  summarise(diff=abs(mean(pi[treatment=="DMSO"],na.rm=T)-mean(pi[treatment=="MEKi"],na.rm=T))) %>%
+  summarise(diff
+            =abs(mean(pi[treatment=="DMSO"],na.rm=T)-
+                   mean(pi[treatment=="MEKi"],na.rm=T))) %>%
   group_by(pathway,time) %>%
   summarise(diff=median(diff,na.rm=T)) %>%
   ggplot(aes(y=diff, x=time,group = pathway,label = pathway)) +
-   	geom_path(aes(color=pathway),alpha = 1,lineend = 'round', linejoin = 'round',lwd=2.3) +
+   	geom_path(aes(color=pathway),alpha = 1,lineend = 'round', 
+   	          linejoin = 'round',lwd=2.3) +
     geom_point(aes(color=pathway),alpha = 1,cex=2.3) +
     geom_vline(xintercept =c(1,2),lty=2) +
     #geom_label_repel() +
     theme_classic() 
 
-#Figure 5B': plot the time dependence of interaction differences among different core pathways, when normalized to the initial difference
+#Figure 6B': plot the time dependence of interaction differences among 
+#different core pathways, when normalized to the initial difference
 
 c<-candidates_an %>% 
   filter(chosen %in% set
@@ -2621,30 +3079,41 @@ c<-candidates_an %>%
   dplyr::select(target,query,targetpathway,querypathway,pi,treatment,time) %>%
   gather(pw,pathway,-target,-query,-pi,-treatment,-time) %>%
   dplyr::select(-pw) %>%
-  filter( pathway %in% c("Ras/Map","jak/stat","immunity","proteasome","translation")) %>%
+  filter( pathway %in% c("Ras/Map","jak/stat","immunity",
+                         "proteasome","translation")) %>%
   group_by(target,query,pathway,time) %>%
-  summarise(diff=abs(mean(pi[treatment=="DMSO"],na.rm=T)-mean(pi[treatment=="MEKi"],na.rm=T))) %>%
+  summarise(diff=abs(mean(pi[treatment=="DMSO"],na.rm=T)-
+                       mean(pi[treatment=="MEKi"],na.rm=T))) %>%
   group_by(pathway,time) %>%
   summarise(diff=median(diff,na.rm=T)) %>%
   group_by(pathway) %>%
   mutate(diff=diff-diff[time=="48h"]) %>%
   ggplot(aes(y=diff, x=time,group = pathway,label = pathway)) +
-   	geom_path(aes(color=pathway),alpha = 1,lineend = 'round', linejoin = 'round',lwd=2.3) +
+   	geom_path(aes(color=pathway),alpha = 1,lineend = 'round',
+   	          linejoin = 'round',lwd=2.3) +
     geom_vline(xintercept =c(1,2),lty=2) +
     geom_point(aes(color=pathway),alpha = 1,cex=2.3) +
     #geom_label_repel() +
     theme_classic() 
 
-#Figure 5C: initial interaction differences among different example features
+#Figure C: initial interaction differences among different example features
 
 #plot examples as ordered boxes
 d<-  interaction_scores_df %>% 
   filter(chosen %in% set,time=="48h") %>%
   group_by(target,query,feature) %>%
-  summarise(initial_diff=mean(pi[treatment=="DMSO"],na.rm=T)-mean(pi[treatment=="MEKi"],na.rm=T)) %>%
+  summarise(initial_diff=mean(pi[treatment=="DMSO"],na.rm=T)-
+              mean(pi[treatment=="MEKi"],na.rm=T)) %>%
   ungroup() %>%
-  filter(feature %in% c("cell_number","actin.m.eccentricity.tmean","DNA.m.eccentricity.tmean","DNA.m.eccentricity.sd","DNA.b.sd.tmean","tubulin.b.mad.tmean")) %>%
-  mutate(feature=factor(feature,levels = c("cell_number","DNA.b.sd.tmean","DNA.m.eccentricity.tmean","actin.m.eccentricity.tmean","tubulin.b.mad.tmean","DNA.m.eccentricity.sd"),ordered = T)) %>%
+  filter(feature %in% c("cell_number","actin.m.eccentricity.tmean",
+                        "DNA.m.eccentricity.tmean","DNA.m.eccentricity.sd",
+                        "DNA.b.sd.tmean","tubulin.b.mad.tmean")) %>%
+  mutate(feature=factor(feature,levels = c("cell_number","DNA.b.sd.tmean",
+                                           "DNA.m.eccentricity.tmean",
+                                           "actin.m.eccentricity.tmean",
+                                           "tubulin.b.mad.tmean",
+                                           "DNA.m.eccentricity.sd"),
+                        ordered = T)) %>%
   ggplot(aes(y=abs(initial_diff), x=feature,fill=feature)) +
    	geom_boxplot() +
     theme_classic() + 
@@ -2663,9 +3132,11 @@ d<-  interaction_scores_df %>%
     theme(axis.text.x=element_text(angle=-90,hjust=1))
 
 #Figure 5D: plot parallel coordinats of the mean differences over time
-#clearly shows that texture feature mark differential interaction features the most time dependent
-#again highlights the different initial interaction differences that can be observed depending on the pathway
-#shows that DNA exxentricity variation across cells does vary the most initially by become surpressed in the course of the experiment
+#clearly shows that texture feature mark differential interaction features 
+#the most time dependent again highlights the different initial interaction 
+#differences that can be observed depending on the pathway
+#shows that DNA exxentricity variation across cells does vary the most 
+#initially by become surpressed in the course of the experiment
 #most feature show a similar rate of differential interaction development
 
 e<-interaction_scores_df %>% 
@@ -2673,11 +3144,13 @@ e<-interaction_scores_df %>%
          ,time!="72h"
          ) %>%
   group_by(target,query,feature,time) %>%
-  summarise(diff=abs(mean(pi[treatment=="DMSO"],na.rm=T)-mean(pi[treatment=="MEKi"],na.rm=T))) %>%
+  summarise(diff=abs(mean(pi[treatment=="DMSO"],na.rm=T)-
+                       mean(pi[treatment=="MEKi"],na.rm=T))) %>%
   group_by(feature,time) %>%
   summarise(diff=median(diff,na.rm=T)) %>%
   ggplot(aes(y=diff, x=time,group = feature,label = feature)) +
-   	geom_path(aes(color=feature),alpha = 1,lineend = 'round', linejoin = 'round',lwd=2.3) +
+   	geom_path(aes(color=feature),alpha = 1,lineend = 'round', 
+   	          linejoin = 'round',lwd=2.3) +
     geom_point(aes(color=feature),alpha = 1,cex=2.3) +
     geom_vline(xintercept =c(1,2),lty=2) +
     theme_classic() 
@@ -2686,11 +3159,15 @@ a+b+c+d+e
 
 ```
 
-# Figure 6A: Small multiple networks
+# Figure 7A: Small multiple networks
 
 ```{r}
 
-nodes_of_interest <- c('hoip','CG2807','eIF-2beta','CG3605','CG11985','skd','kto','RasGAP1','dome','Rheb','Sos','dos','drk','Stat92E','swm','Ras85D','Tor','pnt','Pvr','Cdk12','raptor','Rel','Prosalpha6','Rpn6','Prosbeta4','RpL31','eIF-4a','eIF-1A','Rpt4')
+nodes_of_interest <- c('hoip','CG2807','eIF-2beta','CG3605','CG11985',
+                       'skd','kto','RasGAP1','dome','Rheb','Sos','dos',
+                       'drk','Stat92E','swm','Ras85D','Tor','pnt','Pvr',
+                       'Cdk12','raptor','Rel','Prosalpha6','Rpn6','Prosbeta4',
+                       'RpL31','eIF-4a','eIF-1A','Rpt4')
 
 #compo=  read_csv("./default_node_table.csv") %>% 
  #       dplyr::select(target=name,targetpathway)
@@ -2699,60 +3176,68 @@ data("core_genes_and_pathways",package="MODIFIdata")
 
 data_sub <- 
   data_df %>% 
-  filter(feature %in% goodfeature, target %in% nodes_of_interest, query %in% nodes_of_interest)
+  filter(feature %in% goodfeature, target %in% nodes_of_interest, 
+         query %in% nodes_of_interest)
 
 data_sub %>% 
-  filter(fdr<0.1,feature=="actin.m.eccentricity.tmean",time=="48h",drug=="DMSO") %>%
+  filter(fdr<0.1,feature=="actin.m.eccentricity.tmean",time=="48h",
+         drug=="DMSO") %>%
   mutate(sign=sign(piscore)) %>%
   dplyr::select(target,query,piscore,sign) %>%
   left_join(compo) %>%
   write_delim(path = "DMSO_48.tab",delim = "\t")
 
 data_sub %>% 
-  filter(fdr<0.1,feature=="actin.m.eccentricity.tmean",time=="72h",drug=="DMSO") %>%
+  filter(fdr<0.1,feature=="actin.m.eccentricity.tmean",
+         time=="72h",drug=="DMSO") %>%
   mutate(sign=sign(piscore)) %>%
   dplyr::select(target,query,piscore,sign) %>%
   left_join(compo) %>%
   write_delim(path = "DMSO_72.tab",delim = "\t")
 
 data_sub %>% 
-  filter(fdr<0.1,feature=="actin.m.eccentricity.tmean",time=="96h",drug=="DMSO") %>%
+  filter(fdr<0.1,feature=="actin.m.eccentricity.tmean",
+         time=="96h",drug=="DMSO") %>%
   mutate(sign=sign(piscore)) %>%
   dplyr::select(target,query,piscore,sign) %>%
   left_join(compo) %>%
   write_delim(path = "DMSO_96.tab",delim = "\t")
 
 data_sub %>% 
-  filter(fdr<0.1,feature=="actin.m.eccentricity.tmean",time=="48h",drug=="MEKi") %>%
+  filter(fdr<0.1,feature=="actin.m.eccentricity.tmean",
+         time=="48h",drug=="MEKi") %>%
   mutate(sign=sign(piscore)) %>%
   dplyr::select(target,query,piscore,sign) %>%
   left_join(compo) %>%
   write_delim(path = "MEKi_48.tab",delim = "\t")
 
 data_sub %>% 
-  filter(fdr<0.1,feature=="actin.m.eccentricity.tmean",time=="72h",drug=="MEKi") %>%
+  filter(fdr<0.1,feature=="actin.m.eccentricity.tmean",
+         time=="72h",drug=="MEKi") %>%
   mutate(sign=sign(piscore)) %>%
   dplyr::select(target,query,piscore,sign) %>%
   left_join(compo) %>%
   write_delim(path = "MEKi_72.tab",delim = "\t")
 
 data_sub %>% 
-  filter(fdr<0.1,feature=="actin.m.eccentricity.tmean",time=="96h",drug=="MEKi") %>%
+  filter(fdr<0.1,feature=="actin.m.eccentricity.tmean",
+         time=="96h",drug=="MEKi") %>%
   mutate(sign=sign(piscore)) %>%
   dplyr::select(target,query,piscore,sign) %>%
   left_join(compo) %>%
   write_delim(path = "MEKi_96.tab",delim = "\t")
 
-#the node layout was then set in cytoscape as of the correlation network in 6C
+#the node layout was then set in cytoscape as of the correlation network in 7C
 #go on to cytoscape using the textfiles that were created
 ```
 
-# Figure 6B: Example correlations of differential interactions based on cell eccentricity
+# Figure 7B: Example correlations of differential interactions based on cell eccentricity
 
 ```{r}
 
 a<-analyzed %>% 
-  filter(term=="treatmentMEKi",target %in% c("dome","Stat92E"),feature=="actin.m.eccentricity.tmean") %>%
+  filter(term=="treatmentMEKi",target %in% c("dome","Stat92E"),
+         feature=="actin.m.eccentricity.tmean") %>%
   dplyr::select(target,query,feature,estimate) %>%
   spread(target,estimate) %>%
   unite(bla,query,feature) %>%
@@ -2764,7 +3249,8 @@ a<-analyzed %>%
   theme_classic()
 
 tocor<-analyzed %>% 
-  filter(term=="treatmentMEKi",target %in% c("dome","Stat92E"),feature=="actin.m.eccentricity.tmean") %>%
+  filter(term=="treatmentMEKi",target %in% c("dome","Stat92E"),
+         feature=="actin.m.eccentricity.tmean") %>%
   dplyr::select(target,query,feature,estimate) %>%
   spread(target,estimate) %>%
   unite(bla,query,feature) %>%
@@ -2774,7 +3260,8 @@ rcorr(x=tocor[[1]],y=tocor[[2]],type = "pearson")
 
 
 b<-analyzed %>% 
-  filter(term=="treatmentMEKi",target %in% c("Pvr","Sos"),feature=="actin.m.eccentricity.tmean") %>%
+  filter(term=="treatmentMEKi",target %in% c("Pvr","Sos"),
+         feature=="actin.m.eccentricity.tmean") %>%
   dplyr::select(target,query,feature,estimate) %>%
   spread(target,estimate) %>%
   unite(bla,query,feature) %>%
@@ -2786,7 +3273,8 @@ b<-analyzed %>%
   theme_classic()
 
 tocor<-analyzed %>% 
-  filter(term=="treatmentMEKi",target %in% c("Pvr","Sos"),feature=="actin.m.eccentricity.tmean") %>%
+  filter(term=="treatmentMEKi",target %in% c("Pvr","Sos"),
+         feature=="actin.m.eccentricity.tmean") %>%
   dplyr::select(target,query,feature,estimate) %>%
   spread(target,estimate) %>%
   unite(bla,query,feature) %>%
@@ -2796,7 +3284,8 @@ rcorr(x=tocor[[1]],y=tocor[[2]],type = "pearson")
 
 
 c<-analyzed %>% 
-  filter(term=="treatmentMEKi",target %in% c("pnt","Rel"),feature=="actin.m.eccentricity.tmean") %>%
+  filter(term=="treatmentMEKi",target %in% c("pnt","Rel"),
+         feature=="actin.m.eccentricity.tmean") %>%
   dplyr::select(target,query,feature,estimate) %>%
   spread(target,estimate) %>%
   unite(bla,query,feature) %>%
@@ -2808,7 +3297,8 @@ c<-analyzed %>%
     theme_classic()
 
 tocor<-analyzed %>% 
-  filter(term=="treatmentMEKi",target %in% c("pnt","Rel"),feature=="actin.m.eccentricity.tmean") %>%
+  filter(term=="treatmentMEKi",target %in% c("pnt","Rel"),
+         feature=="actin.m.eccentricity.tmean") %>%
   dplyr::select(target,query,feature,estimate) %>%
   spread(target,estimate) %>%
   unite(bla,query,feature) %>%
@@ -2818,7 +3308,8 @@ rcorr(x=tocor[[1]],y=tocor[[2]],type = "pearson")
 
 
 d<-analyzed %>% 
-  filter(term=="treatmentMEKi",target %in% c("RasGAP1","Rel"),feature=="actin.m.eccentricity.tmean") %>%
+  filter(term=="treatmentMEKi",target %in% c("RasGAP1","Rel"),
+         feature=="actin.m.eccentricity.tmean") %>%
   dplyr::select(target,query,feature,estimate) %>%
   spread(target,estimate) %>%
   unite(bla,query,feature) %>%
@@ -2830,7 +3321,8 @@ d<-analyzed %>%
   theme_classic()
 
 tocor<-analyzed %>% 
-  filter(term=="treatmentMEKi",target %in% c("RasGAP1","Rel"),feature=="actin.m.eccentricity.tmean") %>%
+  filter(term=="treatmentMEKi",target %in% c("RasGAP1","Rel"),
+         feature=="actin.m.eccentricity.tmean") %>%
   dplyr::select(target,query,feature,estimate) %>%
   spread(target,estimate) %>%
   unite(bla,query,feature) %>%
@@ -2839,7 +3331,8 @@ tocor<-analyzed %>%
 rcorr(x=tocor[[1]],y=tocor[[2]],type = "pearson")
 
 e<-analyzed %>% 
-  filter(term=="treatmentMEKi",target %in% c("Sos","swm"),feature=="actin.m.eccentricity.tmean") %>%
+  filter(term=="treatmentMEKi",target %in% c("Sos","swm"),
+         feature=="actin.m.eccentricity.tmean") %>%
   dplyr::select(target,query,feature,estimate) %>%
   spread(target,estimate) %>%
   unite(bla,query,feature) %>%
@@ -2851,7 +3344,8 @@ e<-analyzed %>%
   theme_classic()
 
 tocor<-analyzed %>% 
-  filter(term=="treatmentMEKi",target %in% c("Sos","swm"),feature=="actin.m.eccentricity.tmean") %>%
+  filter(term=="treatmentMEKi",target %in% c("Sos","swm"),
+         feature=="actin.m.eccentricity.tmean") %>%
   dplyr::select(target,query,feature,estimate) %>%
   spread(target,estimate) %>%
   unite(bla,query,feature) %>%
@@ -2860,7 +3354,8 @@ tocor<-analyzed %>%
 rcorr(x=tocor[[1]],y=tocor[[2]],type = "pearson")
 
 f<-analyzed %>% 
-  filter(term=="treatmentMEKi",target %in% c("Sos","Fur1"),feature=="actin.m.eccentricity.tmean") %>%
+  filter(term=="treatmentMEKi",target %in% c("Sos","Fur1"),
+         feature=="actin.m.eccentricity.tmean") %>%
   dplyr::select(target,query,feature,estimate) %>%
   spread(target,estimate) %>%
   unite(bla,query,feature) %>%
@@ -2872,7 +3367,8 @@ f<-analyzed %>%
   theme_classic()
 
 tocor<-analyzed %>% 
-  filter(term=="treatmentMEKi",target %in% c("Sos","Fur1"),feature=="actin.m.eccentricity.tmean") %>%
+  filter(term=="treatmentMEKi",target %in% c("Sos","Fur1"),
+         feature=="actin.m.eccentricity.tmean") %>%
   dplyr::select(target,query,feature,estimate) %>%
   spread(target,estimate) %>%
   unite(bla,query,feature) %>%
@@ -2884,7 +3380,7 @@ a+c+f+b+d+e
 
 ```
 
-# Figure 6C: A correlation network of differential genetic interactions
+# Figure 7C: A correlation network of differential genetic interactions
 
 ```{r}
 #all differential interaction estimates are being used in this analysis
@@ -2910,7 +3406,8 @@ x=analyzed %>%
 names=x %>% 
   filter(Diffcor>0.5) %>% 
   rowwise() %>% 
-  do(con=paste(sort(c(as.character(.$Var1),as.character(.$Var2))),collapse="_")) %>% 
+  do(con=paste(sort(c(as.character(.$Var1),
+                      as.character(.$Var2))),collapse="_")) %>% 
   unnest() %>% 
   separate(con,into=c('target','query'),sep = "_")
 
@@ -2930,7 +3427,7 @@ write_delim(df,"correlations_of_differential_interactions_v5.tab",delim = "\t")
 ```
 
 
-# Supplementary Figure S7: A differential correlation anaylsis according to Billmann et al.
+#Figure 7-supplemental figure 1: A differential correlation anaylsis according to Billmann et al.
 
 ```{r}
 x=data_df %>%
@@ -2945,7 +3442,8 @@ corrs=cor(x,use = "p",method = "p")
 
 corrs[upper.tri(corrs,diag = T)]=NA
 
-corr_df=melt(corrs) %>% separate(Var1,c("gene1","cond1"),sep = "_") %>% separate(Var2,c("gene2","cond2"),sep = "_") %>% tbl_df() %>% drop_na()
+corr_df=melt(corrs) %>% separate(Var1,c("gene1","cond1"),sep = "_") %>% 
+  separate(Var2,c("gene2","cond2"),sep = "_") %>% tbl_df() %>% drop_na()
 
 final_intra_inner_corr <- corr_df %>% 
   mutate(comp=if_else(cond1==cond2,"intra","inter")) %>% 
@@ -2960,11 +3458,16 @@ a<-final_intra_inner_corr %>%
   dplyr::select(target=gene1,query=gene2,inter,intra) %>%
   left_join(target_annotation %>% 
   dplyr::select(target,targetpathway)) %>%
-  mutate(targetpathway=ifelse(targetpathway %in% c("Ras/Map","jak/stat","tor"),targetpathway,"other")) %>%
+  mutate(targetpathway=ifelse(targetpathway %in% c("Ras/Map","jak/stat","tor"),
+                              targetpathway,"other")) %>%
   left_join(query_annotation %>% 
   dplyr::select(query,querypathway)) %>%
-  mutate(querypathway=ifelse(querypathway %in% c("Ras/Map","jak/stat","tor"),querypathway,"other")) %>%
-  mutate(path=if_else(querypathway %in% c("Ras/Map","jak/stat","tor"),querypathway,if_else(targetpathway %in% c("Ras/Map","jak/stat","tor"),targetpathway,"other"))) %>%
+  mutate(querypathway=ifelse(querypathway %in% c("Ras/Map","jak/stat","tor"),
+                             querypathway,"other")) %>%
+  mutate(path=if_else(querypathway %in% c("Ras/Map","jak/stat","tor"),
+                      querypathway,if_else(targetpathway %in% 
+                                             c("Ras/Map","jak/stat","tor"),
+                                           targetpathway,"other"))) %>%
   ungroup() %>%
   ggplot(aes(x=inter,y=intra,text=paste0(target,query))) +
     geom_point(aes(col=path)) +
@@ -2977,11 +3480,16 @@ b<-final_intra_inner_corr %>%
   dplyr::select(target=gene1,query=gene2,inter,intra) %>%
   left_join(target_annotation %>% 
   dplyr::select(target,targetpathway)) %>%
-  mutate(targetpathway=ifelse(targetpathway %in% c("Ras/Map","jak/stat","tor"),targetpathway,"other")) %>%
+  mutate(targetpathway=ifelse(targetpathway %in% c("Ras/Map","jak/stat","tor"),
+                              targetpathway,"other")) %>%
   left_join(query_annotation %>% 
   dplyr::select(query,querypathway)) %>%
-  mutate(querypathway=ifelse(querypathway %in% c("Ras/Map","jak/stat","tor"),querypathway,"other")) %>%
-  mutate(path=if_else(querypathway %in% c("Ras/Map","jak/stat","tor"),querypathway,if_else(targetpathway %in% c("Ras/Map","jak/stat","tor"),targetpathway,"other"))) %>%
+  mutate(querypathway=ifelse(querypathway %in% c("Ras/Map","jak/stat","tor"),
+                             querypathway,"other")) %>%
+  mutate(path=if_else(querypathway %in% c("Ras/Map","jak/stat","tor"),
+                      querypathway,if_else(targetpathway %in% 
+                                             c("Ras/Map","jak/stat","tor"),
+                                           targetpathway,"other"))) %>%
   ungroup() %>%
   ggplot(aes(x=inter,y=intra)) +
     geom_smooth(mapping = aes(x=inter,y=intra),method="lm") +
@@ -2994,12 +3502,94 @@ a+b
 
 ```
 
+#Figure 8-supplemental figure 1: Rel-pnt differential interactions
 
-# Supplementary Figure S8: dsRNA correlations
+```{r}
+plot_effects<-function(target=22,query=68,timepoint="96h",treatment="DMSO",
+                       feature="cell_number",ymin,ymax,main="plot"){
+  if(is.numeric(target)){
+    targetoi=dimnames(Interactions$piscore)[[1]][target]
+  }else{
+    targetoi=target
+  }
+  if(is.numeric(query)){
+    queryoi=dimnames(Interactions$piscore)[[2]][query]
+  }else{
+    queryoi=query
+  }
+  
+  targetmain=mainEffects$target[grep(
+    targetoi,dimnames(mainEffects$target)[[1]]),feature,,timepoint,treatment]
+  querymain=mainEffects$query[grep(
+    queryoi,dimnames(mainEffects$query)[[1]]),feature,,timepoint,treatment]
+  pi=interaction_scores[grep(targetoi,
+                             dimnames(interaction_scores)[[1]]),
+                        grep(queryoi,
+                             dimnames(interaction_scores)[[2]]),
+                        feature,timepoint,treatment,]
+  
+  combieffect=my.data.array.norm.reshaped[
+    grep(targetoi,
+         dimnames(my.data.array.norm.reshaped)[[1]]),
+    grep(queryoi,
+         dimnames(my.data.array.norm.reshaped)[[2]])
+    ,feature,timepoint,treatment,]
+  targetdt=cbind.data.frame(targetoi,c(targetmain))
+  querydt=cbind.data.frame(queryoi,c(querymain))
+  expecteddt=cbind.data.frame(paste(targetoi,queryoi,"expected",sep="_"),
+                              mean(c(targetmain))+mean(c(querymain)))
+  combidt=cbind.data.frame(paste(targetoi,queryoi,sep="_"),c(combieffect))
+  pidt=cbind.data.frame("pi",c(pi))
+  names(targetdt)=c("gene","data")
+  names(querydt)=c("gene","data")
+  names(combidt)=c("gene","data")
+  names(pidt)=c("gene","data")
+  names(expecteddt)=c("gene","data")
+  alldt=rbind.data.frame(targetdt,querydt,expecteddt,combidt,pidt)
+  mean_Data=dcast(formula = gene~.,data = alldt,fun.aggregate = mean)
+  if(missing(ymax)){
+    ymax=0
+    if(max(alldt$data)>0){
+      ymax=max(alldt$data)+0.1
+    }
+  }
+  if(missing(ymin)){
+    ymin=0
+    if(min(alldt$data)<0){
+      ymin=min(alldt$data)-0.1
+    }
+  }
+  
+  x=barplot(mean_Data[,2],names.arg = mean_Data[,1],
+            ylim=c(ymin,ymax)
+            ,col = c("white","black","grey"),
+            main=main)
+  alldt$gene=as.character(alldt$gene)
+  for(k in 1:nrow(mean_Data)){
+    alldt$gene[alldt$gene %in% mean_Data[k,1]]=x[k,1]
+  }
+  points(alldt,pch=16)
+}
+
+par(mfrow=c(1,2))
+plot_effects(target="Rel",query="pnt",timepoint="96h",treatment="DMSO",
+             feature="cell_number",ymin=-3,ymax=2,
+             main="96h DMSO\ncell number")
+
+plot_effects(target="Rel",query="pnt",timepoint="96h",treatment="DMSO",
+             feature="actin.m.majoraxis.tmean",ymin=-3,ymax=2,
+             main="96h DMSO\nactin.m.majoraxis.tmean")
+```
+
+
+#Figure 8-supplemental figure 2: dsRNA correlations
 
 ```{r}
 
-sub_df<-my.data.array.norm.reshaped_df %>% filter(target=="Rel",query %in% c("CTRL_1","CTRL_2","CTRL_3","CTRL_4"),time=="96h",drug=="DMSO",feature %in% goodfeature)
+sub_df<-my.data.array.norm.reshaped_df %>% 
+  filter(target=="Rel",
+      query %in% c("CTRL_1","CTRL_2","CTRL_3","CTRL_4"),
+      time=="96h",drug=="DMSO",feature %in% goodfeature)
 
 a<-sub_df %>% 
   extract(replicate,c("design","rep"),regex = "(des\\d)(repl\\d)") %>%
@@ -3023,7 +3613,10 @@ tocor<-sub_df %>%
 
 x<-rcorr(tocor$x,tocor$y,type="p")
 
-sub_df<-my.data.array.norm.reshaped_df %>% filter(target=="pnt", query %in% c("CTRL_1","CTRL_2","CTRL_3","CTRL_4"),time=="96h",drug=="DMSO",feature %in% goodfeature)
+sub_df<-my.data.array.norm.reshaped_df %>% 
+  filter(target=="pnt", query %in% 
+  c("CTRL_1","CTRL_2","CTRL_3","CTRL_4"),
+  time=="96h",drug=="DMSO",feature %in% goodfeature)
 
 b<-sub_df %>% 
   extract(replicate,c("design","rep"),regex = "(des\\d)(repl\\d)") %>%
@@ -3052,8 +3645,7 @@ tocor<-sub_df %>%
 
 ```
 
-
-# Figure 7C,C': Rel-pnt differential interactions
+#Figure 8C-C': Rel-pnt differential interactions
 
 ```{r}
 a<-sample_data %>%
@@ -3063,7 +3655,8 @@ a<-sample_data %>%
   geom_smooth(formula = y~x,method = "rlm",aes(fill=treatment)) + 
   geom_point() +
   theme_classic() +
-  scale_fill_manual(values = c("DMSO"=rgb(204,204,204,0.5,maxColorValue = 255),"MEKi"=rgb(204,204,204,0.5,maxColorValue = 255))) +
+  scale_fill_manual(values = c("DMSO"=rgb(204,204,204,0.5,maxColorValue = 255),
+                      "MEKi"=rgb(204,204,204,0.5,maxColorValue = 255))) +
   scale_color_manual(values = c("DMSO"="blue","MEKi"="red")) +
   labs(x = "time [h]" , y ="pi-score", title="Rel+pnt, cell number")
 
@@ -3074,14 +3667,15 @@ b<-sample_data %>%
   geom_smooth(formula = y~x,method = "rlm",aes(fill=treatment)) + 
   geom_point() +
   theme_classic() +
-  scale_fill_manual(values = c("DMSO"=rgb(204,204,204,0.5,maxColorValue = 255),"MEKi"=rgb(204,204,204,0.5,maxColorValue = 255))) +
+  scale_fill_manual(values = c("DMSO"=rgb(204,204,204,0.5,maxColorValue = 255),
+                          "MEKi"=rgb(204,204,204,0.5,maxColorValue = 255))) +
   scale_color_manual(values = c("DMSO"="blue","MEKi"="red")) +
   labs(x = "time [h]" , y ="pi-score", title="Rel+pnt, actin majoraxis")
 
 a+b
 ```
 
-# Figure 7D,E: Loss of Rel rescues loss of Ras signaling activity by Pvf2 upregulation 
+# Figure 8D,E: Loss of Rel rescues loss of Ras signaling activity by Pvf2 upregulation 
 
 ```{r}
 
@@ -3094,18 +3688,18 @@ result<-raw_dat %>%
   drop_na() %>% 
   extract(Pos,c("row","col"),regex = "(\\w)(\\d+)",remove = F) %>% 
  mutate(sample=
-           if_else(col %in% c(1,2,3),"RLUC",
-                   if_else(col %in% c(4,5,6),"Rel",
-                           if_else(col %in% c(7,8,9),"pnt",
-                                   if_else(col %in% c(10,11,12),"Rel_pnt",
-                                           if_else(col %in% c(13,14,15),"Pvr",
-                                                   if_else(col %in% c(16,17,18),"RasGAP1","none"
-                                                   )
-                                           )
-                                  )
-                           )
-                   )
-           )
+if_else(col %in% c(1,2,3),"RLUC",
+ if_else(col %in% c(4,5,6),"Rel",
+         if_else(col %in% c(7,8,9),"pnt",
+                 if_else(col %in% c(10,11,12),"Rel_pnt",
+                         if_else(col %in% c(13,14,15),"Pvr",
+                                 if_else(col %in% c(16,17,18),"RasGAP1","none"
+                                 )
+                         )
+                )
+         )
+ )
+)
   ) %>%
   mutate(replicate=
            if_else(col %in% c(1,4,7,10,13,16,19,20,21),1,
@@ -3116,18 +3710,18 @@ result<-raw_dat %>%
            )
   ) %>%
   mutate(primer=
-           if_else(row %in% c("A","B","C"),"rps",
-                   if_else(row %in% c("D","E","F"),"Pvf2",
-                           if_else(row %in% c("G","H","I"),"sty",
-                                   if_else(row %in% c("J","K","L"),"Rel",
-                                           if_else(row %in% c("M","N"),"pnt",
-                                                   if_else(row %in% c("O","P"),"RasGAP1","none"
-                                                   )
-                                           )
+if_else(row %in% c("A","B","C"),"rps",
+   if_else(row %in% c("D","E","F"),"Pvf2",
+           if_else(row %in% c("G","H","I"),"sty",
+                   if_else(row %in% c("J","K","L"),"Rel",
+                           if_else(row %in% c("M","N"),"pnt",
+                                   if_else(row %in% c("O","P"),"RasGAP1","none"
                                    )
                            )
                    )
            )
+   )
+)
   ) %>%
   mutate(Cp=as.numeric(Cp)) %>%
   filter(primer != "none",replicate!=0,sample!="none") %>%
@@ -3144,7 +3738,8 @@ result<-raw_dat %>%
 
 #plot the data in bargraphs for the figure
 result %>% 
-  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,sty_expression,RasGAP1_expression,replicate) %>% 
+  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,
+                sty_expression,RasGAP1_expression,replicate) %>% 
   filter(sample %in% c("Rel","pnt","Rel_pnt","Pvr","RasGAP1","RLUC")) %>%
   ungroup() %>% gather(gene,value,-replicate,-sample) %>% 
   group_by(gene) %>% 
@@ -3153,7 +3748,8 @@ result %>%
   mutate(value=log2(value)) %>%
   summarise(m=mean(value),s=sd(value)/sqrt(length(value)),l=m-s,u=m+s) %>%
   ungroup() %>%
-  mutate(sample=factor(c(sample),levels=c("pnt","Pvr","RasGAP1","Rel","Rel_pnt","RLUC"))) %>%
+  mutate(sample=factor(c(sample),levels=c("pnt","Pvr","RasGAP1",
+                                          "Rel","Rel_pnt","RLUC"))) %>%
   ggplot(aes(x=sample,y=m)) + 
   facet_wrap("gene",scales = "free") + 
   geom_bar(stat="identity",position=position_dodge()) +
@@ -3166,7 +3762,8 @@ result %>%
 
 #test the statisticss by a two sided t.test
 result %>% 
-  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,sty_expression,RasGAP1_expression,replicate) %>% 
+  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,
+                sty_expression,RasGAP1_expression,replicate) %>% 
   filter(sample %in% c("Rel","pnt","Rel_pnt","Pvr","RasGAP1","RLUC")) %>%
   ungroup() %>% gather(gene,value,-replicate,-sample) %>% 
   group_by(gene) %>% 
@@ -3177,7 +3774,8 @@ result %>%
   t.test(data=.,value~sample)
 
 result %>% 
-  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,sty_expression,RasGAP1_expression,replicate) %>% 
+  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,
+                sty_expression,RasGAP1_expression,replicate) %>% 
   filter(sample %in% c("Rel","pnt","Rel_pnt","Pvr","RasGAP1","RLUC")) %>%
   ungroup() %>% gather(gene,value,-replicate,-sample) %>% 
   group_by(gene) %>% 
@@ -3188,7 +3786,8 @@ result %>%
   t.test(data=.,value~sample)
 
 result %>% 
-  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,sty_expression,RasGAP1_expression,replicate) %>% 
+  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,
+                sty_expression,RasGAP1_expression,replicate) %>% 
   filter(sample %in% c("Rel","pnt","Rel_pnt","Pvr","RasGAP1","RLUC")) %>%
   ungroup() %>% gather(gene,value,-replicate,-sample) %>% 
   group_by(gene) %>% 
@@ -3199,7 +3798,8 @@ result %>%
   t.test(data=.,value~sample)
 
 result %>% 
-  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,sty_expression,RasGAP1_expression,replicate) %>% 
+  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,
+                sty_expression,RasGAP1_expression,replicate) %>% 
   filter(sample %in% c("Rel","pnt","Rel_pnt","Pvr","RasGAP1","RLUC")) %>%
   ungroup() %>% gather(gene,value,-replicate,-sample) %>% 
   group_by(gene) %>% 
@@ -3210,7 +3810,8 @@ result %>%
   t.test(data=.,value~sample)
 
 result %>% 
-  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,sty_expression,RasGAP1_expression,replicate) %>% 
+  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,
+                sty_expression,RasGAP1_expression,replicate) %>% 
   filter(sample %in% c("Rel","pnt","Rel_pnt","Pvr","RasGAP1","RLUC")) %>%
   ungroup() %>% gather(gene,value,-replicate,-sample) %>% 
   group_by(gene) %>% 
@@ -3221,7 +3822,8 @@ result %>%
   t.test(data=.,value~sample)
 
 result %>% 
-  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,sty_expression,RasGAP1_expression,replicate) %>% 
+  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,
+                sty_expression,RasGAP1_expression,replicate) %>% 
   filter(sample %in% c("Rel","pnt","Rel_pnt","Pvr","RasGAP1","RLUC")) %>%
   ungroup() %>% gather(gene,value,-replicate,-sample) %>% 
   group_by(gene) %>% 
@@ -3232,7 +3834,8 @@ result %>%
   t.test(data=.,value~sample)
 
 result %>% 
-  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,sty_expression,RasGAP1_expression,replicate) %>% 
+  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,
+                sty_expression,RasGAP1_expression,replicate) %>% 
   filter(sample %in% c("Rel","pnt","Rel_pnt","Pvr","RasGAP1","RLUC")) %>%
   ungroup() %>% gather(gene,value,-replicate,-sample) %>% 
   group_by(gene) %>% 
@@ -3243,7 +3846,8 @@ result %>%
   t.test(data=.,value~sample)
 
 result %>% 
-  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,sty_expression,RasGAP1_expression,replicate) %>% 
+  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,
+                sty_expression,RasGAP1_expression,replicate) %>% 
   filter(sample %in% c("Rel","pnt","Rel_pnt","Pvr","RasGAP1","RLUC")) %>%
   ungroup() %>% gather(gene,value,-replicate,-sample) %>% 
   group_by(gene) %>% 
@@ -3254,7 +3858,8 @@ result %>%
   t.test(data=.,value~sample)
 
 result %>% 
-  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,sty_expression,RasGAP1_expression,replicate) %>% 
+  dplyr::select(sample,pnt_expression,Rel_expression,Pvf2_expression,
+                sty_expression,RasGAP1_expression,replicate) %>% 
   filter(sample %in% c("Rel","pnt","Rel_pnt","Pvr","RasGAP1","RLUC")) %>%
   ungroup() %>% gather(gene,value,-replicate,-sample) %>% 
   group_by(gene) %>% 
@@ -3266,7 +3871,7 @@ result %>%
 
 ```
 
-# Supplementary Figure S10: Short term expression changes after Rel/Ras signaling co-perturbations
+#Figure 8-supplemental figure 4: Short term expression changes after Rel/Ras signaling co-perturbations
 
 ```{r}
 #read in raw Cp values
@@ -3278,22 +3883,22 @@ result<-raw_data_48h_qpcr %>%
   drop_na() %>% 
   extract(Pos,c("row","col"),regex = "(\\w)(\\d+)",remove = F) %>% 
   mutate(sample=
-           if_else(col %in% c(1,2),"RLUC",
-                   if_else(col %in% c(3,4),"Rel",
-                           if_else(col %in% c(5,6),"pnt",
-                                   if_else(col %in% c(7,8),"Rel_pnt",
-                                           if_else(col %in% c(9,10),"Sos",
-                                                   if_else(col %in% c(11,12),"Rel_Sos",
-                                                           if_else(col %in% c(13,14),"rl",
-                                                                   if_else(col %in% c(15,16),"Rel_rl","none"
-                                                                   )
-                                                           )
-                                                   )
-                                           )
-                                   )
-                           )
-                   )
-           )
+if_else(col %in% c(1,2),"RLUC",
+if_else(col %in% c(3,4),"Rel",
+if_else(col %in% c(5,6),"pnt",
+       if_else(col %in% c(7,8),"Rel_pnt",
+               if_else(col %in% c(9,10),"Sos",
+                       if_else(col %in% c(11,12),"Rel_Sos",
+                               if_else(col %in% c(13,14),"rl",
+                                       if_else(col %in% c(15,16),"Rel_rl","none"
+                                       )
+                               )
+                       )
+               )
+       )
+)
+)
+)
   ) %>%
   mutate(replicate=
            if_else(col %in% c(1,3,5,7,9,11,13,15),1,
@@ -3331,10 +3936,12 @@ result<-raw_data_48h_qpcr %>%
          rl_expression=2^-(rl-rps)) %>%
   drop_na()
 
-# Plot relative expression foldchanges normed to non-targeting control and housekeeping
+# Plot relative expression foldchanges normed to non-targeting  
+#control and housekeeping
 
 a<-result %>% 
-  dplyr::select(sample,pnt_expression,Rel_expression,rl_expression,replicate) %>% 
+  dplyr::select(sample,pnt_expression,Rel_expression,
+                rl_expression,replicate) %>% 
   filter(sample %in% c("Rel","pnt","Rel_pnt","RLUC")) %>%
   ungroup() %>% gather(gene,value,-replicate,-sample) %>% 
   group_by(gene) %>% 
@@ -3349,7 +3956,8 @@ a<-result %>%
   geom_bar(stat="identity",position=position_dodge()) +
   geom_point(mapping=aes(sample,value),
               data=result %>% 
-                dplyr::select(sample,pnt_expression,Rel_expression,rl_expression,replicate) %>% 
+                dplyr::select(sample,pnt_expression,Rel_expression,
+                              rl_expression,replicate) %>% 
                 filter(sample %in% c("Rel","pnt","Rel_pnt","RLUC")) %>%
                 ungroup() %>% gather(gene,value,-replicate,-sample) %>% 
                 group_by(gene) %>% 
@@ -3361,7 +3969,8 @@ a<-result %>%
   theme_classic()
 
 b<-result %>% 
-  dplyr::select(sample,pnt_expression,Rel_expression,rl_expression,replicate) %>% 
+  dplyr::select(sample,pnt_expression,Rel_expression,
+                rl_expression,replicate) %>% 
   filter(sample %in% c("Rel","rl","Rel_rl","RLUC")) %>%
   ungroup() %>% gather(gene,value,-replicate,-sample) %>% 
   group_by(gene) %>% 
@@ -3376,7 +3985,8 @@ b<-result %>%
   geom_bar(stat="identity",position=position_dodge()) +
   geom_point(mapping=aes(sample,value),
               data=result %>% 
-                dplyr::select(sample,pnt_expression,Rel_expression,rl_expression,replicate) %>% 
+                dplyr::select(sample,pnt_expression,
+                              Rel_expression,rl_expression,replicate) %>% 
                  filter(sample %in% c("Rel","rl","Rel_rl","RLUC")) %>%
                 ungroup() %>% gather(gene,value,-replicate,-sample) %>% 
                 group_by(gene) %>% 
@@ -3388,6 +3998,93 @@ b<-result %>%
   theme_classic()
 
 a+b+plot_layout(ncol = 1)
+
+```
+
+#Figure 4-supplemental figure 1: Short term expression changes after Rel/Ras signaling co-perturbations
+
+```{r}
+
+plot_effects<-function(target=22,query=68,timepoint="96h",treatment="DMSO",
+                       feature="cell_number",ymin,ymax,main="plot"){
+  if(is.numeric(target)){
+    targetoi=dimnames(Interactions$piscore)[[1]][target]
+  }else{
+    targetoi=target
+  }
+  if(is.numeric(query)){
+    queryoi=dimnames(Interactions$piscore)[[2]][query]
+  }else{
+    queryoi=query
+  }
+  
+  targetmain=mainEffects$target[grep(
+    targetoi,dimnames(mainEffects$target)[[1]]),feature,,timepoint,treatment]
+  querymain=mainEffects$query[grep(
+    queryoi,dimnames(mainEffects$query)[[1]]),feature,,timepoint,treatment]
+  pi=interaction_scores[grep(targetoi,
+                             dimnames(interaction_scores)[[1]]),
+                        grep(queryoi,
+                             dimnames(interaction_scores)[[2]]),
+                        feature,timepoint,treatment,]
+  
+  combieffect=my.data.array.norm.reshaped[
+    grep(targetoi,
+         dimnames(my.data.array.norm.reshaped)[[1]]),
+    grep(queryoi,
+         dimnames(my.data.array.norm.reshaped)[[2]])
+    ,feature,timepoint,treatment,]
+  targetdt=cbind.data.frame(targetoi,c(targetmain))
+  querydt=cbind.data.frame(queryoi,c(querymain))
+  expecteddt=cbind.data.frame(paste(targetoi,queryoi,"expected",sep="_"),
+                              mean(c(targetmain))+mean(c(querymain)))
+  combidt=cbind.data.frame(paste(targetoi,queryoi,sep="_"),c(combieffect))
+  pidt=cbind.data.frame("pi",c(pi))
+  names(targetdt)=c("gene","data")
+  names(querydt)=c("gene","data")
+  names(combidt)=c("gene","data")
+  names(pidt)=c("gene","data")
+  names(expecteddt)=c("gene","data")
+  alldt=rbind.data.frame(targetdt,querydt,expecteddt,combidt,pidt)
+  mean_Data=dcast(formula = gene~.,data = alldt,fun.aggregate = mean)
+  if(missing(ymax)){
+    ymax=0
+    if(max(alldt$data)>0){
+      ymax=max(alldt$data)+0.1
+    }
+  }
+  if(missing(ymin)){
+    ymin=0
+    if(min(alldt$data)<0){
+      ymin=min(alldt$data)-0.1
+    }
+  }
+  
+  x=barplot(mean_Data[,2],names.arg = mean_Data[,1],
+            ylim=c(ymin,ymax)
+            ,col = c("white","black","grey"),
+            main=main)
+  alldt$gene=as.character(alldt$gene)
+  for(k in 1:nrow(mean_Data)){
+    alldt$gene[alldt$gene %in% mean_Data[k,1]]=x[k,1]
+  }
+  points(alldt,pch=16)
+}
+
+par(mfrow=c(2,3))
+plot_effects(target="skd",query="Stat92E",timepoint="48h",treatment="MEKi",
+             feature="cell_number",ymin=-3,ymax=2,main="48h MEKi")
+plot_effects(target="skd",query="Stat92E",timepoint="72h",treatment="MEKi",
+             feature="cell_number",ymin=-3,ymax=2,main="72h MEKi")
+plot_effects(target="skd",query="Stat92E",timepoint="96h",treatment="MEKi",
+             feature="cell_number",ymin=-3,ymax=2,main="96h MEKi")
+plot_effects(target="skd",query="Stat92E",timepoint="48h",treatment="DMSO",
+             feature="cell_number",ymin=-3,ymax=2,main="48h DMSO")
+plot_effects(target="skd",query="Stat92E",timepoint="72h",treatment="DMSO",
+             feature="cell_number",ymin=-3,ymax=2,main="72h DMSO")
+plot_effects(target="skd",query="Stat92E",timepoint="96h",treatment="DMSO",
+             feature="cell_number",ymin=-3,ymax=2,main="96h DMSO")
+
 
 ```
 
