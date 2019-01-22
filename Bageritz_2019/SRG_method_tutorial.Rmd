@@ -1,0 +1,229 @@
+---
+title: "Method for obtaining Spatially Restricted Genes (SRGs)"
+author: "Josephine Bageritz, Phillipp Willnow, Erica Valentini, Svenja Leible, Michael Boutros and Aurelio A. Teleman"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: no
+    smooth_scroll: yes
+  pdf_document: default
+  number_sections: no
+  highlight: tango
+  theme: default
+references:
+- id: Bageritz2018
+  title: Gene expression atlas of a developing tissue by single cell expression correlation analysis
+  author:
+  - family: Bageritz
+    given: Josephine
+  - family: Willnow
+    given: Philipp
+  - family: Valentini
+    given: Erica
+  - family: Leible
+    given: Svenja
+  - family: Boutros
+    given: Michael
+  - family: Teleman
+    given: Aurelio A
+  container-title: bioRxiv
+  URL: 'https://www.biorxiv.org/content/early/2018/11/22/477125'
+  DOI: 10.1101/477125
+  page: 477125
+  type: article-journal
+  issued:
+    year: 2018
+    month: 11
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message=FALSE)
+```
+
+> To identify genes with a spatially restricted expression patterns (which we term Spatially Restricted Genes, SRGs), we plotted for every gene the number of cells in which it was detected versus the average expression level of the gene in those expressing cells. The rationale is that for ubiquitously expressed genes, the stronger the gene is expressed, the higher the chance the mRNA will be captured by the DropSeq beads, and hence the higher the number of cells in which it will be detected. Indeed, we find that most genes lie on a curve that progressively increases and asymptotes near the total number of cells sequenced. The SRGs are the genes that are observed in fewer cells than expected, given the level of expression of the gene. These were identified as genes with residuals smaller than 1 standard deviation below the mean on the inverse graph.
+
+[see @Bageritz2018]
+
+#### The following steps illustrate how to obtain the list of SRGs starting from a digital gene expression matrix with genes as rows and cells as columns.
+
+## 1. Start with the raw gene expression matrix
+
+```{r import}
+library(tidyverse)
+
+raw_dge <- read.csv("./raw.data.txt", sep="")
+head(raw_dge)
+dim(raw_dge)
+```
+
+## 2. Count the number of cells in which each gene was seen 
+
+Cells that express at least one UMI per gene.
+
+```{r count}
+# raw_dge <- raw_dge %>% rename("GENE" = "X__1")
+raw_dge <- raw_dge %>% rownames_to_column(var="GENE")
+summary_dge <- raw_dge %>% mutate(n_cells = rowSums(raw_dge[,2:ncol(raw_dge)] != 0)) %>% dplyr::select(GENE, n_cells)
+head(summary_dge)
+#Total number of genes:
+nrow(summary_dge)
+```
+
+## 3. Filter genes
+
+Filter out genes observed in one cell only because they will be later excluded in the correlation analysis.
+
+```{r remove}
+summary_dge <- summary_dge %>% filter(n_cells > 1)
+head(summary_dge)
+#Total number of genes after filtering:
+nrow(summary_dge)
+```
+
+## 4. For each gene calculate total nUMI
+
+Add together all nUMI across all cells
+
+```{r add}
+summary_dge <- raw_dge %>% mutate(total_counts = rowSums(raw_dge[,2:ncol(raw_dge)])) %>% dplyr::select(GENE, total_counts) %>% right_join(summary_dge)
+head(summary_dge)
+summary_dge %>% ggplot(aes(x=n_cells, y=total_counts)) + geom_point(alpha=0.2) + xlab("Number of cells where gene detected") + ylab("Total nUMI") + ggtitle("Gene total number of UMI per number of cells where it is expressed")
+```
+
+## 5. Calculate the average expression of genes 
+
+This is the average expression of the gene in the cells where it is observed.
+
+```{r ratio}
+summary_dge <- summary_dge %>% mutate(avg_expression = total_counts/n_cells)
+head(summary_dge)
+```
+
+## 6. Calculate the inverse of the expression average
+
+```{r inv}
+summary_dge <- summary_dge %>% mutate(inv_avg_expression = 1/avg_expression)
+head(summary_dge)
+```
+
+## 7. Filter per number of cells (optional)
+
+We noticed that, when the data are deeply sequenced, it can happen that the following plot diverges from the linear regression for the genes expressed in the highest number of cells leading to false hits. Those genes will be seen in almost all cells but will have different expression levels with a drop-out rate close to zero.
+
+We recommend users to check their own plot and filter out genes expressed in a number of cells above a threshold where the relation is not linear anymore (890 cells in our case).
+
+```{r filter}
+
+threshold = 890
+
+summary_dge %>% ggplot(aes(x=n_cells, y=inv_avg_expression)) + geom_point(alpha=0.2) + geom_vline(xintercept = threshold, color="blue", linetype="dashed", size=1)  + annotate("text", x=threshold-10, y=0.7, label = threshold, angle=90) + xlab("Number of cells where gene detected") + ylab("1/(average nUMI per expressing cell)") + ggtitle("Gene inverse average expression per number of cells where it is expressed")
+
+summary_dge <- summary_dge %>% filter(n_cells < 890)
+```
+
+
+## 8. Calculate the linear regression
+
+(y-intercept and slope) of number of cells on the x-axis versus inverse of average expression on the y-axis
+
+
+```{r regression}
+
+summary_dge %>% ggplot(aes(x=n_cells, y=inv_avg_expression)) + geom_point(alpha=0.2) + geom_smooth(method='lm', size=2)  + xlab("Number of cells where gene detected") + ylab("1/(average nUMI per expressing cell)") + ggtitle("Gene inverse average expression per number of cells where it is expressed")
+  
+linear_regression <- lm(inv_avg_expression ~ n_cells, data = summary_dge)
+#y-intercept:
+linear_regression$coefficients[1]
+#slope:
+linear_regression$coefficients[2]
+```
+
+## 9. Calculate the theoretical value based on the linear regression
+
+(ie y-intercept + slope * number of cells)
+
+```{r theoratical_value}
+summary_dge <- summary_dge %>% mutate(theor_linear_regression = linear_regression$coefficients[1] + linear_regression$coefficients[2] * n_cells)
+head(summary_dge)
+```
+
+## 10. Calculate the residual 
+
+This is the inversion of the average expression minus the theoretical linear regression.
+
+```{r residual}
+summary_dge <- summary_dge %>% mutate(residual = inv_avg_expression - theor_linear_regression)
+head(summary_dge)
+```
+
+## 11. Calculate mean and standard deviation (sd) of the residuals
+
+
+```{r sd}
+residual_sd <- sd(summary_dge$residual)
+residual_sd
+residual_mean <- mean(summary_dge$residual)
+residual_mean
+summary_dge %>% ggplot(aes(x=residual)) + geom_density() + geom_vline(aes(xintercept=mean(residual)), color="blue", size=1) + geom_vline(aes(xintercept=mean(residual) - sd(residual)), color="blue", linetype="dashed", size=1)  + geom_vline(aes(xintercept=mean(residual) + sd(residual)), color="blue", linetype="dashed", size=1) + annotate("text", x=residual_mean-0.01, y=9, label = "Mean", angle=90) + annotate("text", x= residual_mean + residual_sd -0.01, y=9, label = "Mean + sd", angle=90) + annotate("text", x= residual_mean - residual_sd - 0.01, y=9, label = "Mean - sd", angle=90)  + ggtitle("Density distribution of residual values with mean and standard deviation")
+```
+
+## 12. Calculate the Z-score
+
+This is done by dividing the residual of each gene by the standard deviation
+
+```{r z-score}
+summary_dge <- summary_dge %>% mutate(z_score = residual/residual_sd)
+head(summary_dge)
+```
+
+## 13. Sort by Z-score
+
+(lowest to highest)
+
+```{r sort}
+summary_dge <- summary_dge %>% arrange(z_score)
+head(summary_dge)
+```
+
+## 14. Select all the genes with a Z-score < -1 as hits
+
+List of genes classified as hits = Spatially Restricted Genes (SRGs)
+
+```{r select}
+summary_dge <- summary_dge %>% mutate(SRG = ifelse(z_score < -1, T, F))
+```
+
+## 15. SRG list
+
+This plot represents the number of cells on the x-axis versus the inverse of the average expression on the y-axis, the regression line is also present and the hits (SRG = True) are colored in red to be differentiated from the rest of the datapoints as background in another color.
+
+```{r plot, fig.width=8, fig.height=6}
+
+summary_dge %>% ggplot(aes(x=n_cells, y=inv_avg_expression)) + geom_point(aes(color = SRG)) + geom_smooth(method='lm', size=2) + scale_color_manual(values = c('#595959', 'red'))  + xlab("Number of cells where gene detected") + ylab("1/(average nUMI per expressing cell)") + ggtitle("Gene inverse average expression per number of cells where it is expressed")
+
+hits <- summary_dge %>% filter(SRG == T) %>% pull(GENE)
+length(hits)
+hits
+```
+
+## 16. Export SRG list
+
+```{r export}
+
+write.table(hits, file="hits.txt", quote = FALSE, row.names = FALSE, col.names = FALSE)
+```
+
+
+
+## 17. R SessionInfo
+
+```{r}
+sessionInfo()
+```
+
+
+## 18. Reference
