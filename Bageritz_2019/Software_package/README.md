@@ -218,6 +218,8 @@ Circa 1 second per TIFF file generated.
 
 Demo input files and output files are provided in the folder "sample_data". These are the actual data files used to generate the figures in the publication. The applications can be tested as follows on a MacOS system:
 
+```{bash}
+
 unix$ cd sample_data
 
 unix$ cd 1_cross_correlation_SRGs
@@ -241,3 +243,5 @@ unix$ cd ..
 unix$ cd 4_calculate_expression_maps
 
 unix$ ./4_calculate_expression_maps list_of_genes_to_map.txt
+
+```
