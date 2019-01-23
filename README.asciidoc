@@ -118,11 +118,10 @@ Manuscript under review.
 Heigwer et al., 2018
 ^^^^^^^^^^^^^^^^^^^^
 
-Heigwer et al., 2018, Time-resolved mapping of genetic interactions to model signaling pathway vulnerabilities
+[Heigwer et al., 2018, Time-resolved mapping of genetic interactions to model signaling pathway vulnerabilities,_eLife_, 2018](https://elifesciences.org/articles/40174) 
 
+Context-dependent changes in genetic interactions are an important feature of cellular pathways and their varying responses under different environmental conditions. However, methodological frameworks to investigate the plasticity of genetic interaction networks over time or in response to external stresses are largely lacking. To analyze the plasticity of genetic interactions, we performed a combinatorial RNAi screen in Drosophila cells at multiple time points and after pharmacological inhibition of Ras signaling activity. Using an image-based morphology assay to capture a broad range of phenotypes, we assessed the effect of 12768 pairwise RNAi perturbations in six different conditions. We found that genetic interactions form in different trajectories and developed an algorithm, termed MODIFI, to analyze how genetic interactions rewire over time. Using this framework, we identified more statistically significant interactions compared to end-point assays and further observed several examples of context-dependent crosstalk between signaling pathways such as an interaction between Ras and Rel which is dependent on MEK activity.
 Manuscript under review.
-
-Available at bioRxiv https://www.biorxiv.org/content/early/2018/08/04/384800[Heigwer _et al._, 2018, preprint]
 
 [[zhan-faehling-rauscher-et-al.-2018]]
 Zhan, Faehling, Rauscher et al., 2018
