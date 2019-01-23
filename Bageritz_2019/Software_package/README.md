@@ -1,6 +1,6 @@
-#Gene expression maps from single-cell sequencing data using gene expression correlations
+# Gene expression maps from single-cell sequencing data using gene expression correlations
 
-#Contents
+# Contents
 1. Overview
 2. Repo contents
 3. System Requirements
@@ -12,7 +12,7 @@
 
 
 
-#1. Overview
+# 1. Overview
 
 This software package accompanies the publication "Gene expression atlas of a developing tissue by single cell expression correlation analysis" by Josephine Bageritz, Philipp Willnow, Erica Valentini, Svenja Leible, Michael Boutros, and Aurelio A. Teleman, available either in bioRXiv (https://doi.org/10.1101/477125) or [NEED TO PUT IN HERE JOURNAL CITATION].
 
