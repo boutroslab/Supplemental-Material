@@ -60,7 +60,29 @@ Simply copy the files onto the computer, and run them from the MacOS Terminal. N
 
 Copy the files to the computer, compile them with a C compiler (e.g. GNU C Compiler) and then execute them.
 
-NOTE: The application 4_calculate_expression_maps.c makes a system call to "mkdir" to generate a directory to place the output files into. This works on unix, linux and MacOS systems. If the source code is compiled on a Microsoft Windows system, this statement will need to be adjusted accordingly (or deleted).
+This is how you compile them in linux (tested in Ubuntu):
+
+```{bash}
+unix$ cd source_code
+
+unix$ gcc 1_cross_correlation_SRGs.c -o 1_cross_correlation_SRGs -lm
+
+unix$ chmod a+x 1_cross_correlation_SRGs
+
+unix$ gcc 2_identify_best_mapping_genes.c -o 2_identify_best_mapping_genes -lm
+
+unix$ chmod a+x 2_identify_best_mapping_genes
+
+unix$ gcc 3_cross_correlation_to_mapping_genes.c -o 3_cross_correlation_to_mapping_genes
+
+unix$ chmod a+x 3_cross_correlation_to_mapping_genes
+
+unix$ gcc 4_calculate_expression_maps.c -o 4_calculate_expression_maps.c -lm
+
+unix$ chmod a+x 4_calculate_expression_maps
+```
+
+NOTE: The applications can't be compiled on a __Windows__ machine.
 
 ## Typical installation time
 
