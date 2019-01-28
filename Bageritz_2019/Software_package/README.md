@@ -126,7 +126,7 @@ The circa 8 seconds for 800 SRGs. The runtime will increase exponentially with t
 
 
 
-## Application: 2_cross_correlation_all_genes
+## Application: 2_identify_best_mapping_genes
 
 ##### Purpose
 
