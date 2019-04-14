@@ -6,7 +6,7 @@ Cancer cells rely on dysregulated gene expression programs to maintain their mal
 
 ## Supporting analysis code for the manuscript
 
-This directory contains annotated R code that can reproduce analyses and figures in the manuscript "Lineage specific core-regulatory circuits determine gene essentiality in cancer cells" available on [bioRxiv](). A corresponding R package including all source data required to run the code can be downloaded from [Figshare](https://figshare.com/s/33f68e70fbf6e6ac600f). The package can then be installed from the command line by typing 
+This directory contains annotated R code that can reproduce analyses and figures in the manuscript "Lineage specific core-regulatory circuits determine gene essentiality in cancer cells" available on [bioRxiv](). A corresponding R package including all source data required to run the code can be downloaded from [Figshare](https://figshare.com/s/715b9f34afaca709d41c). The package can then be installed from the command line by typing 
 
 ```{sh}
 R CMD INSTALL HDCRC2019_0_1_0.tar.gz
