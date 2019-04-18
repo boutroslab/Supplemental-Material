@@ -1,0 +1,10 @@
+[[styleguide-material-for-figures]]
+Boutros lab style guie for plots and figures material of published manuscripts
+----------------------------------------------
+
+This directory contains scripts and files supporting graphical
+data visualisations from the Boutros lab.
+
+
+v.1
+gene-gene interactions
