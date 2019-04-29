@@ -1,7 +1,10 @@
 ---
 title: "B110-styleguide_v0.1"
-output: html_document
-editor_options: 
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+editor_options:
   chunk_output_type: console
 ---
 
@@ -9,6 +12,7 @@ editor_options:
 library(tidyverse)
 library(ggpubr)
 library(patchwork)
+library(ggrepel)
 ```
 
 ## B110 Theme
@@ -31,7 +35,7 @@ theme_b110<-function(){
 
 ## B110 Colors
 
-```{r theme, include=FALSE}
+```{r colors}
 
 sgi_blue    = '#5087C8'
 sgi_yellow1 = '#F2EE35'
@@ -44,7 +48,7 @@ b110_transparent_black = alpha('#000000',0.5)
 
 ## Quality control Scatter plot
 
-```{r QCscatter}
+```{r QCscatter, echo=FALSE}
 
 QC_df<-read_delim("~/Desktop/GitHub/Supplemental-Material/Boutroslab_Rstyle_guide/QCscatter_data.txt",delim = "\t")
   
@@ -65,7 +69,7 @@ QC_df<-read_delim("~/Desktop/GitHub/Supplemental-Material/Boutroslab_Rstyle_guid
 
 ## GI Scatter plot (single vs. double mutant)
 
-```{r QCscatter}
+```{r GIscatter, echo=FALSE}
  
 GI_df<-read_delim("~/Desktop/GitHub/Supplemental-Material/Boutroslab_Rstyle_guide/GI_data_scatter.txt",delim = "\t")
   
@@ -82,9 +86,9 @@ GI_df %>% ggplot() +
 
 ```
 
-## GI Volcano plot (π-score vs. -log10 FDR)
+## GI Volcano plot (pi-score vs. -log10 FDR)
 
-```{r pressure, echo=FALSE}
+```{r GI volcano, echo=FALSE}
 
 GI_df<-read_delim("~/Desktop/GitHub/Supplemental-Material/Boutroslab_Rstyle_guide/GI_data_volcano.txt",delim = "\t")
 
@@ -96,7 +100,7 @@ GI_df %>% ggplot() +
     scale_color_manual(values = c("negative"=sgi_blue,"non-significant"=b110_grey,"positive"=sgi_yellow1)) +
     geom_label_repel(data=subset(GI_df,significant!="non-significant"), aes(x=piscore,y=-log10(fdr),label=gene1),col="black")+
     ylab("-log10 FDR") +
-    xlab("interaction score [π]") + 
+    xlab("interaction score [pi]") + 
     ggtitle(paste0("GI vocalno (query gene = ",GI_df$gene2,")")) +
     theme_b110()
   
@@ -104,7 +108,7 @@ GI_df %>% ggplot() +
 
 ## GI bar plot (buffering vs synthetic lethal)
 
-```{r pressure, echo=FALSE}
+```{r GIbarplot, echo=FALSE, fig.height=10}
 GI_df<-read_delim("~/Desktop/GitHub/Supplemental-Material/Boutroslab_Rstyle_guide/GI_data_barplot.txt",delim = "\t")
 
 a <- GI_df %>% 
@@ -116,7 +120,7 @@ a <- GI_df %>%
     geom_bar(stat = "identity",position = "dodge") +
     geom_point(aes(y=value),pch=19,size=5,col=b110_grey) +
     geom_hline(yintercept = 0,lty=2) +
-    ylab("interaction score [π]") +
+    ylab("interaction score [pi]") +
     xlab("measurement") + 
     ggtitle(paste0("GI barplot (buffering)")) +
     scale_fill_manual(values = c("targetmain"=b110_grey_light,"querymain"=b110_grey_light,"expected"=b110_grey_light,"double"=b110_grey_light,"piscore"=sgi_yellow1)) +
@@ -131,12 +135,12 @@ b<- GI_df %>%
     geom_bar(stat = "identity",position = "dodge") +
     geom_point(aes(y=value),pch=19,size=5,col=b110_grey) +
     geom_hline(yintercept = 0,lty=2) +
-    ylab("interaction score [π]") +
+    ylab("interaction score [pi]") +
     xlab("measurement") + 
     ggtitle(paste0("GI barplot (buffering)")) +
     scale_fill_manual(values = c("targetmain"=b110_grey_light,"querymain"=b110_grey_light,"expected"=b110_grey_light,"double"=b110_grey_light,"piscore"=sgi_blue)) +
     theme_b110()
   
-print(a+b)
+a+b + plot_layout(ncol = 1,nrow=2,heights = 10)
 ```
 
