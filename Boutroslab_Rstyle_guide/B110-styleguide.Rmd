@@ -1,0 +1,142 @@
+---
+title: "B110-styleguide_v0.1"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggpubr)
+library(patchwork)
+```
+
+## B110 Theme
+
+```{r theme, include=FALSE}
+
+theme_b110<-function(){
+  theme_classic() +
+  theme(
+    axis.text=element_text(size = 16), 
+    axis.title=element_text(size = 16),
+    plot.title = element_text(size = 22,hjust = 0.5,face="bold"),
+    legend.title = element_text(size = 22),
+    legend.text = element_text(size =16),
+    legend.position = "bottom"
+    )
+}
+
+```
+
+## B110 Colors
+
+```{r theme, include=FALSE}
+
+sgi_blue    = '#5087C8'
+sgi_yellow1 = '#F2EE35'
+sgi_yellow2 = '#FED98E'
+b110_grey   = '#808080'
+b110_grey_light   = '#909090'
+b110_transparent_black = alpha('#000000',0.5)
+
+```
+
+## Quality control Scatter plot
+
+```{r QCscatter}
+
+QC_df<-read_delim("~/Desktop/GitHub/Supplemental-Material/Boutroslab_Rstyle_guide/QCscatter_data.txt",delim = "\t")
+  
+  QC_df %>%
+    ggplot(aes(x=replicate1,y=replicate2)) + 
+    geom_abline(slope = 1,lty=2) +
+    geom_vline(xintercept = 0,lty=2) +
+    geom_hline(yintercept = 0,lty=2) +
+    geom_point(pch=19,col=b110_transparent_black) + 
+    geom_smooth(col=b110_grey,method="lm") +
+    stat_cor() +
+    ylab("replicate 2") +
+    xlab("replicate 1") +
+    ggtitle("QC scatterplot") +
+    theme_b110()
+  
+```
+
+## GI Scatter plot (single vs. double mutant)
+
+```{r QCscatter}
+ 
+GI_df<-read_delim("~/Desktop/GitHub/Supplemental-Material/Boutroslab_Rstyle_guide/GI_data_scatter.txt",delim = "\t")
+  
+GI_df %>% ggplot() +
+    geom_point(data=subset(GI_df,significant=="non-significant"), aes(x=singlemut,y=doublemut,col=significant),pch=19,size=5) + 
+    geom_point(data=subset(GI_df,significant!="non-significant"), aes(x=singlemut,y=doublemut,col=significant),pch=19,size=5)+
+    geom_smooth(method = "lm",data=GI_df, aes(x=singlemut,y=doublemut),inherit.aes = F,se = F,na.rm=T,col="black")+
+    scale_color_manual(values = c("negative"=sgi_blue,"non-significant"=b110_grey,"positive"=sgi_yellow1)) +
+    geom_label_repel(data=subset(GI_df,significant!="non-significant"), aes(x=singlemut,y=doublemut,label=gene1),col="black")+
+    ylab("double knockdown phenotype") +
+    xlab("single knockdown phenotype") + 
+    ggtitle(paste0("single vs. double mutant (target gene = ",GI_df$gene2,")")) +
+    theme_b110()
+
+```
+
+## GI Volcano plot (π-score vs. -log10 FDR)
+
+```{r pressure, echo=FALSE}
+
+GI_df<-read_delim("~/Desktop/GitHub/Supplemental-Material/Boutroslab_Rstyle_guide/GI_data_volcano.txt",delim = "\t")
+
+GI_df %>% ggplot() +
+    geom_vline(xintercept = 0,lty=2) +
+    geom_hline(yintercept = 1,lty=2) +
+    geom_point(data=subset(GI_df,significant=="non-significant"), aes(x=piscore,y=-log10(fdr),col=significant),pch=19,size=5) + 
+    geom_point(data=subset(GI_df,significant!="non-significant"), aes(x=piscore,y=-log10(fdr),col=significant),pch=19,size=5)+
+    scale_color_manual(values = c("negative"=sgi_blue,"non-significant"=b110_grey,"positive"=sgi_yellow1)) +
+    geom_label_repel(data=subset(GI_df,significant!="non-significant"), aes(x=piscore,y=-log10(fdr),label=gene1),col="black")+
+    ylab("-log10 FDR") +
+    xlab("interaction score [π]") + 
+    ggtitle(paste0("GI vocalno (query gene = ",GI_df$gene2,")")) +
+    theme_b110()
+  
+```
+
+## GI bar plot (buffering vs synthetic lethal)
+
+```{r pressure, echo=FALSE}
+GI_df<-read_delim("~/Desktop/GitHub/Supplemental-Material/Boutroslab_Rstyle_guide/GI_data_barplot.txt",delim = "\t")
+
+a <- GI_df %>% 
+  filter(query=="Dronc") %>%
+  mutate(category=factor(category,levels = c("targetmain","querymain","expected","double","piscore"))) %>%
+  group_by(category) %>%
+  mutate(m=mean(value,na.rm=T)) %>%
+  ggplot(aes(x=category,y=m,fill=category)) +
+    geom_bar(stat = "identity",position = "dodge") +
+    geom_point(aes(y=value),pch=19,size=5,col=b110_grey) +
+    geom_hline(yintercept = 0,lty=2) +
+    ylab("interaction score [π]") +
+    xlab("measurement") + 
+    ggtitle(paste0("GI barplot (buffering)")) +
+    scale_fill_manual(values = c("targetmain"=b110_grey_light,"querymain"=b110_grey_light,"expected"=b110_grey_light,"double"=b110_grey_light,"piscore"=sgi_yellow1)) +
+    theme_b110()
+  
+b<- GI_df %>% 
+  filter(query=="raptor") %>%
+  mutate(category=factor(category,levels = c("targetmain","querymain","expected","double","piscore"))) %>%
+  group_by(category) %>%
+  mutate(m=mean(value,na.rm=T)) %>%
+  ggplot(aes(x=category,y=m,fill=category)) +
+    geom_bar(stat = "identity",position = "dodge") +
+    geom_point(aes(y=value),pch=19,size=5,col=b110_grey) +
+    geom_hline(yintercept = 0,lty=2) +
+    ylab("interaction score [π]") +
+    xlab("measurement") + 
+    ggtitle(paste0("GI barplot (buffering)")) +
+    scale_fill_manual(values = c("targetmain"=b110_grey_light,"querymain"=b110_grey_light,"expected"=b110_grey_light,"double"=b110_grey_light,"piscore"=sgi_blue)) +
+    theme_b110()
+  
+print(a+b)
+```
+
