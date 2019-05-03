@@ -144,3 +144,113 @@ b<- GI_df %>%
 a+b + plot_layout(ncol = 1,nrow=2,heights = 10)
 ```
 
+## Multi feature GI histograms
+
+```{r}
+
+GI_histograms_sampled<-read_delim("~/Desktop/GitHub/Supplemental-Material/Boutroslab_Rstyle_guide/GI_data_histograms.txt",delim = "\t")
+  
+GI_histograms_sampled %>% ggplot(aes(score,fill=grouping)) + 
+  geom_histogram(aes(y=..density..),bins=100)+
+  facet_wrap(~feature,scales="free") + 
+  xlim(-15,15) + 
+  theme_b110() + 
+  scale_fill_manual(values=c(b110_grey, sgi_blue, sgi_yellow1))
+
+```
+
+## Single feature GI profile heatmap
+
+```{r}
+heat_dat <- read_delim("~/Desktop/GitHub/Supplemental-Material/Boutroslab_Rstyle_guide/GI_data_profiles.txt",delim = "\t")
+
+ordx<-heat_dat  %>% arrange(gene_symbol) %>% spread(gene_symbol,mpi,fill = 0) %>% arrange(query_name) %>% dplyr::select(-query_name) %>% dist(method = "euclidean") %>% hclust(method = "ward.D2") %>% .$order
+namesx<-heat_dat  %>% arrange(gene_symbol) %>% spread(gene_symbol,mpi,fill = 0) %>% arrange(query_name) %>% pull(query_name) %>% .[ordx]
+
+ordy<-heat_dat  %>% arrange(gene_symbol) %>% spread(query_name,mpi,fill = 0) %>% arrange(gene_symbol) %>% dplyr::select(-gene_symbol) %>% dist(method = "euclidean") %>% hclust(method = "ward.D2") %>% .$order
+namesy<-heat_dat  %>% arrange(gene_symbol) %>% spread(query_name,mpi,fill = 0) %>% arrange(gene_symbol) %>% pull(gene_symbol) %>% .[ordy]
+
+heat_dat %>% 
+  mutate(gene_symbol=factor(gene_symbol,levels = namesy)) %>%
+  mutate(query_name=factor(query_name,levels = namesx)) %>%
+  complete(query_name,gene_symbol) %>%
+  mutate(mpi=if_else(mpi>10,10,mpi),mpi=if_else(mpi<(-10),(-10),mpi)) %>%
+  ggplot(
+    aes(
+      x=query_name,
+      y=gene_symbol,
+      fill=mpi)
+  ) + 
+  scale_fill_gradient2(low=sgi_blue,mid ="black" ,high = sgi_yellow1,na.value = b110_grey,midpoint = 0) + #b110_grey
+  geom_tile() + 
+  ylab("target genes") +
+  xlab("query genes") +
+  ggtitle("GI profile clustering") +
+  theme_b110() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.text=element_text(size = 10))
+
+```
+
+## Single feature GI profile heatmap
+
+```{r}
+
+corrord<-heat_dat %>% 
+  arrange(gene_symbol) %>% 
+  spread(gene_symbol,mpi,fill = NA_real_) %>% 
+  arrange(query_name) %>% 
+  dplyr::select(-query_name) %>% 
+  corrr::correlate(method = "pearson",diagonal=1,use="p") %>% 
+  dplyr::select(-rowname) %>%
+  dist(method = "euclidean") %>% 
+  hclust(method = "ward.D2") %>% 
+  .$order
+
+corrnames<-heat_dat %>% 
+  arrange(gene_symbol) %>% 
+  spread(gene_symbol,mpi,fill = NA_real_) %>% 
+  arrange(query_name) %>% 
+  dplyr::select(-query_name) %>% 
+  corrr::correlate(method = "pearson",diagonal=1,use="p") %>% 
+  pull(rowname) %>%
+  .[corrord]
+
+heat_dat %>% 
+  spread(gene_symbol,mpi,fill = NA_real_) %>% 
+  dplyr::select(-query_name) %>% 
+  corrr::correlate(method = "pearson",diagonal=1,use="p") %>% 
+  corrr::stretch() %>%
+  mutate(x=factor(x,levels = corrnames)) %>%
+  mutate(y=factor(y,levels =  corrnames)) %>%
+  ggplot(
+    aes(
+      x=x,
+      y=y,
+      fill=r)
+  ) + 
+  scale_fill_gradient2(na.value = b110_grey,midpoint = 0) +
+  geom_tile() + 
+  ylab("target genes") +
+  xlab("target genes") +
+  ggtitle("GI profile correlations") +
+  theme_b110() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.text=element_text(size = 10)) 
+```
+
+## Particular pairwise interactions of gene groups in a point scatter plot
+
+```{r}
+
+particular_interactions <- read_delim("~/Desktop/GitHub/Supplemental-Material/Boutroslab_Rstyle_guide/GI_data_particluar.txt",delim = "\t")
+
+particular_interactions %>% 
+  ggplot(aes(x=gene_symbol1,y=gene_symbol2,size=abs(scale(score)),col=factor(sign(score)))) +
+    geom_point() +
+    scale_color_manual(values = c("1"=sgi_yellow1,"-1"=sgi_blue)) +
+    theme_b110()+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+    scale_size_area() +
+    xlab("Signaling members")+
+    ylab("Signaling members")
+
+```
