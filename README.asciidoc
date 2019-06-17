@@ -107,7 +107,7 @@ Wnt signaling is an evolutionarily conserved signaling route required for develo
 
 [[zhan-ambrosi-wandmacher-et-al.-2019]]
 Zhan, Ambrosi, Wandmacher et al., Nature Communications 2019
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 https://www.nature.com/articles/s41467-019-09898-0[Zhan, Ambrosi, Wandmacher _et al._], 2019, MEK inhibitors activate Wnt signalling and induce stem cell plasticity in colorectal cancer. _Nature Communications_
 
@@ -115,7 +115,7 @@ In colorectal cancer (CRC), aberrant Wnt signalling is essential for tumorigenes
 
 [[Heigwer-et-al.-2019]]
 Heigwer et al., eLife 2019
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 https://elifesciences.org/articles/40174[Heigwer _et al._], 2019, Time-resolved mapping of genetic interactions to model signaling pathway vulnerabilities, _eLife_
 
@@ -124,6 +124,7 @@ Manuscript under review.
 
 [[Rauscher-et-al.-2019]]
 Rauscher et al., bioRxiv 2019
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 https://www.biorxiv.org/content/10.1101/609552v1[Rauscher _et al._], 2019, Lineage specific core-regulatory circuits determine gene essentiality in cancer cells, _bioRxiv_
 
