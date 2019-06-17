@@ -1,6 +1,6 @@
 # MEK inhibition activates Wnt signalling and induces stem cell plasticity in colorectal cancer organoids
 
-The paper this repository relates to is currently under review.
+This repository corresponds to the article [MEK inhibition activates Wnt signalling and induces stem cell plasticity in colorectal cancer organoids](https://www.nature.com/articles/s41467-019-09898-0) by Zhan, Ambrosi, Wandmacher _et al._.
 
 ## Supporting analysis code for the manuscript
 
