@@ -6,6 +6,7 @@ Large-scale pooled CRISPR/Cas9 screens are powerful tools to determine gene esse
 
 ## Supporting analysis code for the manuscript
 
+This directory contains annotated R code that can reproduce analyses and figures in the manuscript "Pooled CRISPR screening at high sensitivity with an empirically designed sgRNA library". A corresponding R package including all source data required to run the code can be downloaded from Figshare [under this link](https://figshare.com/s/4cd0a152aa0109cce5a0). The package can then be installed from the command line by typing
 
 ```{sh}
 R CMD INSTALL HDCRISPR2019_0_1_0.tar.gz
