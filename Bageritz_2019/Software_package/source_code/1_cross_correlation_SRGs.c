@@ -40,11 +40,11 @@ int main(int argc, char* argv[]){
 	}
 	
 	//Figure out size of file and if it can be loaded into memory
-	while((c=getc(in))!=13 && c!=EOF); // go to end of header line containing cell names
+	while((c=getc(in))!=10 && c!=13 && c!=EOF); // go to end of header line containing cell names
 	cell_num=0;
 	fscanf(in,"%*s"); //first gene name
 	c=getc(in);
-	while(c!=13 && c!= EOF){
+	while(c!=10 && c!=13 && c!= EOF){
 		cell_num += 1;
 		fscanf(in,"%*f");
 		c=getc(in);
@@ -54,7 +54,7 @@ int main(int argc, char* argv[]){
 	gene_num=1;
 	while(fscanf(in,"%*s")!=EOF){
 		gene_num += 1;
-		while((c=getc(in))!=13 && c!=EOF); //go to end of line
+		while((c=getc(in))!=10 && c!=13 && c!=EOF); //go to end of line
 	}
 	printf("[INFO] Data matrix contains %i genes.\n", gene_num);
 	
@@ -89,7 +89,7 @@ int main(int argc, char* argv[]){
 		fclose(out_genes);
 		exit(1);
 	}
-	while((c=getc(in))!=13 && c!=EOF); // go to end of header line containing cell names 
+	while((c=getc(in))!=10 && c!=13 && c!=EOF); // go to end of header line containing cell names 
 	i=0;
 	while(fscanf(in,"%39s",&gene_names[40*i])!=EOF){
 		for(j=0; j<cell_num; j++){
