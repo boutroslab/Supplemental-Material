@@ -1,10 +1,10 @@
 ---
-title: "Lineage specific core-regulatory circuits determine gene essentiality in cancer cells"
+title: "A Pan-Cancer Analysis of Tumor Cell Lineage Dependencies"
 author: "Benedikt Rauscher"
 date: "`r Sys.Date()`"
 abstract: >
-  Cancer cells rely on dysregulated gene expression programs to maintain their malignant phenotype. A cell’s transcriptional state is controlled by a small set of interconnected transcription factors that form its core-regulatory circuit (CRC). Previous work in pediatric cancers has shown, that disruption of the CRC by genetic alterations causes tumor cells to become highly dependent on its components creating new opportunities for therapeutic intervention. However, the role of CRCs and the mechanisms by which they are controlled remain largely unknown for most tumor types. Here, we developed a method to systematically predict ‘functional’ CRCs and associated biological processes from context-dependent essentiality data sets. Analysis of genome-scale CRISPR-Cas9 screens in 558 cancer cell lines showed that most tumor types specifically depend on a small number of transcription factors for proliferation. We found that these transcription factors compose the CRCs in these tumor types. Moreover, they are frequently altered in patient tumor samples indicating their oncogenic potential. Finally, we show that biological processes associated with each CRC are revealed by analyzing codependency between lineage-specific essential genes. Our results demonstrate that genetic addiction to lineage-specific core transcriptional mechanisms occurs across a broad range of tumor types. We exploit this phenomenon to systematically infer CRCs from lineage specific gene essentiality. Furthermore, our findings shed light on the selective genetic vulnerabilities that arise as the consequence of transcriptional dysregulation in different tumor types and show how the plasticity of regulatory circuits might influence drug resistance and metastatic potential.
-output: BiocStyle::pdf_document
+  Tumor phenotypes are closely associated with their developmental lineage and cell of origin. However, tumor lineage-specific genetic vulnerabilities remain sparsely characterized. In this work, we inferred lineage-dependencies across 21 different tumor types based on genome-scale CRISPR screening data. Our analysis identified 1653 lineage-specific essential genes, many of which have roles in signaling and development. Gene signatures associated with a loss of differentiation and epithelial to mesenchymal transition were strongly associated with resistance to the perturbation of lineage-specific essential processes in several tumor types. We show that in colorectal cancer, the developmental transcription factors KLF5, HNF4A and CDX2 and the Wnt-signaling effector TCF7L2 co-regulate many target genes. By contrast, decreased expression of developmental factors was associated with an increased resistance to Wnt-signaling perturbation. Our results suggest that cooperations between mutated signaling pathways and lineage-specific transcription factors mediate the outcome of aberrant signaling activity across a diverse range of tumor lineages. These interactions can determine whether targeted pathway inhibition will be effective in a particular cancer type.
+output: BiocStyle::html_document
 vignette: >
   %\VignetteIndexEntry{Vignette Title}
   %\VignetteEncoding{UTF-8}
@@ -12,6 +12,10 @@ vignette: >
 editor_options: 
   chunk_output_type: console
 ---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, results = 'hide', cache.lazy = FALSE)
+```
 
 # About
 
@@ -25,22 +29,26 @@ We load a number of packages which provide functionality that is required for do
 library(broom)
 library(reshape2)
 library(mixtools)
+library(lmtest)
+library(sandwich)
 library(pheatmap)
+library(org.Hs.eg.db)
+library(clusterProfiler)
 library(fgsea)
+library(umap)
 library(GO.db)
 library(Organism.dplyr)
 library(patchwork)
 library(ggrepel)
-library(RTCGA)
-library(RTCGA.rnaseq)
+library(edgeR)
+library(IHW)
+library(ChIPpeakAnno)
+library(BSgenome.Hsapiens.UCSC.hg19)
 library(MASS)
 library(Gviz)
+library(GenomicRanges)
 library(biomaRt)
 library(org.Hs.eg.db)
-library(mclust)
-library(clusterProfiler)
-library(limma)
-library(Rtsne)
 library(cowplot)
 library(tidyverse)
 ```
@@ -53,7 +61,7 @@ We next load a number of datasets that downstream analyses are based on. These i
 
 ```{r, results='hide', warning=F, message=F}
 ## The CERES scores for DepMap 19Q1
-data('depmap_ceres', package='HDCRC2019')
+data('depmap_ceres_700', package='HDCRC2019')
 
 ## list of TF
 data('tf_list', package='HDCRC2019')
@@ -64,26 +72,24 @@ data('tf_list', package='HDCRC2019')
 Context-dependent gene dependency can be detected by an increased dropout compared to the 'null distribution' that represents the baseline phenotype of a gene knockout. To infer the null distribution, we center CERES scores for each gene. To this end we fit a Gaussian mixture model with 2 components to the distribution of CERES scores for each gene. Assuming that phenotypes for a gene knockout are similar for the majority of cell lines, we select the component that represents most of the data as the 'null-component' and save its parameters (mean and standard deviation).
 
 ```{r, results='hide', warning=F, message=F, eval=F}
-## mixture modelling involves some RNG
-set.seed(11111)
+## needs random seed for reproducibility
+set.seed(1234)
 
 pb <- progress_estimated(length(unique(depmap_ceres$symbol)))
-mm_set <- depmap_ceres %>% mutate(s2 = symbol) %>%
+mm_set <- depmap_ceres %>% 
   group_by(symbol) %>%
-  group_map(~ {
+  group_modify(~ {
     pb$tick()$print()
     ## fit gaussian mixture
-    mm <- tryCatch(normalmixEM(.x$cscore, 
-                               lambda = c(0.2, 0.8),
-                               mu = c(-0.5, 0)),
+    mm <- tryCatch(normalmixEM(.x$cscore), 
                    error=function(cond) return(NULL))
     if(!is.null(mm)){
       ## select largest component
-      comp_count <- as_tibble(mm$posterior) %>%
-        mutate(comp = ifelse(comp.1 > comp.2, 1, 2)) %>%
+      comp_count <- as_tibble(mm$posterior) %>% 
+        mutate(comp = ifelse(comp.1 > comp.2, 1, 2)) %>% 
         count(comp)
-      compl <- comp_count %>% arrange(desc(n)) %>% dplyr::slice(1) %>%
-        pull(comp)
+      compl <- comp_count %>% arrange(desc(n)) %>% 
+        pull(comp) %>% head(1)
       comp_frac <- `/`(comp_count %>% filter(comp == compl) %>% pull(n),
                        sum(comp_count$n))
       ## extract paramters
@@ -92,30 +98,30 @@ mm_set <- depmap_ceres %>% mutate(s2 = symbol) %>%
         mu_alternative = mm$mu[-compl],
         sigma_null = mm$sigma[compl],
         sigma_alternative = mm$sigma[-compl],
-        comp_size = comp_frac,
-        loglik = mm$loglik,
-        converge = ifelse(length(mm$all.loglik) >= 1000, F, T),
-        restarts = mm$restarts
+        comp_size = comp_frac
       )
     } else {
       tibble(
         mu_null = NA,
-        sigma_null = NA
+        mu_alternative = NA,
+        sigma_null = NA,
+        sigma_alternative = NA,
+        comp_size = NA
       )
     }
   }) %>% ungroup()
 ```
 
 ```{r, echo=F, eval=T}
-data('mm_set', package='HDCRC2019')
+data('CERES_null_distr_params_700', package='HDCRC2019')
 ```
 
 We next calculate P-values for each phenotype that represents the probability of having observed the phenotype under the inferred null distribution of knockout phenotypes for the same gene across all cell lines. We select gene dependencies as context-sepcific if FDR < 20%.
 
 ```{r, results='hide', warning=F, message=F}
 ## calculate P-values, name context-dependent genes
-depmap_ceres <- depmap_ceres %>% left_join(distinct(mm_set)) %>%
-  mutate(pval_cd = 2*(pnorm(cscore, mean = mu_null, sd=sigma_null)),
+depmap_ceres <- depmap_ceres %>% left_join(mm_set) %>% 
+  mutate(pval_cd = 2*(pnorm(cscore, mean = mu_null, sd=sigma_null)), 
          FDR_cd = p.adjust(pval_cd, method='BH'),
          context_ess = ifelse(FDR_cd < 0.2, T, F))
 ```
@@ -124,366 +130,565 @@ We can visualize the results looking at examples of oncogenes that are expected 
 
 ```{r, results='hide', warning=F, message=F}
 ## plot centered CERES scores indicating null distr
-plot_example_nulldistr <- function(gene){
-  ex_distr <- depmap_ceres %>% filter(symbol == gene)
+plot_example_nulldistr <- function(gene, df){
+  ex_distr <- df %>% filter(symbol == gene)
   ex_mu <- ex_distr %>% pull(mu_null) %>% head(1)
   ex_sig <- ex_distr %>% pull(sigma_null) %>% head(1)
-
+    
   ## aproximate FDR 20% cutoff
-  co <- ex_distr %>% filter(FDR_cd < 0.2) %>%
+  co <- ex_distr %>% filter(FDR_cd < 0.2) %>% 
     arrange(desc(pval_cd)) %>% pull(cscore) %>% head(1)
-
-  ex_distr %>% ggplot(aes(cscore)) +
-    geom_histogram(aes(y=..density..), bins=20) +
-    stat_function(fun = dnorm, colour = '#db4437',
-                  args=list(mean = ex_mu, sd = ex_sig)) +
-    scale_y_continuous(expand=c(0,0)) +
+  
+  ex_distr %>% ggplot(aes(cscore)) + 
+    geom_histogram(aes(y=..density..), bins=20) + 
+    stat_function(fun = dnorm, colour = '#db4437', 
+                  args=list(mean = ex_mu, sd = ex_sig)) + 
+    scale_y_continuous(expand=c(0,0)) + 
     geom_vline(xintercept = co, linetype = 'dashed', colour='#4285f4') +
     xlab('Viability [CERES score]')
 }
 
-plot_example_nulldistr('KRAS') +
-plot_example_nulldistr('PIK3CA') +
-plot_example_nulldistr('BRAF') +
-plot_example_nulldistr('NRAS') +
-  plot_layout(c(2,2))
+plot_example_nulldistr('KRAS', depmap_ceres)
+plot_example_nulldistr('PIK3CA', depmap_ceres)
+plot_example_nulldistr('BRAF', depmap_ceres)
+plot_example_nulldistr('NRAS', depmap_ceres)
+plot_example_nulldistr('MITF', depmap_ceres)
+plot_example_nulldistr('CTNNB1', depmap_ceres)
 ```
 
-For each gene, we next count the number of cell lines for which we detect context-specific gene dependency and rank them accordingly.
+# Systematic identification of lineage-specific essential genes
+
+## Examples
+
+In order to visualize examples we define a function that can plot these lineage depdency scores (LD-scores). 
 
 ```{r, results='hide', warning=F, message=F}
-## count number of cell lines with context-specific phenotype for each gene
-context_spec_genes <- depmap_ceres %>% filter(context_ess) %>%
-  count(symbol) %>% arrange(desc(n)) %>% mutate(rank = 1:n())
-```
-
-We can now draw a waterfall plot highlighting some oncogenes that are known to be context-specific essential genes.
-
-```{r, results='hide', warning=F, message=F}
-## oncogenes to highlight
-oncogenes <- filter(context_spec_genes,
-                    symbol %in% c('BRAF', 'NRAS', 'KRAS', 'PIK3CA'))
-
-## waterfall plot
-context_spec_genes %>% dplyr::slice(1:2000) %>%
-  ggplot(aes(rank, n)) + geom_line(lwd=1) +
-  geom_point(data = oncogenes, aes(rank, n),
-             colour = '#4285f4') +
-  geom_text_repel(data = oncogenes, aes(label = symbol)) +
-  xlab('Gene rank') + ylab('Number of context-dependent cell lines')
-```
-
-Next, we perform a pre-ranked gene set enrichment on the ranked gene list using the 'fgsea' package. This identifies enriched GO molecular function terms. We retrieve GO Terms and annotations using the GO.db and Organism.dplyr Bioconductor packages. We look at gene sets of size 15-500 using 100,000 permutations for fgsea.
-
-```{r, results='hide', warning=F, message=F}
-## gene ranks
-fgsea_ranks <- setNames(context_spec_genes$n, context_spec_genes$symbol)
-
-## go molecular function
-src <- src_organism('TxDb.Hsapiens.UCSC.hg38.knownGene')
-goterms <- tbl(src, 'id') %>% distinct(symbol, entrez) %>%
-  filter(symbol %in% context_spec_genes$symbol) %>%
-  inner_join(tbl(src, 'id_go') %>% filter(ontology == 'MF')) %>%
-  collect(n=Inf) %>% mutate(go_term = Term(GOTERM)[go])
-
-## for fgsea
-fgsea_go <- goterms %>% split(.$go_term) %>% map(~ unique(.x$symbol))
-
-## run enrichment
-fgsea_results = fgsea(pathways = fgsea_go,
-                      stats = fgsea_ranks,
-                      minSize = 15, maxSize = 500,
-                      nperm = 1e5)
-```
-
-We make a barcode plot to visualize the enrichment results. Here we show that genes with transcription factor activity are enriched among the highly ranking genes. To this end we use a customized version of the barcode plot function that is implemented in the fgsea package. The 'fgsea_results' object (above) contains enrichement scores and P-values for each term.
-
-```{r, results='hide', warning=F, message=F}
-## a function to draw barcode plots
-custom_barcode_plot <- function(stat_vector, sig_genes, term){
-  ## generate barcode plot
-  bc_plot <- plotEnrichment(sig_genes, stat_vector)
-
-  ## remove unwanted layers
-  bc_plot$layers <- list()
-
-  ## add barcode at the bottom
-  lowest_pos <- min(bc_plot$data[,2])
-  dash_length <- abs(purrr::reduce(range(bc_plot$data[,2]), `-`)*0.1)
-  middle <- which.min(abs(sort(stat_vector, decreasing=T)))
-
-  bc_plot_custom <- bc_plot + geom_segment(aes(x=x, xend=x), y=lowest_pos,
-                           yend=lowest_pos-dash_length) +
-    geom_line(colour='#4daf4a') +
-    geom_hline(yintercept=lowest_pos, colour='#cccccc') +
-    geom_hline(yintercept=0, colour='#cccccc') + xlab('') +
-    theme_classic() +
-    geom_tile(data=tibble(rank=1:length(stat_vector),
-                          y=lowest_pos-(1.25*dash_length)),
-              aes(x=rank, y=y, fill=rank),
-                  width=1,
-                  height=0.5*dash_length) +
-    scale_fill_gradient2(low ='#b2182b', high='#2166ac',
-                         mid='#f7f7f7', midpoint = middle) +
-    scale_x_continuous(expand = c(0, 0)) +
-    scale_y_continuous(expand = c(0, 0)) +
-    theme(panel.grid=element_blank(),
-          axis.text.x=element_blank(),
-          axis.ticks.x = element_blank(),
-          legend.position = 'none') +
-    ggtitle(term) +
-    ylab('Enrichment score')
-
-  return(bc_plot_custom)
-}
-
-signature_genes <- goterms %>%
-  filter(grepl('transcription regulatory region DNA binding', go_term)) %>%
-  pull(symbol) %>% unique()
-
-custom_barcode_plot(fgsea_ranks, signature_genes,
-                    'transcription factor activity')
-```
-
-This shows that among all context-specific gene depenencies, transcription factor proteins are highly overrepresented.
-
-## Clustering context-dependent transcription factors reveals lineage specific subgroups
-
-In order to observe how these context-dependent transcription factors group together, we plot a heatmap of their (centered) CERES scores. Specifically we select genes that are context-specific essential in more than 25 cell lines. We use centered phenotypes where the mean of the null-phenotype distribution was subtracted from each CERES score (see above). We use the ward.D2 method for clustering.
-
-```{r, results='hide', warning=F, message=F}
-## colour palette is complex due to outliers
-hm_cols <- rev(c(rep('#d53e4f', 3), # with tp53 i need 12
-             rep('#d6604d', 1), '#f4a582', # with tp53 10
-             '#fddbc7', rep('#f7f7f7', 2), '#d1e5f0',
-             '#92c5de','#4393c3', rep('#2166ac', 8))) # tp53 8
-
-## context-dependent transcription factors
-context_tf <- context_spec_genes %>%
-  filter(n > 25, symbol %in% tf_list) %>% pull(symbol)
-
-## cell lines that are vulnerable to one of these TF
-context_cl <- depmap_ceres %>%
-  filter(symbol %in% context_tf, context_ess) %>%
-  pull(cellline)
-
-## row annotation of tissues
-row_anno <- distinct(depmap_ceres, sample, tissue) %>%
-  as.data.frame() %>% column_to_rownames('sample')
-
-tf_dep_mat <- depmap_ceres %>%
-  filter(symbol %in% context_tf, cellline %in% context_cl) %>%
-  group_by(symbol) %>%
-  mutate(cscore_ct = cscore - mu_null) %>% ungroup() %>%
-  acast(symbol ~ sample, value.var = 'cscore_ct') %>%
-  apply(1, function(x) x - median(x))
-tf_dep_mat %>% t() %>%
-  pheatmap(color = colorRampPalette(c(hm_cols))(150),
-           annotation_col = row_anno,
-           clustering_method = 'ward.D2')
-```
-
-## Systematic identification of lineage-dependency transcription factors
-
-### LD-TF examples
-
-Since the heatmap suggests that the selective dependency on transcription factor genes is related to the cancer lineage we perform an anlysis to identify all lineage-specifically essential genes and assign them to a tumor type. We infer a measure of the strength of the selective dependency, which we term LD-(lineage dependency) score and associated p-values which signal whether an LD-score significantly differs from 0.
-
-In order to visualize examples we first define a function that can plot these LD-scores. We do this only for cancer types that are sufficiently represented in the data at n > 10.
-
-```{r, results='hide', warning=F, message=F}
-plot_mr_score <- function(gene, ctype, plot_tissues){
-  df <- depmap_ceres %>%
-    filter(symbol == gene, tissue %in% plot_tissues) %>%
+plot_mr_score <- function(gene, ctype, plot_tissues, df){
+  df <- df %>% 
+    filter(symbol == gene, lineage %in% plot_tissues) %>%
     mutate(cscore_sc = -1*((cscore-mu_null)/sigma_null)) %>%
-    group_by(tissue) %>% mutate(mn = mean(cscore)) %>% ungroup() %>%
-    arrange(mn) %>% mutate(tissue = factor(tissue, levels = unique(.$tissue))) %>%
-    mutate(highlight = ifelse(tissue %in% ctype, T, F)) %>%
-    filter(!is.na(tissue))
-
-  mean_line <- df$mu_null[1]
-
+    group_by(lineage) %>% mutate(mn = mean(cscore)) %>% ungroup() %>%
+    arrange(mn) %>% mutate(lineage = factor(lineage, levels = unique(.$lineage))) %>% 
+    mutate(highlight = ifelse(lineage %in% ctype, T, F)) %>%
+    filter(!is.na(lineage))
+  
+  mean_line <- 0
+  
   df %>%
-    ggplot(aes(tissue, cscore_sc, colour=highlight)) +
-    geom_jitter(width = 0.1) +
-    stat_summary(fun.y = 'mean', fun.ymax = 'mean',
-                 fun.ymin = 'mean', geom='point', size=3, colour='red') +
+    ggplot(aes(lineage, cscore_sc, colour=highlight)) + 
+    geom_jitter(width = 0.1, color = '#dddddd') +
+    stat_summary(fun.min = ~ 0, fun.max = 'mean', geom='linerange', size = 2) +
+    stat_summary(fun = 'mean', fun.max = 'mean', 
+                 fun.min = 'mean', geom='point', size=3) +
     geom_hline(yintercept = mean_line, colour='#4285f4') +
     theme(axis.text.x = element_text(angle=45, hjust=1),
-          legend.position = 'none') +
-    scale_colour_manual(values=c('#111111', '#4285f4')) +
-    ylab('-CERES score [scaled]') + xlab('Cancer type') +
+          legend.position = 'none') + 
+    scale_colour_manual(values=c('#111111', '#4285f4')) + 
+    ylab('-CERES score [scaled]') + xlab('Cancer type') + 
     ggtitle(paste('Knockout gene:', gene))
 }
 ```
 
-We select sufficiently represented cancer types and plot a few examples that stood out in the heatmap.
+We use these function to visualize examples for a number of different cancer lineages. We consider specifically those lineages that are represented with at least 10 different cell lines in the dependency dataset.
 
 ```{r, results='hide', warning=F, message=F}
 ## select tissues represented at sufficient frequency
-pt <- depmap_ceres %>% distinct(tissue, cellline) %>%
-  count(tissue) %>% arrange(desc(n)) %>% filter(n > 10) %>%
-  pull(tissue)
+pt <- depmap_ceres %>% distinct(lineage, cellline) %>% 
+  count(lineage) %>% arrange(desc(n)) %>% filter(n > 10) %>% 
+  pull(lineage)
 
 ## draw a plot that indicates why 10 might be a reasonable threshold
-depmap_ceres %>% distinct(tissue, cellline) %>%
-  count(tissue) %>% arrange(desc(n)) %>% mutate(rank = 1:n()) %>%
-  ggplot(aes(rank, n)) + geom_point() +
-  geom_hline(yintercept = 10, colour = '#db4437', linetype = 'dashed') +
+depmap_ceres %>% distinct(lineage, cellline) %>% 
+  count(lineage) %>% arrange(desc(n)) %>% mutate(rank = 1:n()) %>% 
+  ggplot(aes(rank, n)) + geom_point() + 
+  geom_hline(yintercept = 10, colour = '#db4437', linetype = 'dashed') + 
   ylab('Number of cell lines') + xlab('Lineage rank')
 
 ## plot LD-scores for tissues of interest
-plot_mr_score('MITF', 'Skin Cancer', pt)
-plot_mr_score('TCF7L2', 'Colon/Colorectal Cancer', pt)
+plot_mr_score('MITF', 'skin', pt, depmap_ceres)
+plot_mr_score('CDX2', 'colorectal', pt, depmap_ceres)
+plot_mr_score('EGFR', c('upper_aerodigestive', 'bile_duct', 
+                        'colorectal', 'esophagus',
+                        'urinary_tract', 'gastric', 'liver', 'uterus',
+                        'pancreas', 'ovary', 'kidney', 'lung'), pt, depmap_ceres)
+plot_mr_score('MYC', 'peripheral_nervous_system', pt, depmap_ceres)
 ```
 
-### Systematic identification of lineage dependency genes
+## Systematic identification of lineage survival genes using the LD-score model
 
 Using a linear model based appraoch we now systematically calculate lineage dependency scores for each genes in each tumor type. Before that we annotate TP53 mutation status for each cell line so we can account for it during LD-score calculation. We do this because TP53 occur very frequently and previous studies have shown that TP53 status affects the gene essentiality profile of a cell line in a tissue-independent manner. The mutation status is inferred from mutation data in the Cancer Cell Line Encyclopedia and exclues silent mutations.
 
 ```{r, results='hide', warning=F, message=F}
 ## load tp53 mutation status in cancer cell lines
 data('tp53_status', package='HDCRC2019')
+
+## is tp53 mutation status predictive of MDM2 phenotype?
+tp53_status %>% 
+  right_join(depmap_ceres %>% filter(symbol == 'MDM2') %>% 
+               dplyr::select(cellline, cscore)) %>% 
+  ggplot(aes(TP53_status, cscore)) + geom_jitter()
 ```
 
-### Transcription factors
-
-We first calculate LD-scores for transcription factors (Lamber et al, 2018) in CRISPR-Cas9 screens. We exclude SOX9, which has been shown to be affected by off-target effects in the Avana library (Fortin et al., 2019) and TP53 since we account for its mutation status.
+We calculate LD-scores for all genes that show a significant (CERES score < -0.5) viability phenotype in at least one cell line in the CRISPR-Cas9 dataset We exclude SOX9, which has been shown to be affected by off-target effects in the Avana library (Fortin et al., 2019) and TP53 since we account for its mutation status.
 
 ```{r, results='hide', warning=F, message=F}
-## subset of the data containing only TF
-ceres_tf <- depmap_ceres %>%
-  filter(symbol %in% tf_list, tissue %in% pt, !is.na(mu_null),
-         !symbol %in% c('SOX9', 'TP53'))
+## subset of the data containing genes that show 
+## essentiality in some context
+ceres_ess <- depmap_ceres %>% 
+  group_by(symbol) %>% filter(min(cscore) < -0.5) %>% ungroup() %>%
+  filter(lineage %in% pt, !is.na(mu_null),
+         !symbol %in% c('SOX9', 'TP53')) %>%
+  inner_join(tp53_status) %>%
+  ## center and scale
+  group_by(symbol) %>% 
+  mutate(cscore_sc = -1*((cscore - mu_null)/sigma_null)) %>% 
+  ungroup()
 
 ## progress bar
-pb <- progress_estimated(length(unique(ceres_tf$symbol)))
+pb <- progress_estimated(length(unique(ceres_ess$symbol)))
 
-ldtf_crispr <- ceres_tf %>% inner_join(tp53_status) %>%
-  group_by(symbol) %>%
-  mutate(cscore_sc = -1*((cscore - mu_null)/sigma_null)) %>% ungroup() %>%
-  nest(-symbol) %>% mutate(mr_score = purrr::map(data, ~{
+## run linear modelling without controlling for anything
+ld_crispr <- ceres_ess %>% 
+  # filter(symbol %in% c('KRAS', 'BRAF', 'CTNNB1')) %>%
+  group_by(symbol) %>% 
+  mutate(cscore_sc = -1*((cscore - mu_null)/sigma_null)) %>%
+  group_modify(~{
     pb$tick()$print()
-    lm(cscore_sc ~ 0 + tissue + TP53_status, data = .x) %>%
-      tidy() %>% tbl_df()
-  })) %>% unnest(mr_score) %>%
-  inner_join(ceres_tf %>% group_by(symbol) %>%
-               summarise(main_effect = median(cscore)) %>% ungroup()) %>%
+    fit <- lm(cscore_sc ~ 0 + lineage + TP53_status, data = .x)
+    fit2 <- coeftest(fit, vcov = vcovHC(fit))
+    ci95 <- confint(fit2, level = 0.95)
+    tidy(fit2) %>% 
+      inner_join(as_tibble(ci95, rownames = 'term'), by='term')
+  }) %>%
+  ungroup() %>%
+  inner_join(ceres_ess %>% group_by(symbol) %>% 
+               summarise(main_effect = median(cscore)) %>% 
+               ungroup()) %>%
   filter(!term %in% c('TP53_statusmut', 'TP53_statuswt')) %>%
   mutate(FDR = p.adjust(p.value, method='BH')) %>%
   arrange(p.value) %>%
-  mutate(tissue = gsub('^tissue', '', term)) %>% dplyr::select(-term)
-```
-
-### Non-transcription factors
-
-We assume that, since phenotypes of transcription factors are tissue specific, there might be tissue-specific mechanisms that regulate them. Understanding these mechanisms might be interesting for a variety of reasons. If a tissue specific mechanism exists that regulates a transcription factor showing a context-specific phenotype, other genes contributing to that mechanism might show similar phenotypes. Hence, we perform a similar analysis to the above, where we scan for tissue-essential genes that are not transcription factors. We exclude genes that are broadly non-essential across DepMap CRISPR screens (all CERES scores > -0.5).
-
-```{r, results='hide', warning=F, message=F}
-## only non-tf that are important at least in some lines
-ceres_nontf <- depmap_ceres %>%
-  filter(!symbol %in% tf_list, tissue %in% pt) %>%
-  group_by(symbol) %>% filter(min(cscore) < -0.5) %>% ungroup()
-
-## progress bar
-genes <- distinct(ceres_nontf, symbol) %>% pull(symbol)
-pb <- progress_estimated(length(unique(genes)))
-
-## linear model
-ldnontf_crispr <- ceres_nontf %>% inner_join(tp53_status) %>%
-  group_by(symbol) %>%
-  filter(!is.na(mu_null)) %>%
-  mutate(cscore_sc = -1*((cscore - mu_null)/sigma_null)) %>%
-  group_map(~{
-    pb$tick()$print()
-    lm(cscore_sc ~ 0 + tissue + TP53_status, data = .x) %>%
-      tidy() %>% tbl_df()
-  }) %>% ungroup() %>%
-  filter(term != 'TP53_statuswt') %>%
-  mutate(FDR = p.adjust(p.value, method='BH')) %>%
-  mutate(tissue = gsub('^tissue', '', term)) %>%
+  mutate(lineage = gsub('^lineage', '', term)) %>% 
   dplyr::select(-term) %>%
-  arrange(p.value)
+  dplyr::select(symbol, lineage, everything())
 ```
 
-We plot the distribution of LD-scores for transcription factors and non-TF genes.
+We plot the distribution of the resulting LD-scores.
 
 ```{r, results='hide', warning=F, message=F}
-ldtf_crispr %>% mutate(gene_type = 'TF') %>%
-  bind_rows(ldnontf_crispr %>% mutate(gene_type = 'nonTF')) %>%
-  ggplot(aes(estimate, colour = gene_type)) + geom_density() +
-  geom_vline(xintercept = 0, linetype = 'dashed') +
-  scale_y_continuous(expand = c(0,0)) +
-  scale_colour_manual(values = c('#111111', '#4285f4')) +
-  theme(legend.position = 'bottom')
+ld_crispr %>% ggplot(aes(estimate)) + 
+  geom_histogram(bins=50) + 
+  xlab('LD-score')
 ```
 
-## Visualizing resulting LD-TF
+## Number of specific essential genes per lineage
 
-To visualize the resulting LD-scores we can make a bar plot highlighting a few selected LD-TF and there tissue-specific differences.
+Is there a correlation between the number of available cell lines and tissue-specific essential genes?
 
 ```{r, results='hide', warning=F, message=F}
-ldtf_crispr %>%
-  filter(symbol %in% c('MITF', 'TCF7L2', 'MYC'),
-         tissue %in% c('Skin Cancer', 'Colon/Colorectal Cancer')) %>%
-  mutate(symbol = factor(symbol,
-                         levels = c('MYC', 'MITF', 'TCF7L2'))) %>%
-  ggplot(aes(symbol, estimate, fill = tissue)) +
-  geom_bar(stat='identity', position = 'dodge') +
-  theme(legend.position = 'bottom') +
-  scale_fill_manual(values = c('#444444', '#cccccc'))
+## histogram
+ld_crispr %>% filter(FDR < 0.05, estimate > 1) %>%
+  count(lineage) %>%
+  ggplot(aes(n)) + geom_histogram()
+
+## stratified by lineage
+ld_crispr %>% filter(FDR < 0.05, estimate > 1) %>% 
+  count(lineage) %>% 
+  inner_join(depmap_ceres %>% distinct(cellline, lineage) %>% 
+               count(lineage) %>% dplyr::select(lineage, n_cl = n)) %>% 
+  ggplot(aes(n, n_cl)) + geom_point() + 
+  xlab('Number of specific essential genes') + 
+  ylab('Number of cell lines in dataset')
 ```
 
-We can also visualize and highlight sets of lineage dependency transcription factors that are found by drawing volcano plots for different tissues. We define a function that can draw such volcano plots and show as enxample the LD-TFs of melanoma.
+There is no correlation. In fact, the tissue that is represented by the largest number of cell lines, Lung cancer, has very few tissue-specific essential genes.
+
+## Number of private and shared specific essential genes
+
+How many specific essential genes are truly private to each tissue? Which specific essential genes are shared between lineages? Which lineages share the most essential genes?
 
 ```{r, results='hide', warning=F, message=F}
-plot_ldtf_volcano <- function(df, ttype = 'Skin Cancer', highlight = c()){
-  ## select genes to highlight
-  df_highlight <- df %>% filter(symbol %in% highlight,
-                               tissue == ttype)
+## how many tissues is each gene specific to?
+tissues_per_gene <- ld_crispr %>% 
+  filter(estimate > 1, FDR < 0.05) %>% 
+  group_by(symbol) %>%
+  summarise(n_tis = n(), 
+            max_ld = max(estimate),
+            avg_ld = mean(estimate)) %>% 
+  ungroup() %>%
+  arrange(desc(n_tis)) %>%
+  ## add mixture component size
+  left_join(mm_set)
 
-  ## estimate 5% FDR
-  fdr1_co <- df %>% filter(FDR < 0.05) %>%
-    arrange(desc(FDR)) %>% pull(p.value) %>%
-    head(1) %>% log10() %>% `*`(-1)
-
-  ## make volcano
-  df %>% filter(tissue == ttype, !symbol %in% highlight) %>%
-    ggplot(aes(estimate, -log10(p.value))) +
-    geom_point(colour = '#dddddd') +
-    geom_point(data = df_highlight, aes(estimate, -log10(p.value)),
-               colour = '#4285f4') +
-    geom_text_repel(data = df_highlight,
-                    aes(estimate, -log10(p.value), label = symbol)) +
-    geom_vline(xintercept = 0, linetype = 'dashed') +
-    geom_hline(yintercept = fdr1_co, linetype = 'dashed') +
-    xlab('Lineage dependency score') + ylab('P-value [-log10]')
-}
+## add this information to ld-scores object
+ld_crispr <- ld_crispr %>% 
+  left_join(tissues_per_gene %>% dplyr::select(n_tis, symbol))
 ```
+
+## Examples of known lineage-specific essential genes
+
+We generate a bar plot showing 3 different tissues and 2 associated known lineage-specific essential genes per tissue. Specifically, we select melanoma, colorectal cancer and leukemia.
 
 ```{r, results='hide', warning=F, message=F}
-plot_ldtf_volcano(filter(ldtf_crispr, symbol != 'SOX9'),
-                  'Skin Cancer',
-                  c('MITF', 'SOX10', 'ZEB2', 'NFATC2', 'TFAP2A'))
+## ld genes
+genes <- c('CTNNB1', 'TCF7L2', 'MITF', 'BRAF', 'MYB', 'BCL2')
+
+## make bar plot for selected tissues
+ld_crispr %>% 
+  filter(symbol %in% genes, 
+         lineage %in% c('blood', 'skin', 'colorectal')) %>% 
+  mutate(ymin = estimate - std.error, ymax = estimate + std.error,
+         symbol = factor(symbol, levels = genes)) %>% 
+  ggplot(aes(symbol, estimate, fill = lineage)) + 
+  geom_bar(stat='identity', position = 'dodge') + 
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), position = 'dodge') + 
+  scale_fill_manual(values = c('#dddddd', '#777777', '#111111'))
 ```
 
-Finally, we can make a heatmap of the top-2 LD-TF for each tissue.
+In many cases there is considerable variation in terms of knockout phenotypes for cell lines representing the same lineage. We show an example where we can see that this heterogeneity is sometimes explained by insufficient stratification.
 
 ```{r, results='hide', warning=F, message=F}
-## get the top 2 ld-tf per tissue
-top2 <- ldtf_crispr %>% group_by(tissue) %>%
-  top_n(2, estimate) %>% ungroup() %>% pull(symbol)
-
-## make a tile-plot, sort by tissue
-cols <- c(rep('#fff5f0', 3),'#fee0d2','#fcbba1',
-          '#fc9272','#fb6a4a','#ef3b2c',
-          '#cb181d','#a50f15',rep('#67000d', 3))
-ldtf_crispr %>% filter(symbol %in% top2) %>%
-  ggplot(aes(tissue, symbol, fill = estimate)) +
-  geom_tile() +
-  scale_fill_gradientn(colors=cols) +
-  theme(axis.text.x = element_text(angle=90, hjust=1))
+## example trps1 in breast cancer
+depmap_ceres %>% 
+  filter(lineage == 'breast', symbol == 'TRPS1') %>% 
+  ggplot(aes(lineage_molecular_subtype, cscore)) + 
+  geom_jitter(width = 0.2) +
+  stat_summary(fun.y = 'mean', fun.ymin = 'mean', fun.ymax = 'mean',
+               geom = 'crossbar', color = '#db4437', width = 0.5) + 
+  theme(axis.text.x  = element_text(angle=45, hjust=1)) + 
+  ylab('CERES score')
 ```
+
+# Visualization lineage-specific essential processes
+
+Which processes and pathways are specific to each lineage, where are the overlaps? We generate a large heatmap including the most lineage-specific essential genes and their effects in all cell lines that depend on any of these genes. We examine clusters in this heatmap to gain a better understanding of lineage-specific essential processes as well as differences and similarities between lineages. In the heatmap we show centered and scaled CERES scores (similar to how they were used for LD-score calculation).
+
+```{r, results='hide', warning=F, message=F}
+## add lineage to ccle name
+ceres_ess <- ceres_ess %>% 
+  mutate(CCLE_Name = paste(cellline, lineage, sep='_'))
+
+## cell lines that depend on the strongest LS-gene for their tissue
+strongest_ls_gene <- ld_crispr %>% 
+  group_by(lineage) %>% top_n(1, estimate) %>% ungroup() %>% 
+  distinct(lineage, symbol, estimate)
+
+ls_dep_lines <- ceres_ess %>% 
+  inner_join(strongest_ls_gene) %>%
+  filter(cscore_sc > 3) %>% pull(cellline)
+
+## significant ls genes
+ls_genes <- ld_crispr %>% filter(estimate > 2, FDR < 0.05) %>%
+  pull(symbol) %>% unique()
+
+## plot a heatmap
+## annotate clusters
+groups <- ceres_ess %>%
+  filter(cellline %in% ls_dep_lines,
+         symbol %in% ls_genes) %>%
+  acast(CCLE_Name ~ symbol, value.var = 'cscore_sc') %>% 
+  dist() %>% hclust(method = 'ward.D2') %>% 
+  cutree(k = 15)
+
+groups <- tibble(CCLE_Name = names(groups),
+       cluster = as.factor(groups))
+
+lineage_annotation <- ceres_ess %>% 
+  distinct(CCLE_Name, lineage) %>% 
+  inner_join(groups) %>% 
+  # dplyr::select(-cluster) %>%
+  mutate(lineage = as.factor(lineage)) %>%
+  as.data.frame() %>% column_to_rownames('CCLE_Name')
+
+colors <- c(rep('#67001f', 7), '#b2182b','#d6604d',
+            '#f4a582','#f7f7f7','#92c5de','#4393c3',
+            '#2166ac',rep('#053061', 7))
+
+## colors for lineages 
+lin_colpal <- c("#023fa5", "#7d87b9", "#bec1d4", "#d6bcc0", "#bb7784", "#8e063b", "#4a6fe3", "#8595e1", "#b5bbe3", "#e6afb9", "#e07b91", "#d33f6a", "#11c638", "#8dd593", "#c6dec7", "#ead3c6", "#f0b98d", "#ef9708", "#0fcfc0", "#9cded6", "#d5eae7", "#f3e1eb", "#f6c4e1", "#f79cd4")
+ann_colors <- list(lineage = setNames(lin_colpal, levels(lineage_annotation$lineage)))
+
+ceres_ess %>%
+  filter(cellline %in% ls_dep_lines,
+         symbol %in% ls_genes) %>%
+  mutate(sample = paste(cellline, lineage), sep='_') %>%
+  acast(symbol ~ CCLE_Name, value.var = 'cscore_sc') %>% 
+  pheatmap(annotation_col = lineage_annotation,
+           annotation_colors = ann_colors,
+           color = colorRampPalette(colors,
+                                    bias = 1.6)(100),
+           clustering_method = 'ward.D2')
+```
+
+## Expression markers for unexpected clusters
+
+There are some clusters that are unexpected. For example, there is a cluster that contains cell lines of both epithelial and mesenchymal origin and these cell lines to not display many lineage-specific vulnerabilities. We examine whether these cell lines express genes that would explain why they cluster together despite their different origin.
+
+```{r}
+data('CCLE_18q4_TPM_long_all', package = 'HDCRC2019')
+```
+
+What are the cell lines in that cluster?
+
+```{r}
+## cell lines in cluster
+c7 <- rownames(subset(lineage_annotation, cluster == '7'))
+cls_c7 <- c7 %>% strsplit('_') %>% map_chr(~.x[1])
+cls_hm <- rownames(lineage_annotation) %>% strsplit('_') %>% map_chr(~ .x[1])
+tissues_c7 <- c7 %>% strsplit('_')  %>% map_chr(~.x[2]) %>% unique()
+
+## expr df for testing
+expr_df <- ccle_expr_all %>% filter(cellline %in% cls_hm) %>%
+  dplyr::select(-tissue) %>% 
+  inner_join(distinct(depmap_ceres, cellline, lineage)) %>% 
+  mutate(group = ifelse(cellline %in% cls_c7, 'c7', 'c_other'))
+
+## t.test
+diff_exp_c7 <- expr_df %>% group_by(symbol) %>% 
+  group_modify(~ tidy(t.test(tpm ~ group, data = .x, var.equal = T))) %>% 
+  ungroup() %>% arrange(p.value) %>% 
+  mutate(fdr = p.adjust(p.value, method = 'BH'))
+```
+
+We plot indivdiual hits as boxplots.
+
+```{r}
+expr_df %>% filter(symbol %in% c('GBX2', 'CHD5')) %>% 
+  ggplot(aes(group, tpm)) + 
+  geom_boxplot() + 
+  facet_wrap(~ symbol)
+```
+
+We next perform a gene set over-rpresentation test on GO BP to find relevant processes.
+
+```{r}
+diff_exp <- diff_exp_c7 %>% filter(fdr < 0.05, statistic < 0) %>% pull(symbol)
+universe <- diff_exp_c7 %>% pull(symbol)
+enr <- enrichGO(
+  gene = diff_exp,
+  universe = universe,
+  OrgDb = org.Hs.eg.db,
+  ont = 'BP',
+  pAdjustMethod = 'BH',
+  qvalueCutoff = 0.05,
+  keyType = 'SYMBOL'
+)
+
+emapplot(enr)
+```
+
+We generate a barcode plot for the MSigDb core EMT gene set.
+
+```{r}
+## load msigdb emt signature
+data('msigdb_emt_sig', package = 'HDCRC2019')
+
+ranks <- diff_exp_c7 %>% filter(!is.na(statistic)) %>% arrange(desc(statistic))
+ranks <- setNames(ranks$statistic, ranks$symbol)
+
+fgsea_res <- fgsea(
+  pathways = list(emt = emt_sig),
+  stats = ranks,
+  nperm = 1e5
+)
+
+plotEnrichment(emt_sig, ranks)
+```
+
+We further create a volcano plot where standard MET markers are highlighted.
+
+```{r}
+emt_markers <- c('ZEB1', 'CDH2', 'VIM', 'CDH1', 'AXL')
+results_emt_markers <- diff_exp_c7 %>% filter(symbol %in% emt_markers)
+
+diff_exp_c7 %>% 
+  ggplot(aes(estimate2 - estimate1, -log10(p.value))) + 
+  geom_hex(bins = 100, fill = '#dddddd') + 
+  geom_point(data = results_emt_markers, 
+             aes(estimate2 - estimate1, -log10(p.value)),
+             color = '#0f9d58') +
+  geom_text_repel(data = results_emt_markers, 
+                  aes(estimate2 - estimate1, -log10(p.value),
+                      label = symbol)) + 
+  geom_vline(xintercept = 0, linetype = 'dashed')
+```
+
+# Sources of intra-lineage heterogeneity
+
+## UMAP analysis
+
+Based on what we observed in the lineage dependency heatmap we assume that clustering cell lines by their dependency on significant lineage survival genes might reveal intra-lineage sub-structures where there are differences in lineage-specific gene essentiality. We use the UMAP algorithm to create visualizations of the cell lines in each lineage based on their dependency of lineage survival genes with the intention of identifying patterns of heterogenity in the UMAP plots.
+
+```{r}
+## select significant lineage survival genes
+ld_genes <- ld_crispr %>% filter(FDR < 0.05, estimate > 1) %>% 
+  distinct(symbol, lineage)
+
+## generate matrices of scaled and centered ceres scores
+lin_mat <- ceres_ess %>% inner_join(ld_genes) %>% 
+  split(.$lineage) %>% 
+  map(~ .x %>% acast(symbol ~ cellline, value.var = 'cscore_sc') %>% 
+        .[,apply(., 2, function(x)!any(is.na(x)))])
+
+## set umap parameters
+umap_params <- umap.defaults
+umap_params$min_dist <- 0.01
+
+## run umap algorihtm with set parameters for each cell line
+lin_umaps <- lin_mat %>% 
+  map( ~ .x %>% t() %>% umap(config = umap_params) %>% .$layout %>% 
+         as_tibble(rownames = 'cellline'))
+
+## also run pca for comparison
+lin_pca <- lin_mat %>% 
+  map( ~ .x %>% t() %>% prcomp() %>% .$x %>% 
+         as_tibble(rownames = 'cellline') %>%
+         dplyr::select(cellline, PC1, PC2))
+
+## generate annotation of expression markers that migh explain differences
+vim_expr <- ccle_expr_all %>% 
+  filter(symbol %in% c('VIM', 'CDH1', 'AXL', 'LGR5', 'VIL1', 
+                       'EPCAM', 'ZEB1', 'MLANA', 'CD46')) %>%
+  dplyr::select(symbol, tpm, cellline) %>%
+  spread(symbol, tpm)
+
+## merge umap results and marker gene expr.
+lin_umaps <- lin_umaps %>% melt() %>% as_tibble() %>% 
+  spread(variable, value) %>% 
+  inner_join(depmap_ceres %>% 
+               dplyr::select(cellline, metastasis = primary_or_metastasis) %>%
+               distinct() %>%
+               mutate(metastasis = ifelse(is.na(metastasis), 'no', 
+                                   ifelse(metastasis == 'Primary', 'unknown',
+                                          'yes')))) %>%
+  left_join(vim_expr)
+
+## same for the pca analysis
+lin_pca <- lin_pca %>% melt() %>% as_tibble() %>% 
+  spread(variable, value) %>% 
+  inner_join(depmap_ceres %>% 
+               dplyr::select(cellline, metastasis = primary_or_metastasis) %>%
+               distinct() %>%
+               mutate(metastasis = ifelse(is.na(metastasis), 'no', 
+                                   ifelse(metastasis == 'Primary', 'unknown',
+                                          'yes')))) %>%
+  left_join(vim_expr)
+
+##create scatter plot visualization of umap components
+lin_umaps %>%
+  ggplot(aes(V1, V2, color = metastasis)) +
+  geom_point() + 
+  facet_wrap(~ L1) + 
+  theme_void() + 
+  panel_border() +
+  scale_color_manual(values = c('#111111', '#cccccc', '#db4437')) + 
+  theme(legend.position = 'none')
+
+## similar plot for pca
+lin_pca %>%
+  ggplot(aes(PC1, PC2)) +
+  geom_point() + 
+  facet_wrap(~ L1, scales = 'free') + 
+  theme_void() + 
+  panel_border() +
+  scale_color_manual(values = c('#111111', '#cccccc', '#db4437'))
+```
+
+We observe distinct clustering indicating different subtypes in some lineages. In other lineages we see more longitudinal patterns that might indicate a continuous shift in lineage dependencies. We visualize a few examples.
+
+```{r}
+## visualize examples
+subtypes <- c('bone', 'breast', 'lymphocyte', 'soft_tissue', 'blood')
+emt <- c('gastric', 'colorectal', 'esophagus', 
+         'liver', 'lung', 'esophagus',
+         'pancreas', 'urinary_tract')
+
+
+lin_umaps %>% filter(L1 %in% subtypes) %>%
+  ggplot(aes(V1, V2)) +
+  geom_point() + 
+  facet_wrap(~ L1, nrow = 1) + 
+  theme_void() + 
+  panel_border()
+
+## skin cancer example highlighting mlana expression
+lin_umaps %>% filter(L1 == 'skin') %>% 
+  left_join(depmap_ceres %>% distinct(cellline, lineage_subtype)) %>%
+  ggplot(aes(V1, V2, color = MLANA)) + 
+  geom_point() +
+  scale_color_gradient2(low = '#111111', mid = '#dddddd', high = '#db4437',
+                        midpoint = 2.5)
+
+## colorectal cancer example highlighting mlana expression
+lin_umaps %>% filter(L1 == 'colorectal') %>% 
+  left_join(depmap_ceres %>% distinct(cellline, lineage_subtype)) %>%
+  ggplot(aes(V1, V2, color = LGR5)) + 
+  geom_point() +
+  scale_color_gradient2(low = '#f7f7f7', mid = '#cccccc', high = '#111111',
+                        midpoint = 2.5)
+```
+
+## Example heatmaps
+
+There are several nice examples for differences.
+
+* Differences in subtype: luminal/basal breast cancer, b-cell/t-cell lymphoma
+* Dedifferentiation events: melanoma, colorectal cancer 
+
+We generate heatmaps to visualize in more detail intra-lineage heterogeneity for selected examples, highlighting the expression of certain marker genes where appropriate.
+
+```{r, results='hide', warning=F, message=F}
+## color scale
+colors <- c(rep('#b2182b', 5),'#d6604d','#f4a582',
+            '#fddbc7', rep('#f7f7f7', 2),'#d1e5f0',
+            '#92c5de','#4393c3',rep('#2166ac', 5))
+
+## breast cancer
+lin_mat$breast %>% 
+  pheatmap(color = colorRampPalette(colors, bias = 2.5)(150),
+           clustering_method = 'ward.D2',
+           border_color = '#dddddd')
+
+## lymphoma
+lin_mat$lymphocyte %>% 
+  pheatmap(color = colorRampPalette(colors, bias = 2.6)(150),
+           clustering_method = 'ward.D2',
+           border_color = '#dddddd')
+
+
+## annotation of differentiation marker
+colorectal_anno <- lin_umaps %>% filter(L1 == 'colorectal') %>%
+  dplyr::select(cellline, LGR5, AXL) %>% 
+  filter(!is.na(AXL)) %>%
+  as.data.frame() %>% column_to_rownames('cellline')
+
+lin_mat$colorectal %>% 
+  .[,colnames(.) %in% rownames(colorectal_anno)] %>%
+  pheatmap(color = colorRampPalette(colors, bias = 2.0)(150),
+           annotation_col = colorectal_anno,
+           clustering_method = 'ward.D2',
+           border_color = NA,
+           annotation_colors = list(
+             AXL = colorRampPalette(c('#ffffff', '#34A853'))(50),
+             LGR5 = colorRampPalette(c('#ffffff', '#444444'))(50)
+           ))
+
+## annotation of differentiation marker
+melanoma_anno <- lin_umaps %>% filter(L1 == 'skin') %>%
+  dplyr::select(cellline, MLANA) %>% 
+  filter(!is.na(MLANA)) %>%
+  as.data.frame() %>% column_to_rownames('cellline')
+
+lin_mat$skin %>% 
+  .[,colnames(.) %in% rownames(melanoma_anno)] %>%
+  pheatmap(color = colorRampPalette(colors, bias = 1.7)(150),
+           annotation_col = melanoma_anno,
+           clustering_method = 'ward.D2',
+           border_color = NA,
+           annotation_colors = list(
+             MLANA = colorRampPalette(c('#ffffff', '#db4437'))(50)
+           ))
+```
+
 
 # Lineage dependency transcription factors are important in both, normal and cancer tissue and can have oncogenic potential
 
@@ -491,6 +696,7 @@ We next ask whether the lineage dependency TF that we find in the CRISPR data ca
 
 ```{r, results='hide', warning=F, message=F}
 ## map of TF-tissue associations
+ldtf_crispr <- ld_crispr %>% filter(symbol %in% tf_list)
 ldtf_map <- ldtf_crispr %>%
   mutate(ldtf = ifelse((FDR < 0.05) & (estimate > 1), T, F)) %>%
   distinct(symbol, tissue, ldtf) %>%
@@ -534,7 +740,7 @@ exac_ldtf %>% filter(gene_type %in% c('other-TF', 'LD-TF'),
   t.test(value ~ gene_type, data = ., var.equal=T)
 ```
 
-We make a similar plot for the pLI probabilities that is shown in the supplement.
+We make a similar plot for the pLI probabilities.
 
 ```{r, results='hide', warning=F, message=F}
 exac_ldtf %>% filter(score_type == 'pLI') %>%
@@ -548,1120 +754,599 @@ exac_ldtf %>% filter(score_type == 'pLI') %>%
   theme(legend.position = 'bottom')
 ```
 
-# LD-TFs compose cancer lineage specific core-regulatory circuits
+# Interactions between Wnt signaling and developmental TFs in colorectal cancer
 
-## GTEx 
+```{r}
+## load ccle mutation data
+data('CCLE_mutations', package = 'HDCRC2019')
+## load 19q4 expression data
+data('ccle_expr_colorectal_19q4', package = 'HDCRC2019')
+## load list of valid genes (unique sgRNAs)
+data('valid_genes', package = 'HDCRC2019')
 
-We intend to show that LD TF are expressed in corresponding normal tissues. To this end we make use of the GTEx data resource that contains a large amount of non-cancer RNA-sequencing data. We load preoprocessed GTEx TPM values for tissues that could be matched to DepMap cancer lineages (see Supplementary information for details). We then scale the expression values for each gene to range [0,1] where 0 represents minimal and 1 maximal gene expression for that gene.
+## select colorectal cancer ld-tfs 
+ld_crc <- ld_crispr %>%
+  filter(symbol %in% valid_genes, lineage == 'colorectal', 
+         symbol %in% c(tf_list, 'CTNNB1'))
 
-```{r, results='hide', warning=F, message=F}
-## load TPM values for LDTF genes
-data('gtex_tpm', package='HDCRC2019')
-
-## scale gene expression from 0 (not expr.) to 1 (fully expressed)
-scaled_gtex <- gtex_tpm %>% group_by(symbol) %>%
-  mutate(log_tpm = log(tpm + 1),
-         tpm_scaled = scales::rescale(log_tpm, to = c(0,1))) %>%
-  ungroup()
-```
-
-We can plot scaled expression values for a number of selected example LD-TF to observe whether LD-TF genes might in fact be expressed more highly in associated genes.
-
-```{r, results='hide', warning=F, message=F}
-plot_gtex_tissue_median <- function(g){
-  scaled_gtex %>% filter(symbol %in% g) %>%
-    group_by(symbol, gtex) %>% mutate(med_tpm = median(tpm_scaled)) %>% ungroup() %>%
-    ggplot(aes(gtex, tpm_scaled, fill = symbol)) +
-    geom_boxplot() +
-    scale_fill_manual(values = c('#ffffff', '#dddddd', '#aaaaaa', '#333333')) +
-    theme(axis.text.x = element_text(angle=90, hjust=1)) +
-    xlab('') + ylab('TPM (scaled)')
+## function for plotting
+plot_ldtf_volcano <- function(df, ttype = 'skin', highlight = c()){
+  ## select genes to highlight
+  df_highlight <- df %>% filter(symbol %in% highlight,
+                               lineage == ttype)
+  
+  ## estimate 1% FDR
+  fdr1_co <- df %>% filter(FDR < 0.05) %>% 
+    arrange(desc(FDR)) %>% pull(p.value) %>% 
+    head(1) %>% log10() %>% `*`(-1)
+  
+  ## make volcano
+  df %>% filter(lineage == ttype, !symbol %in% highlight) %>% 
+    ggplot(aes(estimate, -log10(p.value))) + 
+    geom_point(colour = '#dddddd') + 
+    geom_point(data = df_highlight, aes(estimate, -log10(p.value)),
+               colour = '#4285f4') + 
+    geom_text_repel(data = df_highlight, 
+                    aes(estimate, -log10(p.value), label = symbol)) + 
+    geom_vline(xintercept = 0, linetype = 'dashed') +
+    geom_vline(xintercept = 1, linetype = 'dashed', color = '#db4437') + 
+    geom_hline(yintercept = fdr1_co, linetype = 'dashed') +
+    xlab('Lineage dependency score') + ylab('P-value [-log10]')
 }
 
-## Different genes that I know something about
-plot_gtex_tissue_median(c('CDX2', 'NKX2-1', 'PAX8', 'HNF4A'))
+## list of CRC hits
+crc_tf <- ld_crc %>% filter(estimate > 1) %>% 
+  top_n(10, -p.value) %>% pull(symbol)
+
+## plot the volcano
+plot_ldtf_volcano(ld_crc,
+                  ttype = 'colorectal',
+                  highlight = crc_tf)
 ```
 
-We can now compare the gene expression distributions of LD-TFs in associated compared to non-associated tissues. Non-associated here means that cell lines of a tumor type did not show lineage-specific dependency on a TF (LD-score < 1 or FDR > 5%).
+## Expression of colorectal lineage TFs in cell lines
+
+I visualize the expression of colorectal lineage TFs across the different cell lines. This highlights heterogeneity - specifically between 2 groups of cell lines.
 
 ```{r, results='hide', warning=F, message=F}
-## plot distributions
-scaled_gtex %>% filter(symbol %in% ldtf_sig) %>%
-  left_join(ldtf_map %>% dplyr::select(tumor_type = tissue, everything())) %>%
-  ggplot(aes(tpm_scaled, colour = ldtf)) +
-  geom_density() +
-  scale_colour_manual(values = c('#111111', '#4285f4')) +
-  scale_y_continuous(expand = c(0,0)) +
-  xlab('Gene expression [TPM, scaled]') +
-  theme(legend.position = 'bottom')
-
-## test for significance
-scaled_gtex %>% filter(symbol %in% ldtf_sig) %>%
-  left_join(ldtf_map %>% dplyr::select(tumor_type = tissue, everything())) %>%
-  wilcox.test(tpm_scaled ~ ldtf, data = .)
-```
-
-## Are LD-TF overexpressed in associated cancers?
-
-### TCGA
-
-We assume that if LD-TF are specifically essential in certain tissues their expression might also be restricted to these tissues. To test this we load RNA-seq data from the TCGA  via the RTCGA and RTCGA.rnaseq Bioconductor packages. We then compare gene expression of significant LD-TFs between associated (tumors depend on the TF) and non-associated tumors. TCGA projects were linked to the cancer types in the DepMap dataset (see Supplementary information for details). Similar to above we scale expression values for each gene to range [0,1].
-
-```{r, results='hide', warning=F, message=F}
-## load preprocessed TCGA data from file
-data('tcga_data', package = 'HDCRC2019')
-
-## scale data
-tcga_ldtf_com <- tcga_data %>%
-  filter(stype == 'tumor') %>%
-  group_by(symbol) %>%
-  mutate(log_fpkm = log(fpkm + 1),
-         fpkm_scaled = scales::rescale(log_fpkm, to = c(0,1))) %>%
-  ungroup() %>% inner_join(ldtf_map)
-```
-
-Again we can plot expression values for a number of selected TFs (same as above) to observe their expression across tissues.
-
-```{r, results='hide', warning=F, message=F}
-## function to plot TF expression in TCGA tumor tissues
-plot_tcga_expr <- function(g){
-  tcga_ldtf_com %>% filter(symbol %in% g) %>%
-    ggplot(aes(tissue, fpkm_scaled, fill=symbol)) +
-    geom_boxplot() +
-    scale_fill_manual(values = c('#ffffff', '#dddddd', '#aaaaaa', '#333333')) +
-    theme(axis.text.x = element_text(angle=90, hjust=1)) +
-    xlab('') + ylab('TPM (scaled)')
-}
-
-plot_tcga_expr(c('CDX2', 'HNF4A', 'NKX2-1', 'PAX8'))
-```
-
-As above we can now plot the scaled gene expression distributions for LD-TFs in their associated cancer types as compared to the other cancer types.
-
-```{r, results='hide', warning=F, message=F}
-tcga_ldtf_com %>% filter(symbol %in% ldtf_sig) %>%
-  ggplot(aes(fpkm_scaled, colour = ldtf)) +
-  geom_density() +
-  scale_colour_manual(values = c('#111111', '#4285f4')) +
-  scale_y_continuous(expand = c(0,0)) +
-  xlab('Gene expression [FPKM, scaled]') +
-  theme(legend.position = 'bottom')
-
-## wilcox test to quantify significance
-wilcox.test(fpkm_scaled ~ ldtf, data = filter(tcga_ldtf_com, symbol %in% ldtf_sig))
-```
-
-We next aim to examine if LD-TFs are overexpressed in tumors compared to healthy samples in the tumor lineages that depend on their activity. Healthy samples are only available in TCGA for 13 of the tissues so we can only look at these. We iterate over each LD-TF cancer lineage combination (e.g., MITF in melanoma, TCF7L2 in colorectal cancer, ...) and test whether the gene is differentially expressed between healthy and tumor samples using a t.test. We control the false discovery rate at 5% using the Benjamini Hochberg method and select genes as overexpressed if the difference between expression means is <-0.1 and as downregulated if diff. means is >0.1.
-
-```{r, results='hide', warning=F, message=F}
-## list of tumors where healthy samples are available
-healthy_sample_avail <- tcga_data %>%
-  filter(stype == 'normal') %>% distinct(tissue) %>%
-  pull(tissue)
-
-## for each LD-TF test whether diff. expressed to normal samples
-ldtf_diffexp_healthy <- tcga_data %>%
-  filter(tissue %in% healthy_sample_avail) %>%
-  group_by(symbol) %>%
-  mutate(log_fpkm = log(fpkm + 1)) %>%
-  ungroup() %>% inner_join(ldtf_map) %>%
-  filter(ldtf) %>% nest(-symbol, -tissue) %>%
-  mutate(test = purrr::map(data, ~ broom::tidy(t.test(log_fpkm ~ stype, data = .x)))) %>%
-  unnest(test) %>% mutate(FDR  = p.adjust(p.value, method= 'BH')) %>%
-  mutate(diff_exp = ifelse((estimate < -0.1) & (FDR < 0.2), 'up_reg',
-                    ifelse((estimate > 0.1) & (FDR < 0.2), 'down_reg', 'same')))
-
-ldtf_diffexp_summary <- ldtf_diffexp_healthy %>% count(diff_exp)
-```
-
-We find that out of xyz combinations we tested, upregulation was detected in 49 cases, downregulation was detected in 35 cases and no significant change was found for 75 of the cases. How does this compare to a random-sample of tissue-TF associations? We selected random samples of xzy transcription factors and perform a similar analysis. We repeat this 1,000 times to infer null distributions for up-, down- and unchanged expression between healthy and tumor samples.
-
-```{r, results='hide', warning=F, message=F, eval=F}
-df_for_sampling <- tcga_data %>%
-  filter(tissue %in% healthy_sample_avail) %>%
-  group_by(symbol) %>% mutate(log_fpkm = log(fpkm + 1)) %>% ungroup() %>%
-  nest(-c(tissue, symbol))
-
-## how many genes do I need to sample?
-n_genes <- tcga_data %>% distinct(tissue) %>%
-  filter(tissue %in% healthy_sample_avail) %>%
-  inner_join(ldtf_map) %>% filter(ldtf) %>%
-  distinct(symbol, tissue) %>% nrow()
-
-set.seed(1234)
-pb <- progress_estimated(1e3)
-random_samples_summary <- map_df(1:1e3, ~{
-  pb$tick()$print()
-  df_for_sampling %>% sample_n(n_genes) %>%
-    mutate(test = purrr::map(data, ~ broom::tidy(t.test(log_fpkm ~ stype, data = .x)))) %>%
-    unnest(test) %>% mutate(FDR  = p.adjust(p.value, method= 'BH')) %>%
-    mutate(diff_exp = ifelse((estimate < -0.1) & (FDR < 0.2), 'up_reg',
-                      ifelse((estimate > 0.1) & (FDR < 0.2), 'down_reg', 'same'))) %>%
-    count(diff_exp) %>% mutate(iteration = .x)
-})
-```
-
-```{r, echo=F, eval=T}
-data('random_samples_summary', package='HDCRC2019')
-```
-
-We can now compare our LD-TF observations against the inferred null distributions.
-
-```{r, results='hide', warning=F, message=F}
-## summarise the results
-random_samples_summary %>% ggplot(aes(diff_exp, n)) +
-  geom_boxplot(outlier.size = 0) +
-  geom_point(data = ldtf_diffexp_summary,
-             aes(diff_exp, n), colour = '#4285f4', size = 5) +
-  ylab('Number of genes')
-
-## p-values for each category
-params <- random_samples_summary %>%
-  group_by(diff_exp) %>%
-  summarise(mu = mean(n), sigma = sd(n))
-
-2*pnorm(ldtf_diffexp_summary %>% pull(n) %>% .[1],
-      mean = params %>% pull(mu) %>% .[1],
-      sd = params %>% pull(sigma) %>% .[1])
-2*pnorm(ldtf_diffexp_summary %>% pull(n) %>% .[2],
-      mean = params %>% pull(mu) %>% .[2],
-      sd = params %>% pull(sigma) %>% .[2])
-2*(1-pnorm(ldtf_diffexp_summary %>% pull(n) %>% .[3],
-      mean = params %>% pull(mu) %>% .[3],
-      sd = params %>% pull(sigma) %>% .[3]))
-```
-
-## Lineage-selective expression does not predict dependency
-
-Since lineage dependency genes are in general up-regulated in their associated tissues, we asked the opposite - are genes with lineage-restricted gene expression always essential? This is not the case. We can visualize this observation by plottin LD-scores and gene expression values in cancer cell lines, highlighting combinations of significant lineage dependency.
-
-```{r, results='hide', warning=F, message=F}
-## load CCLE gene expression data
-data('cl_expr_tf', package='HDCRC2019')
-
-## make a plot
-ldtf_crispr %>%
-  mutate(ldtf = ifelse((FDR < 0.05) & (estimate > 1), T, F)) %>%
-  dplyr::select(symbol, ld_score=estimate, tissue, ldtf) %>%
-  inner_join(cl_expr_tf) %>%
-  group_by(symbol) %>% mutate(tpm_base = tpm - median(tpm)) %>% ungroup() %>%
-  group_by(symbol, tissue, ldtf) %>%
-  summarise(ld_score = ld_score[1], tpm = median(tpm_base)) %>%
-  ungroup() %>%
-  ggplot(aes(ld_score, tpm, colour = ldtf)) +
-  geom_point() +
-  geom_vline(xintercept = 0, linetype = 'dashed') +
-  geom_hline(yintercept = 0, linetype = 'dashed') +
-  scale_colour_manual(values = c('#dddddd', '#4285f4')) +
-  xlab('LD-score') + ylab('Expression compared to baseline in lineage')
-```
-
-We can also look at individual examples, such as PDX1. This TF is known to be highly selectively expressed in pancreatic cancer. It does, however, not show a phenotype in the DepMap CRISPR-Cas9 screens (all CERES scores are ~0).
-
-```{r, results='hide', warning=F, message=F}
-df <- depmap_ceres %>% filter(symbol == 'PDX1') %>%
-  inner_join(cl_expr_tf %>% filter(symbol == 'PDX1') %>%
-               dplyr::select(cellline, tpm)) %>%
-  mutate(lin = ifelse(tissue == 'Pancreatic Cancer', T, F))
-
-ggplot() +
-  geom_point(data = subset(df, !lin), aes(cscore, tpm),
-             colour = '#dddddd') +
-  geom_point(data = subset(df, lin), aes(cscore, tpm),
-             colour = '#4285f4') +
-  xlab('CERES score') + ylab('TPM [log]') +
-  ggtitle('PDX1 expression vs. dependency')
-```
-
-## Are LD-TF altered in cancer samples
-
-To answer the question whether or whether not LD-TF are genes with oncogenic potential we investigate whether variants in these genes are found in tumors; at least in a subset of the LD-TF associated tumor samples. We load data from the COSMIC database addressing four different types of potential molecular variants - mutations, copy number changes, fusions or hypomethylation. We consider a gene as frequently altered if alterations in that gene occur in at least 5% of all tumor samples corresponding to a cancer type. COSMIC tumor type annotations were linked to DepMap cell line tissues as described in the Supplementary information file.
-
-```{r, results='hide', warning=F, message=F}
-## load variant annotation (based on COSMIC)
-data('variant_heatmap_data', package = 'HDCRC2019')
-
-## top LD-TF per tissue
-top_ldtf <- ldtf_crispr %>% filter(FDR < 0.05, estimate > 1) %>%
-  filter(tissue %in% variant_heatmap_data$tissue) %>%
-  group_by(tissue) %>%
-  arrange(p.value) %>% dplyr::slice(1:3) %>% ungroup()
-
-symbol_levels <- top_ldtf %>% group_by(symbol) %>%
-  arrange(estimate) %>% dplyr::slice(1) %>% ungroup() %>%
-  arrange(tissue) %>% pull(symbol)
-
-## LD-TF annotation
-ldtf_annotation <- ldtf_map %>% spread(tissue, ldtf) %>%
-  filter(symbol %in% top_ldtf)
-
-## variant heatmap
-var_hm <- variant_heatmap_data %>%
-  filter(symbol %in% top_ldtf$symbol, symbol != 'TP53') %>%
-  mutate(symbol = factor(symbol, levels = symbol_levels)) %>%
-  ggplot(aes(symbol, tissue, fill = type)) + geom_tile(colour = '#ffffff') +
-  scale_fill_manual(values = c('#eeeeee', '#db4437', '#4285f4', '#f4b400', '#444444')) +
-  theme(#axis.text.x = element_text(angle=45, hjust=1),
-        axis.text.x = element_blank(), axis.title.x = element_blank(),
-        axis.ticks.x = element_blank())
-
-## LDTF annotation heat map
-ldtf_hm <- ldtf_map %>%
-  filter(symbol %in% top_ldtf$symbol, symbol != 'TP53',
-         symbol %in% variant_heatmap_data$symbol,
-         tissue %in% variant_heatmap_data$tissue) %>%
-  arrange(desc(tissue)) %>%
-  mutate(tissue = factor(tissue, levels = rev(unique(tissue)))) %>%
-  mutate(symbol = factor(symbol, levels = symbol_levels)) %>%
-  ggplot(aes(symbol, tissue, fill = ldtf)) +
-  geom_tile(colour = '#ffffff') +
-  scale_fill_manual(values = c('#eeeeee', '#111111')) +
-  scale_x_discrete(position = 'top') +
-  theme(axis.text.x = element_text(angle=90),
-        legend.position = 'none')
-
-ldtf_hm + var_hm + plot_layout(ncol=1, heights = c(1,1))
-```
-
-Using Fisher's exact test we determine whether significant LD-TF (FDR < 5%, LD-score > 1) are altered more often than expected in their associated cancer lienages.
-
-```{r, results='hide', warning=F, message=F}
-ldtf_map %>% filter(tissue %in% variant_heatmap_data$tissue) %>%
-  inner_join(variant_heatmap_data) %>%
-  mutate(isaltered = ifelse(type == 'none', F, T)) %>%
-  dplyr::select(ldtf, isaltered) %>%
-  table() %>% fisher.test()
-```
-
-## Quality control: expression in cell lines
-
-It is possible that there might be some false positives among the list of LD-TF - perhaps due to unexpected CRISPR off-targets. We check for each gene in the LD-TF list whether that gene is actually expressed in the cell lines that depend on it. 
-
-```{r, results='hide', warning=F, message=F}
-##load average gene expr. data for each gene in each lineage
-data('cellline_expr_median', package='HDCRC2019')
-```
-
-We add these data to the LD-TF list and check whether there are lineage specific phenotypes that are not backed up by expression data.
-
-```{r, results='hide', warning=F, message=F}
-ldtf_crispr <- ldtf_crispr %>% left_join(cellline_expr_median)
-ldnontf_crispr <- ldnontf_crispr %>% left_join(cellline_expr_median)
-```
-
-There are a few examples where this is indeed the case. We will exclude these from downstream analyses. In addition we annotate ExAC LOF Z scores for each LD-TF.
-
-```{r, results='hide', warning=F, message=F}
-ldtf_crispr <- ldtf_crispr %>%
-    left_join(exac_ldtf %>% filter(score_type == 'lof_z') %>%
-                  dplyr::select(symbol = gene, exac_lof_z = value))
-```
-
-# LD-TFs compose cancer lineage specific core-regulatory circuits
-
-We filter LD-TF that are not expressed in their respective tissues and not required in the population (ExAC).
-
-```{r, results='hide', warning=F, message=F}
-## filter LD-TF
-ldtf_fil <- ldtf_crispr %>%
-  filter(estimate > 1, FDR < 0.05,
-         exac_lof_z > 1 | is.na(exac_lof_z),
-         med_expr > 0.01 | is.na(med_expr))
-```
-
-We can generate a plot that shows the number of significant LD-TF after filtering for each tumor lineage.
-
-```{r, results='hide', warning=F, message=F}
-ldtf_fil %>% count(tissue) %>%
-  arrange(desc(n)) %>%
-  mutate(tissue = factor(tissue, levels = tissue)) %>%
-  ggplot(aes(tissue, n)) +
-  geom_bar(stat='identity') +
-  theme(axis.text.x = element_text(angle=90, hjust=1)) +
-  ylab('Number of LD-TF')
-```
-
-## Putative core-regulatory circuits
-
-We assemble filtered LD-TF genes into putative core-regulatory circuits for each of the cancer lineages.
-
-```{r, results='hide', warning=F, message=F}
-## error bars are 2 sem.
-crc_plots <- ldtf_fil %>% nest(-tissue) %>%
-  mutate(p = map2(data, tissue, ~{
-    .x %>% mutate(ymin = estimate - (2*std.error),
-                  ymax = estimate + (2*std.error)) %>%
-      arrange(estimate) %>%
-      mutate(symbol = factor(symbol, levels = symbol)) %>%
-      ggplot(aes(symbol, estimate)) +
-      geom_point(colour = '#4285f4', size=3) +
-      geom_linerange(aes(ymin = ymin, ymax = ymax), colour = '#4285f4') +
-      coord_flip() + ggtitle(.y) + ylab('LD-score') + xlab('')
-}))
-
-## draw plots
-reduce(crc_plots$p, `+`)
-```
-
-We cluster cancer lineages by LD-scores of all CRC TFs. This reveals clusters that indicate how common developmental origin drives the composition of LD-TFs in these tissues.
-
-```{r, results='hide', warning=F, message=F}
-## color key for heatmap
-cols <- c(rep('#ffffff', 2),'#fee0d2',
-          '#fb6a4a','#ef3b2c','#cb181d',
-          '#a50f15', rep('#67000d', 2))
-colkey <- colorRampPalette(cols)(50)
-
-## cluster by Pearson correlation
-ldtf_crispr %>% filter(symbol %in% ldtf_fil$symbol) %>%
-  acast(symbol ~ tissue, value.var = 'estimate') %>%
-  cor() %>%
-  pheatmap::pheatmap(color = colkey, clustering_method = 'ward.D2')
-```
-
-## Transcription factor target gene relationships
-
-### ChiP-seq data
-
-In order to assume that TFs are part of a core-regulatory circuit (CRC) we want to show that they can regulate each other. For that purpose we can use ChiP-seq data obtained from Harmonizome. We downloaded preprocessed data of TF-target gene relationships across several sources. For all TFs belonging to CRC that we predict we pull out these regulatory relationships as evidence that the TFs can regulate each other.
-
-```{r, results='hide', warning=F, message=F}
-data('tft_combi', package = 'HDCRC2019')
-```
-
-### Null distribution for TF-target-relationships
-
-Depending on the size of putative CRC we draw random sets of transcription factors from the ChIP-seq data and calculate the number of regulatory relationships between these TFs. We repeat this 1,000 times for each CRC size to create null distributions that we can then compare the numbers of regulatory relationships between CRC members with each other.
-
-```{r, results='hide', warning=F, message=F, eval=F}
-## random seed for reproducibility
-set.seed(1234)
-
-## infer null distributions for different TF numbers
-null_distr <- ldtf_fil %>% count(tissue) %>% distinct(n) %>%
-  mutate(stats = map(n, function(n_tf){
-    n_iter <- 1000
-
-    pb <- progress_estimated(n_iter)
-    null_dist <- map(1:n_iter, function(i){
-      pb$tick()$print()
-      tf_sample <- tf_list[tf_list %in% c(tft_combi$tf,
-                                          tft_combi$target)] %>%
-        sample(n_tf)
-
-      ## summarise across sources and calculate number of edges
-      tft_combi %>% filter(tf %in% tf_sample,
-                            target %in% tf_sample) %>%
-      group_by(tf, target) %>%
-      summarise(value = sum(as.numeric(value))) %>% ungroup() %>%
-      nrow()
-    }) %>% unlist()
-  })) %>%
-  mutate(test = map(stats, ~ tibble(sd = sd(.x), mean = mean(.x)))) %>%
-  unnest(test)
-```
-
-```{r, echo=F, eval=T}
-data('null_distr', package = 'HDCRC2019')
-```
-
-Using a Kolmogorov-Smirnov test we test whether the number of TF-target gene relationships observed between TFs that compose a predicted CRC is higher than expected by chance.
-
-```{r, results='hide', warning=F, message=F}
-## sample TF and calculate number of edges in resulting network
-connectivity_test <- ldtf_fil %>% nest(-tissue) %>%
-  mutate(connectivity = map(data, ~{
-    n_edges <- tft_combi %>% filter(tf %in% .x$symbol,
-                            target %in% .x$symbol) %>%
-      group_by(tf, target) %>%
-      summarise(value = sum(as.numeric(value))) %>% ungroup() %>%
-      nrow()
-
-    ## params of null distr
-    dnull <- null_distr %>% filter(n == nrow(.x)) %>%
-      unnest(stats) %>% pull(stats)
-    ## fit poisson distr.
-    nb_fit <- fitdistr(dnull, 'negative binomial')
-
-    ## calculate p-value
-    pval <- ks.test(n_edges, 'pnbinom',
-                    mu=nb_fit$estimate['mu'],
-                    size=nb_fit$estimate['mu'])$p.value
-
-    return(tibble(
-      n_edges = n_edges,
-      p_value = pval
-    ))
-  })) %>% unnest(connectivity)
-```
-
-We can now visualize the amount of TF-target gene relationships reported for each CRC compared to their null distributions. To this end we plot a histogram of the sampled values and indicate the number of observed TF-target relationships as a vertical line.
-
-```{r, results='hide', warning=F, message=F}
-tf_conn_plots <- connectivity_test %>% mutate(n = map_int(data, nrow)) %>%
-  left_join(null_distr) %>%
-  unnest(stats) %>% nest(-tissue) %>%
-  mutate(p = map(data, ~{
-    ggplot(.x, aes(stats)) + geom_histogram(bins=20) +
-      geom_vline(aes(xintercept = n_edges[1]), colour = '#4285f4')
-    }))
-
-## plot them to canvas
-connectivity_test %>% mutate(n = map_int(data, nrow)) %>%
-  left_join(null_distr) %>%
-  unnest(stats) %>%
-  ggplot(aes(stats)) + geom_histogram(bins=20) +
-  geom_vline(aes(xintercept = n_edges), colour = '#4285f4') +
-  facet_wrap(~tissue, scales='free')
-```
-
-## Super enhancer elements
-
-We assume that in ChIP-seq studies, super enhancer elements associated with LD-TFs are more frequently identified compared to other TFs. To test this we dnwloaded SE data for all samples (both cell line and real tissue) that we could match to the tumor lineages in the DepMap data set from SEdb (Jiang et al., 2018). We now load these data and loop through all cancer lineages and their CRCs to test whether SE elements are more frequently associated with these TFs compared to other TFs/genes.
-
-```{r, results='hide', warning=F, message=F}
-## read SEdb data
-data('sedb_data', package = 'HDCRC2019')
-```
-
-Now we can test for each tissue whether LD-TFs have more associated super enhancers than other TF. We also generate boxplots to visualize these results.
-
-```{r, results='hide', warning=F, message=F}
-## for each tissue test LD-TF vs non LD-TF SE count
-sedb_pvals <- sedb_data %>%
-  filter(map_int(se_data, nrow) != 0) %>%
-  mutate(se_stats = map2(tissue, se_data, ~{
-  ## get tf
-  ld_tf <- ldtf_fil %>% filter(tissue == .x) %>% pull(symbol)
-  ## how many samples do I have
-  n_samples <- nrow(.y %>% distinct(sample_ID))
-
-  ## filter data and annotate ld-tf
-  df <- tibble(tf = tf_list[tf_list %in% ldtf_crispr$symbol]) %>%
-    left_join(.y %>% distinct(tf = `closest active gene`, se_id = `SE ID`) %>%
-                count(tf)) %>% mutate(n = ifelse(is.na(n), 0, n)) %>%
-    mutate(ldtf = ifelse(tf %in% ld_tf, T, F))
-
-  ## make a boxplot
-  bp <- df %>% ggplot(aes(ldtf, n)) + geom_boxplot() +
-    xlab('LD-TF') + ylab('Number of SE elements') +
-    ggtitle(paste(.x, ',', n_samples, 'samples'))
-
-  ## test difference SE count
-  pval <- wilcox.test(n ~ ldtf, data = df)$p.value
-
-  return(list(bp = bp, pval = pval, n_samples = n_samples))
-}))
-```
-
-## Validation: discovery of known CRC
-
-### Hepatocellular carcinoma
-
-The Liver CRC has been extensively studied in the past (Odom et al., 2004; Odom et al., 2006). We generate plots for CRC genes, transcription factor-target gene relationships and super enhancer elements in liver cancer to see whether there is overlap.
-
-```{r, results='hide', warning=F, message=F}
-## LD-TF plot
-crc_plots %>% filter(tissue == 'Liver Cancer') %>% pull(p)
-
-## number of tf-target genes
-tf_conn_plots %>% filter(tissue == 'Liver Cancer') %>% pull(p)
-connectivity_test %>% filter(tissue == "Liver Cancer") %>% pull(p_value)
-
-## Super enhancer elements
-sedb_pvals %>% filter(tissue == 'Liver Cancer') %>% .$se_stats
-```
-
-## The CRC of colorectal cancer cells
-
-We next have a look at the CRC of colorectal cancer cells that as such has not previously been described. 
-
-### LD-TF scores for putative colorectal CRC TF
-
-We have generated all required plots above, now we simply extract the relevant ones (for colorectal cancer) and plot them here.
-
-```{r, results='hide', warning=F, message=F}
-crc_plots %>% filter(tissue == 'Colon/Colorectal Cancer') %>% pull(p)
-```
-
-### TF-target gene relationships and SE elements
-
-I plot TF-target gene info and super enhancer elements as above.
-
-```{r, results='hide', warning=F, message=F}
-## number of tf-target genes
-tf_conn_plots %>% filter(tissue == 'Colon/Colorectal Cancer') %>% pull(p)
-connectivity_test %>% filter(tissue == 'Colon/Colorectal Cancer') %>% pull(p_value)
-
-## Super enhancer elements
-sedb_pvals %>% filter(tissue == 'Colon/Colorectal Cancer') %>% .$se_stats
-```
-
-### HCT116 ChIP-seq data
-
-For the HCT116 colorectal cancer cell line there are a number of ChIP-seq experiments available from ENCODE. These include Enhancer-profiling by H3K37ac, transcriptional activity by POLR2A and, importantly, binding positions for the key (top-scoring) colorectal CRC TF TCF7L2. We can make plots visualizing that TCF7L2 binds together with POLR2A to enhancer regions at the TSS of other CRC genes.
-
-```{r, results='hide', warning=F, message=F}
-## load the processed chip peak data downloaded from encode
-data('crc_chip_tracks', package = 'HDCRC2019')
-
-tr_plots <- crc_chip_tracks %>%
-  mutate(p = pmap(list(genome_track, data_tracks, start, end, chr),
-               function(gt, dt, st, en, ch){
-    plotTracks(c(gt, unlist(dt)),
-               from = as.integer(st), to = as.integer(en),
-               chromosome = ch,
-               sizes=c(1,rep(1, length(dt))), type = 'heatmap')
-  }))
-```
-
-# Codependency predicts mechanisms leading to CRC deregulation in cancer
-
-We first filter the lists of lineage dependency genes (both TF and non-TF), excluding non-essential TF (ExAC) and genes that are not expressed in their corresponding tissues.
-
-```{r, results='hide', warning=F, message=F}
-## filter LD-TF
-ldtf_fil <- ldtf_crispr %>%
-  filter(estimate > 1, FDR < 0.05,
-         exac_lof_z > 1 | is.na(exac_lof_z),
-         med_expr > 0.01 | is.na(med_expr))
-
-## filter LD non-TF
-ldnontf_fil <- ldnontf_crispr %>%
-  filter(FDR < 0.05, estimate > 1,
-         med_expr > 0.01 | is.na(med_expr))
-```
-
-## From healthy to cancer transcriptomic states
-
-We can use TCGA data to show that tumor and healthy transcriptomes appear unimodal in PCA analysis on expression data. This is similar to the graph displayed in Califano and Alvarez, 2017. We use colorectal cancer as an example.
-
-```{r, results='hide', warning=F, message=F}
-## load preprocessed TCGA expression data in colorectal cancers
-data('colo_pt_expr', package = 'HDCRC2019')
-
-## pca
-colo_pca <- colo_pt_expr %>% acast(sample_nr ~ symbol, value.var = 'fpkm') %>% prcomp()
-
-## plot as contour plot
-as_tibble(colo_pca$x, rownames='sample_nr') %>%
-  dplyr::select(sample_nr, PC1, PC2) %>%
-  inner_join(distinct(colo_pt_expr, sample_nr, sample_type)) %>%
-  filter(sample_type %in% c('healthy', 'tumour')) %>%
-  ggplot(aes(PC1, PC2, colour = sample_type)) + stat_density_2d() +
-  scale_colour_manual(values = c('#444444', '#4285f4')) +
-  xlim(c(-125, 85)) + ylim(c(-80, 80))
-```
-
-## Lineage-dependency non-TF genes
-
-To visualize lineage specific dependencies that are not transcription factors, we can plot a heatmap showing the 3 strongest non-TF dependencies for each tumor type.
-
-```{r, results='hide', warning=F, message=F}
-## list of strong non-TF dependencies
-notf_deps <- ldnontf_fil %>% group_by(tissue) %>%
-  top_n(3, -p.value) %>% ungroup() %>% pull(symbol)
-
-## visualize as heat map
-cols <- c(rep('#fff5f0', 4),'#fc9272',
-            '#fb6a4a','#ef3b2c','#cb181d','#a50f15',rep('#67000d', 3))
-ldnontf_crispr %>% filter(symbol %in% notf_deps) %>%
-  acast(symbol ~ tissue, value.var = 'estimate') %>%
+## colorectal cell lines
+crc_lines <- ccle_expr_crc %>% 
+  distinct(cellline) %>% pull(cellline)
+
+## ctnnb1 ko
+ctnnb1_ko <- depmap_ceres %>%
+  filter(cellline %in% crc_lines, 
+         symbol == 'CTNNB1') %>%
+  dplyr::select(cellline, symbol, cscore) %>%
+  spread(symbol, cscore) %>%
+  dplyr::rename(CTNNB1_ko = CTNNB1)
+
+## also add mutation status
+cl_mut <- ccle_mut %>% 
+  filter(symbol %in% c('RNF43', 'CTNNB1', 'APC'), 
+         cellline %in% crc_lines) %>% 
+  filter(isTCGAhotspot | isDeleterious, class != 'Splice_Site') %>%
+  distinct(cellline, symbol) %>%
+  mutate(has = 1) %>% 
+  spread(symbol, has) %>%
+  mutate_all(~ ifelse(is.na(.x), 0, .x))
+  ## add Wnt dependency
+  # left_join(ctnnb1_ko)
+
+## heatmap annotation
+mut_anno <- cl_mut %>% as.data.frame() %>%
+  column_to_rownames('cellline')
+
+## colors 
+cols <- rev(colorRampPalette(c('#67001f','#b2182b','#d6604d',
+                           '#f4a582','#fddbc7','#f7f7f7',
+                           '#d1e5f0','#92c5de','#4393c3',
+                           '#2166ac','#053061'))(50))
+
+## visualize expression as a heatmap
+hm <- ccle_expr_crc %>% 
+  filter(symbol %in% crc_tf) %>% 
+  acast(symbol ~ cellline, value.var = 'tpm') %>% 
   pheatmap(border_color = NA,
-           color = colorRampPalette(cols)(50))
+           annotation_col = mut_anno,
+           clustering_method = 'ward.D2')
+
+## heatmap with marker genes
+cl_order <- hm$tree_col$labels[hm$tree_col$order]
+hm2 <- ccle_expr_crc %>% 
+  filter(symbol %in% c('LGR5', 'AXL', 'AXIN2')) %>%
+  acast(symbol ~ cellline, value.var = 'tpm')
+hm2 <- hm2[,cl_order]
+pheatmap(hm2, border_color = NA, cluster_cols = F)
 ```
 
-## A coessentiality matrix of LD genes
+Do any of the clusters reflect responsiveness to Wnt knockouts?
 
-In order to group LD-TF genes in an unbiased way we generate a codependency matrix (where codependency is defined as the Pearson correlation coefficient of gene dependency profiles across all 558 cell lines) including all genes that are specifically essential in some cancer type (as determined by the lists above).
+```{r}
+## make a plot comparing three clusters and their Wnt-dependency
+clusters <- ccle_expr_crc %>% 
+  filter(symbol %in% crc_tf) %>% 
+  acast(cellline ~ symbol, value.var = 'tpm') %>% 
+  dist() %>% hclust(method = 'ward.D2') %>% 
+  cutree(k = 2) %>% 
+  melt() %>% as_tibble(rownames = 'cellline')
+
+## ctnnb1 knockout phenotypes
+clusters %>% inner_join(ctnnb1_ko) %>%
+  mutate(value = ifelse(value %in% c(1,3), 1, value)) %>%
+  ggplot(aes(as.factor(value), CTNNB1_ko, label = cellline)) + 
+  geom_jitter(width = 0.2) + 
+  geom_hline(yintercept = -0.5, linetype = 'dashed', color = '#db4437') +
+  stat_summary(fun = 'mean', fun.min = 'mean', 
+               fun.max = 'mean', width = 0.5,
+               geom= 'crossbar', color = 'red') + 
+  ggsignif::geom_signif(comparisons = list(c('1', '2')),
+                        test = 't.test', 
+                        test.args = list(var.equal = T))
+```
+
+Do we see the same clustering when we cluster cell lines in an unbiased manner based on the expression of the most variably expressed genes?
 
 ```{r, results='hide', warning=F, message=F}
-## co-essentiality matrix
-coess_mat <- depmap_ceres %>%
-  filter(symbol %in% c(ldtf_fil$symbol, ldnontf_fil$symbol),
-         tissue %in% ldtf_fil$tissue) %>%
-  acast(cellline ~ symbol, value.var = 'cscore') %>% cor()
+hm_unbiased <- ccle_expr_crc %>% 
+  filter(symbol %in% valid_genes) %>% 
+  acast(symbol ~ cellline, value.var = 'tpm') %>% 
+  .[order(apply(.,1,sd), decreasing=T)[1:100],] %>%
+  pheatmap(border_color = NA)
+
+## add hnf4a/cdx2
+cl_order <- hm_unbiased$tree_col$labels[hm_unbiased$tree_col$order]
+hm2 <- ccle_expr_crc %>% 
+  filter(symbol %in% c('HNF4A', 'CDX2')) %>%
+  acast(symbol ~ cellline, value.var = 'tpm')
+hm2 <- hm2[,cl_order]
+pheatmap(hm2, border_color = NA, cluster_cols = F)
 ```
 
-## Example core regulatory circuits
+### Expression in patient tumors
 
-We can now use these data to predict biological processes involved in regulating the linage-specific core-regulatory circuits.
-
-### Melanoma
-
-We start with a CRC whose components and regulation have been studied extensively in the past to examine whether the predicted associations recover known biology.
+We check if we can also see similar gene expression clusters in colorectal cancer patient tumors from the TCGA. We might not necessarily expect similar cluster sizes, since it is known that outlier cancer types are often overrepresented in the cell line universe when they exhibit favorable growth properties. It would however, be important to see that similar clusters do exist.
 
 ```{r, results='hide', warning=F, message=F}
-## melanoma LD-TF
-melanoma_tf <- ldtf_fil %>% filter(tissue == 'Skin Cancer') %>% pull(symbol)
-melanoma_nontf <- ldnontf_fil %>% filter(tissue == 'Skin Cancer') %>% pull(symbol)
-mgenes <- unique(c(melanoma_tf, melanoma_nontf))
-
-## annotate whether TF or not
-annotation <- data.frame(symbol = mgenes) %>%
-  mutate(TF = ifelse(symbol %in% melanoma_tf, 'no', 'yes')) %>%
-  column_to_rownames('symbol')
-
-## colors for heatmap
-cols <- c(rep('#fff5f0', 4),'#fc9272',
-            '#fb6a4a','#ef3b2c','#cb181d','#a50f15',rep('#67000d', 3))
-ann_colors <- list(TF = c(yes='#ffffff', no='#111111'))
-
-## melanoma gene codependency matrix
-mela_matrix <- coess_mat[rownames(coess_mat) %in% mgenes,
-                         colnames(coess_mat) %in% mgenes]
-
-## remove genes that don't codepend with anything
-codep_genes <- mela_matrix %>%
-  apply(1, function(x) ifelse(x == 1, 0, x)) %>%
-  apply(1, 'max') %>% .[. > 0.3]
-mela_matrix <- mela_matrix[rownames(mela_matrix) %in% names(codep_genes),
-                           colnames(mela_matrix) %in% names(codep_genes)]
-
-pheatmap(mela_matrix,
-         annotation_row = annotation,
-         annotation_col = annotation,
-         annotation_colors = ann_colors,
-         color = colorRampPalette(cols)(50),
-         clustering_method = 'ward.D2',
-         border_color = NA)
+## parse expression data in colorectal tumors (from TCGA)
+data('colorectal_expr', package = 'HDCRC2019')
 ```
 
-## CRC associated biological processes
-
-The results above that CRC-related biological processes can indeed be inferred from codependency. We aim to exploit this and infer biological processes associated with each CRC in each tumor type. To this end we group the lineage dependency genes for each cancer lineage into 2-10 clusters. We use a model based clusterin approach (Mclust, based on Gaussian mixture models) where the ideal number of clusters can be selected automatically based on the Bayesian Information Criterion (BIC). We then iterate over each of the inferred clusters and perform a gene set overrpresentation analysis on Gene ontology biological process terms. We use the functions 'goana' and 'topGO' implemented in the limma package to extract GO terms with the strongest enrichment for each cluster.
-
-```{r, results='hide', warning=F, message=F, eval=F}
-## a list of all avana library genes
-avana_genes <- unique(depmap_ceres$symbol)
-## get entrez gene IDs
-avana_genes <- bitr(avana_genes,
-                    fromType = 'SYMBOL',
-                    toType = 'ENTREZID',
-                    OrgDb = org.Hs.eg.db)
-
-## progress bar
-pb <- progress_estimated(length(unique(ldtf_fil$tissue)))
-
-ld_genes <- ldtf_fil %>% bind_rows(ldnontf_fil)
-enr_results <- ld_genes %>%
-  group_by(tissue) %>%
-  group_map(~{
-    ## co-dependency matrix
-    codep <- coess_mat[rownames(coess_mat) %in% .x$symbol,
-                       colnames(coess_mat) %in% .x$symbol]
-    ## cluster using model based clustering
-    clust_fit <- Mclust(codep, G=2:10)
-    clusters <- tibble(symbol = names(clust_fit$classification),
-                   cluster = as.factor(clust_fit$classification))
-
-    ## run GO enrichment
-    enr <- clusters %>% mutate(tissue = .x$tissue[1]) %>%
-      group_by(cluster) %>%
-      group_map(~{
-        ## convert cluster genes to entrez id
-        gene <- avana_genes %>% filter(SYMBOL %in% .x$symbol) %>%
-          pull(ENTREZID)
-
-        ## run go over-representation analysis
-        go_out <- goana(gene,
-                        geneid = depmap_entrez$ENTREZID,
-                        FDR = 0.2)
-        go_out <- topGO(go_out, ontology = 'BP')
-
-        ## return results
-        as_tibble(go_out, rownames='go_id') %>%
-          mutate(genes = paste(.x$symbol, collapse=', '))
-      })
-
-    ## tick progress bar
-    pb$tick()$print()
-
-    ## return results
-    return(enr)
-  }) %>% ungroup()
-
-## calculating LD-score statistics for each cluster
-cluster_stats <- enr_results %>%
-  distinct(tissue, cluster, genes) %>%
-  mutate(avgld = map2(tissue, genes, ~{
-    ld_genes %>% filter(symbol %in% unlist(strsplit(.y, ', ')),
-                        tissue == .x) %>%
-      summarise(avgld = mean(estimate), maxld = max(estimate))
-  })) %>% unnest(avgld)
-
-## combine everything
-cluster_results <- enr_results %>% inner_join(cluster_stats)
-```
-
-```{r, echo=F, eval=T}
-data('cluster_results', package = 'HDCRC2019')
-```
-
-We can plot the most significant term for each cluster in each tissue with their respective average and maximal LD-scores.
+I first test, whether the expression of CDX2 and other lineage TF are correlated.
 
 ```{r, results='hide', warning=F, message=F}
-enr_p <- cluster_results %>% 
-  group_by(tissue, cluster) %>% top_n(1, -P.DE) %>% ungroup() %>%
-  nest(-tissue) %>%
-  mutate(p = purrr::map(data, ~{
-    ggplot(.x, aes(x = cluster, label = Term, info = genes)) + 
-      geom_point(aes(y = avgld)) +
-      geom_point(aes(y = maxld), colour = '#db4437') +
-      geom_linerange(aes(ymin = avgld, ymax = maxld), 
-                     colour = '#dddddd', linetype='dashed') +
-      theme(axis.text.x = element_text(angle=45, hjust=1))
-  }))
+cdx2_expr <- colorectal_expr %>% filter(symbol == 'CDX2') %>% 
+  dplyr::select(sample, cdx2 = rpkm)
 
-## melanoma
-enr_p$p[[20]] + ggtitle(enr_p$tissue[20])
-## colorectal cancer
-enr_p$p[[5]] + ggtitle(enr_p$tissue[5])
-## breast cancer
-enr_p$p[[4]] + ggtitle(enr_p$tissue[4])
+## coexpression of CDX2 and other TF
+colorectal_expr %>% 
+  filter(symbol %in% c('HNF4A', 'KLF5', 'GATA6')) %>% 
+  inner_join(cdx2_expr) %>% 
+  ggplot(aes(rpkm, cdx2)) + 
+  geom_point(aes(colour = sample_type)) + 
+  geom_smooth(method='lm') + 
+  facet_wrap(~ symbol, scales = 'free_x')
 ```
 
-# Metastatic cancer cells might alter their core-regulatory circuit to adapt to their new niche
-
-We first have to load melanoma patient tumor expression data (TCGA) and cancer cell line expression data (CCLE).
+While I don't see an effect for GATA6, the results look promising for KLF5 and especially HNF4A. I check globally, which genes are most correlated with CDX2 expression in tumors.
 
 ```{r, results='hide', warning=F, message=F}
-## melanoma patient tumor expr
-data('melanoma_pt_expr', package = 'HDCRC2019')
-## cell line expr
-data('CCLE_18q4_TPM_long', package = 'HDCRC2019')
+cdx2_cor <- colorectal_expr %>% filter(sample_type == 'tumor') %>% 
+  inner_join(cdx2_expr) %>% 
+  group_by(symbol) %>% summarise(pcc = cor(rpkm, cdx2)) %>% ungroup() %>% 
+  drop_na()
 ```
 
-## MITF dependency correlates with MITF expression
+I see a lot of differentiation markers, AXIN2, and in addition several essential colorectal lineage TFs.
 
-We make a scatter plot showing that MITF expression correlates with MITF dependency.
+## CTNNB1-targets by RNA-seq
+
+We load a count table from RNA-sequencing experiments that were performed in the Boutros lab where gene expression response to CTNNB1 konckdown by siRNA was measured. We also generate an additional table of normalized counts that we can use for clustering/visualization and comparison with DepMap TPM datasets.
 
 ```{r, results='hide', warning=F, message=F}
-## make a df that contains MITF dep and expr for melanoma lines
-mitf_dep_expr <- depmap_ceres %>%
-  filter(tissue == 'Skin Cancer', symbol == 'MITF') %>%
-  dplyr::select(symbol, cscore, cellline) %>%
-  inner_join(ccle_expr %>% filter(gene == 'MITF') %>%
-               dplyr::select(cellline, tpm))
+## this loads the 'b110_counts' object (long format)
+data('rnaseq_counts', package = 'HDCRC2019')
 
-## draw a scatter plot
-mitf_dep_expr %>% ggplot(aes(cscore, tpm)) + geom_point() +
-  geom_smooth(method='lm') +
-  xlab('MITF depdendency [CERES score]') +
-  ylab('MITF expression [TPM]')
+## Gene expression matrix of raw counts
+b110_mat_raw <- b110_counts %>% 
+  acast(GeneRef ~ cellline + knockdown, value.var = 'count') %>%
+  .[complete.cases(.),]
 
-## correlation coefficients
-mitf_cor <- mitf_dep_expr %>%
-  summarise(PCC = cor(cscore, tpm, method='pearson'),
-            SCC = cor(cscore, tpm, method='spearman'))
+## edgeR normalize cpm
+dge <- DGEList(b110_mat_raw) %>% calcNormFactors()
+cpm <- dge %>% edgeR::cpm()
 ```
 
-We can make a similar scatter plot for a number of melanoma differentiation markers.
+We also generate a sample info data frame that we can use to annotate samples in various visualizations.
 
 ```{r, results='hide', warning=F, message=F}
-## some differentiation markers
-melanoma_diff_markers <- c('MLANA', 'PMEL', 'TYR')
-
-## scatter plots
-diff_markers <- depmap_ceres %>%
-  filter(symbol == 'MITF', tissue == 'Skin Cancer') %>%
-  dplyr::select(cellline, cscore) %>%
-  inner_join(ccle_expr %>% filter(gene %in% melanoma_diff_markers) %>%
-               dplyr::select(gene, cellline, tpm))
-
-diff_markers %>% ggplot(aes(cscore, tpm)) + geom_point() +
-  geom_smooth(method='lm') + facet_wrap(~ gene, scales = 'free_x', nrow=1) +
-  xlab('Gene expression [TPM]') + ylab('MITF depdendency [CERES score]')
-
-## correlation coefficients
-diff_markers %>% group_by(gene) %>%
-  summarise(PCC = cor(cscore, tpm, method='pearson'),
-            SCC = cor(cscore, tpm, method='spearman'))
+sample_info <- b110_counts %>% distinct(cellline, knockdown) %>%
+  mutate(sample = paste(cellline, knockdown, sep='_')) %>% 
+  separate(knockdown, c('knockdown', 'rep'), sep='_')
 ```
 
-## MITF expression in primary tumors
+### Quality control
 
-A similar melanoma subtype can be found by looking at patient tumor sample gene expression data. Specifically, there is a subset of samples where MITF expression is lost/decreased. This subtype has been previously linked to loss of differentiation and increased aggressiveness/metastatic potential. We plot a heatmap of TCGA primary tumor expression data that visualizes this subtype.
-
-```{r, results='hide', warning=F, message=F}
-## expression matrix without non-expressed genes
-pt_expr_mat <- melanoma_pt_expr %>% group_by(symbol) %>%
-  mutate(med_expr = median(fpkm)) %>% ungroup() %>%
-  filter(med_expr > 1.5) %>%
-  acast(symbol ~ sample_nr, value.var = 'fpkm')
-
-## top 500 most variably expressed genes
-pt_expr_mat <- pt_expr_mat[order(apply(pt_expr_mat, 1, sd), decreasing=T)[1:250],]
-
-## sample annotation with MITF expresssion
-hm_anno <- melanoma_pt_expr %>% filter(symbol == 'MITF') %>%
-  dplyr::select(-symbol, -sample_type, MITF_expr = fpkm, sample_nr) %>%
-  as.data.frame() %>% column_to_rownames('sample_nr')
-b2w_cols <- c('#f7f7f7','#d9d9d9','#bdbdbd','#525252','#252525')
-annotation_colors <- list(
-  MITF_expr = colorRampPalette(b2w_cols)(50)
-)
-
-## draw heatmap
-hm_col_diverging <- c(rep('#b2182b', 3),'#ef8a62','#fddbc7',
-                      '#f7f7f7','#d1e5f0','#67a9cf',rep('#2166ac', 3))
-pheatmap(pt_expr_mat, scale = 'row',
-         show_rownames = F, show_colnames=F,
-         annotation_col = hm_anno,
-         clustering_method = 'ward.D2',
-         color = colorRampPalette(hm_col_diverging)(50),
-         annotation_colors = annotation_colors)
-```
-
-### Overexpressed genes in MITFlow samples
-
-To understand what changes when tumors stop expressing MITF we determine all genes whose expression is significantly anti-correlated to MITF. We can then look at these genes and the biology that they might represent.
+We perform a principal component analysis to observe whether samples cluster as expected. 
 
 ```{r, results='hide', warning=F, message=F}
-mitf_coreg <- melanoma_pt_expr %>%
-  inner_join(melanoma_pt_expr %>% filter(symbol == 'MITF') %>%
-               dplyr::select(sample_nr, MITF_expr = fpkm))
+## perform pca 
+pca <- prcomp(t(log(cpm+1)))
 
-## progress bar
-pb <- progress_estimated(length(unique(mitf_coreg$symbol)))
+## data frame of PC values
+pca_x <- pca$x %>% as_tibble(rownames='sample') %>% 
+  dplyr::select(sample, PC1:PC5) %>% inner_join(sample_info)
 
-## statistical test
-mitf_coreg_res <- mitf_coreg %>% group_by(symbol) %>%
-  group_map(~ {
-      pb$tick()$print()
-      broom::tidy(lm(fpkm ~ MITF_expr, data = .x))
-    }) %>% ungroup() %>%
-  mutate(FDR = p.adjust(p.value, method='BH'))
-mitf_coreg_res <- mitf_coreg_res %>%
-  filter(term != '(Intercept)', symbol != 'MITF') %>%
-  arrange(p.value)
-
-## for each gene annotate main KO effect in cell lines
-mitf_coreg_res <- mitf_coreg_res %>%
-  left_join(depmap_ceres %>% filter(tissue == 'Skin Cancer') %>%
-              group_by(symbol) %>%
-              summarise(main_effect = median(cscore)) %>% ungroup())
-```
-
-We make a volcano plot highlighting differentialy expressed genes. Specifically, I highlight genes that are part of the predicted melanoma core-regulatory circuit.
-
-```{r, results='hide', warning=F, message=F}
-## downregulated genes
-crc <- ldtf_crispr %>%
-  filter(estimate > 1, FDR < 0.05,
-         med_expr > 0.01,
-         tissue == 'Skin Cancer') %>%
-  pull(symbol)
-
-## cutoff (1% FDR)
-co <- mitf_coreg_res %>% filter(FDR < 0.01) %>%
-  arrange(desc(p.value)) %>% pull(p.value) %>%
-  head(1) %>% log10() %>% `*`(-1)
-
-## genes to highligh/label
-label <- c('MITF', 'SOX10', 'ZEB2', 'PAX3', 'NFATC2', 'TFAP2A')
-## subsample non-significant dots to make less heavy scatter plot
-df <- mitf_coreg_res %>% filter(FDR > 0.01) %>%
-  sample_n(1000) %>%
-  bind_rows(mitf_coreg_res %>% filter(FDR < 0.01))
-
-## draw volcano
-ggplot() +
-  geom_point(data = df,
-                  aes(estimate, -log10(p.value)),
-           colour = '#dddddd', fill = '#dddddd') +
-  geom_point(data = filter(mitf_coreg_res, symbol %in% crc),
-             aes(estimate, -log10(p.value)), colour = '#4285f4') +
-  geom_text_repel(data = filter(mitf_coreg_res,
-                                symbol %in% label),
-                  aes(estimate, -log10(p.value), label = symbol)) +
-  geom_hline(yintercept = co, linetype = 'dashed')
-```
-
-## t-SNE analysis
-
-We might hypothesize that invading melanoma cells can alter their core-regulatory circuit to adapt to their new environment. To test this we perform a t-SNE analysis to cluster tumor samples by LD-TF expression. We can then observe where MITF-low and MITF-high samples locate within the plot.
-
-### Primary tumors 
-
-To this end we first perform this analysis on primary tumor data which should better represent the true nature of the tumor biology. Also many more samples are available here (TCGA). We highlight samples that express low amounts of MITF (as indicited by the low-MITF cluster in the above heatmap). We first select the samples that represent this subtype.
-
-```{r, results='hide', warning=F, message=F}
-## select samples in cluster with low MITF
-low_mitf_samples <- pt_expr_mat %>% t() %>%
-  dist() %>% hclust() %>% cutree(k=2) %>%
-  melt() %>% as_tibble(rownames='sample') %>%
-  inner_join(melanoma_pt_expr %>% filter(symbol == 'MITF') %>%
-               dplyr::select(sample = sample_nr, mitf_expr = fpkm)) %>%
-  mutate(value = as.character(value))
-```
-
-We draw a boxplot of MITF expression just to make sure the correct samples were selcted.
-
-```{r, results='hide', warning=F, message=F}
-## can we see the difference in MITF?
-low_mitf_samples %>% ggplot(aes(value, mitf_expr)) + geom_boxplot()
-
-## select low MITF melanoma samples
-low_mitf_samples <- low_mitf_samples %>% filter(value == '2') %>%
-  pull(sample)
-```
-
-Next, we perform a t-SNE analysis clustering samples by their expression of significant LD-TF. Before performing the t-SNE we Z-transform the log-scaled FPKM expression values. In the plot we highlight the 'low MITF' tumors, comparing them to 'high MITF' melanoma tumors.
-
-```{r, results='hide', warning=F, message=F}
-## select significant LD-TF
-ldtf_sig <- ldtf_crispr %>% filter(FDR < 0.05, estimate > 1) %>%
-  pull(symbol) %>% unique()
-
-## load patient tumor pan cancer expression data for LD-TF
-data('pt_pancancer_expr', package = 'HDCRC2019')
-
-## perform t-SNE (try default params)
-set.seed(1234)
-tsne <- Rtsne(t(pt_pancancer_expr))
-
-## merge tSNEs with sample info
-tsne_plot_data <- as_tibble(tsne$Y) %>%
-  mutate(case_id = colnames(pt_pancancer_expr)) %>%
-  inner_join(distinct(tcga_data, case_id, tissue, stype))
-
-## colour palette
-tol18rainbow <- c('#771155', '#AA4488', '#CC99BB',
-                  '#114477', '#4477AA', '#77AADD',
-                  '#117777', '#44AAAA', '#77CCCC',
-                  '#777711', '#AAAA44', '#DDDD77',
-                  '#774411', '#AA7744', '#DDAA77',
-                  '#771122', '#AA4455', '#DD7788')
-
-## draw dot plot, highlighting low-MITF
-tsne_p <- tsne_plot_data %>%
-  ggplot(aes(V1, V2, colour = tissue, shape = stype)) + geom_point() +
-  geom_point(data = tsne_plot_data %>% filter(case_id %in% low_mitf_samples),
-             aes(V1, V2), colour = 'red', size = 5, stroke=2, shape = 'x') +
-  theme(legend.position = 'none') +
-  scale_colour_manual(values = tol18rainbow)
-
-tsne_p
-```
-
-We can clearly see that LD-TF expression is sufficient to separate the different cancer types from each other. We can also see that melanoma tumors that express low levels of MITF start to jump to cluster with a different tumor type (sarcoma). This could indicate that invading melanoma cells can alter their core-regulatory circuit to blend in with their new tissue niche.
-
-### Cluster analysis of melanoma and sarcoma clusters
-
-We see that in the patient tumor tSNE, MITF-low samples tend to cluster with sarcoma samples. We infer LD-TF whose expression drives each cluster to gain some insight into what might be going on here. To this end we cluster the data into 14 groups using model based clustering. We then use a linear model to derrive expression markers for each of those groups.
-
-```{r, results='hide', warning=F, message=F}
-## selelct tSNEs 1&2 and make a matrix
-cl <- tsne_plot_data %>% .[,1:3] %>% as.data.frame() %>% column_to_rownames('case_id')
-## perform model based clustering
-cl <- Mclust(cl, G= 14)$classification
-cl <- tibble(case_id = names(cl), cl = as.factor(cl))
-
-## visualize resulting clusters
-tsne_plot_data %>% inner_join(cl) %>%
-  ggplot(aes(V1, V2, colour = cl)) + geom_point()
-
-## markers for each cluster (LD-TF only)
-cl_markers <- tcga_data %>% filter(symbol %in% ldtf_sig) %>%
-  inner_join(cl) %>% mutate(log_fpkm = log(fpkm + 1)) %>%
-  filter(stype == 'tumor') %>%
-  group_by(symbol) %>%
-  mutate(fpkm_ct = log_fpkm - median(log_fpkm)) %>%
-  group_map(~ broom::tidy(lm(fpkm_ct ~ 0 + cl, data = .x))) %>%
-  ungroup() %>%
-  arrange(p.value) %>% mutate(FDR = p.adjust(p.value, method='BH'))
-
-## add tissue info
-cl_markers <- cl_markers %>% dplyr::select(cl=term, everything()) %>%
-  inner_join(cl %>% inner_join(tsne_plot_data %>% dplyr::select(case_id, tissue)) %>%
-               count(cl, tissue) %>%
-               group_by(cl) %>% top_n(1, n) %>% ungroup() %>%
-               dplyr::select(-n) %>% mutate(cl = paste0('cl', cl)))
-
-## best marker for each cluster
-best_marker <- cl_markers %>% group_by(cl) %>% top_n(1, estimate) %>% ungroup()
-
-## this plot can highlight expression of marker genes in the tSNE
-highlight_marker_in_tsne <- function(marker_gene){
-  ## merge tSNEs with sample info
-  pdata <- as_tibble(tsne$Y) %>%
-    mutate(case_id = colnames(pt_pancancer_expr)) %>%
-    left_join(tcga_data %>% filter(symbol == marker_gene) %>%
-                mutate(SIX1 = log(fpkm + 1)) %>%
-                dplyr::select(case_id, SIX1))
-
-  ## draw plot
-  pdata %>%
-    ggplot(aes(V1, V2, colour = SIX1)) + geom_point() +
-    theme(legend.position = 'none') +
-    scale_colour_gradientn(colors = colorRampPalette(rev(hm_col_diverging))(50))
-}
-
-highlight_marker_in_tsne('MITF')
-highlight_marker_in_tsne('ZEB1')
-
-## expression of MITF compared to ZEB1
-tcga_data %>% filter(symbol %in% c('MITF', 'ZEB1', 'ZEB2'),
-                     tissue == 'Skin Cancer') %>%
-  mutate(log_fpkm = log(fpkm + 1)) %>%
-  dplyr::select(case_id, symbol, log_fpkm) %>%
-  spread(symbol, log_fpkm) %>%
-  ggplot(aes(ZEB1, MITF)) +
+## plot
+pca_x %>% 
+  ggplot(aes(PC1, PC2, colour = cellline, shape=knockdown)) +
   geom_point()
 ```
 
-# MITF anticorrelated depdendencies
+This looks good. The cell line clearly has a much larger impact on the transcriptome than the knockdown which is expected. Similar to what we saw in the expression heatmap, colo320 seems to be an outlier cell line.
 
-We might hypothesize that cell lines that do not express MITF and hence lose MITF dependency alter their core-regulatory circuit which might come with new depdendencies. Therefore, we perform an analysis that systematically identifies MITF 'inverse-essential' genes.
+We next plot a number of gold-standard Wnt target genes to see whether knockdowns worked as intended.
 
 ```{r, results='hide', warning=F, message=F}
-## negative correlations with MITF dep in melanoma
-mitf_codep <- depmap_ceres %>% filter(tissue == 'Skin Cancer') %>%
-  dplyr::select(symbol, cscore, cellline) %>%
-  inner_join(depmap_ceres %>% filter(tissue == 'Skin Cancer',
-                                     symbol == 'MITF') %>%
-               dplyr::select(cellline, MITF_dep = cscore))
+## cpm as long df
+cpm_long <- cpm %>% as_tibble(rownames='symbol') %>% 
+  gather(sample, cpm, -symbol) %>%
+  inner_join(sample_info)
 
-## run linear model as above
-mitf_codep_res <- mitf_codep %>% group_by(symbol) %>%
-  group_map(~ broom::tidy(lm(cscore ~ MITF_dep, data = .x))) %>%
-  mutate(FDR = p.adjust(p.value, method='BH'))
-mitf_codep_res <- mitf_codep_res %>% filter(term == 'MITF_dep') %>%
-  arrange(p.value) %>% filter(symbol != 'MITF')
+cpm %>% as_tibble(rownames='symbol') %>% 
+  filter(symbol %in% c('AXIN2', 'CTNNB1')) %>% 
+  gather(sample, cpm, -symbol) %>% 
+  inner_join(sample_info) %>% 
+  filter(knockdown %in% c('CTRL', 'CTNNB1')) %>%
+  mutate(knockdown = factor(knockdown, levels = c('CTRL', 'CTNNB1')),
+         symbol = factor(symbol, levels = c('CTNNB1', 'AXIN2', 'SACS'))) %>%
+  ggplot(aes(knockdown, cpm)) + 
+  stat_summary(fun.y = 'mean', geom='bar') + 
+  geom_point(aes(color = rep)) + 
+  facet_grid(symbol ~ cellline, scales = 'free_y') + 
+  theme(axis.text.x = element_text(angle=45, hjust=1))
 ```
 
-It is noticable that the most 'inverse-dependent' genes include several members of the Wnt-signaling destruction complex. We can generate scatter plots to highlight these cases. It is known that MITF activity is in part regulated by Wnt-signaling. It could therefore be the cases that negative regulators of the Wnt pathway play an important role in keeping MITF levels low.
+### Differential gene expression
+
+I use edgeR to perform differential gene expression analysis for each cell line individually.
 
 ```{r, results='hide', warning=F, message=F}
-## plot MITF coessentiality
-plot_mitf_coess <- function(gene){
-  depmap_ceres %>% filter(symbol %in% c('MITF', gene),
-                          tissue == 'Skin Cancer') %>%
-    dplyr::select(symbol, cscore, cellline) %>%
-    spread(symbol, cscore) %>%
-    ggplot(aes_string('MITF', gene)) + geom_point() +
-    geom_smooth(method='lm')
+## match sample info and matrix columns
+sinfo <- sample_info %>% arrange(sample) %>% 
+  mutate(experiment = gsub('_r\\d$', '', sample))
+identical(colnames(dge), sinfo$sample)
+
+## loop for each cell line, perform DGE.
+b110_dge_res <- sinfo %>%
+  filter(cellline %in% c('HCT116', 'HT29', 'DLD1')) %>%
+  group_by(cellline) %>% 
+  group_modify(~ { 
+    ## model matrix
+    mm <- model.matrix(~ 0 + knockdown, data = .x)
+    
+    ## expression matrix sub-sampled
+    mat <- dge[,colnames(dge) %in% .x$sample]
+    
+    ## check for compatibility of sinfo and expr mat
+    print(identical(.x$sample, colnames(mat)))
+    
+    ## make contrasts
+    contr <- makeContrasts(CTNNB1=knockdownCTNNB1-knockdownCTRL,
+                           levels=mm)
+    
+    ## fit model, perform test
+    fit <- glmQLFit(estimateDisp(mat, mm, robust=T), mm)
+    tibble(knockdown = colnames(contr)) %>% 
+      mutate(dge_res = map(knockdown, ~ glmQLFTest(fit, contrast = contr[,.x]) %>%
+                             topTags(n=Inf) %>% as.data.frame() %>%
+                             as_tibble(rownames='symbol'))) %>%
+      unnest(dge_res) %>%
+      mutate(FDR_ihw = adj_pvalues(ihw(PValue, logCPM, alpha = 0.2)))
+  }) %>%
+  ungroup()
+```
+
+For the cell lines where we only have 1 replicate we have to guess the dispersion value based on the experiments where replicates are available. Relying purely on the analysis of fold changes is not desireable, since extreme fold changes are likely observed at random for genes that are expressed at low levels.
+
+We first perform DGE analysis for cell lines where two replicates available.
+
+```{r, results='hide', warning=F, message=F}
+est_disp <- map(c('HCT116', 'HT29', 'DLD1'), function(cl){
+  ## what changes upon CTNNB1 knockdown compared to CTRL in HT29
+  subinfo_ht29 <- sinfo %>% filter(cellline == cl)
+  mm <- model.matrix(~ knockdown, data = subinfo_ht29)
+  
+  ## sub-matrix
+  submat_ht29 <- dge[,grepl(cl, colnames(dge))]
+  
+  ## I fit the model
+  fit <- estimateGLMCommonDisp(submat_ht29, mm, verbose=T)
+  
+  ## return bcv
+  return(sqrt(fit$common.dispersion))
+})
+
+## average dispersion is the estimate I use
+est_disp <- mean(unlist(est_disp))
+```
+
+Now we can use the average estimated dispersion in these cell lines to estimate differential gene expression in other cell lines where we have one replicate only.
+
+```{r, results='hide', warning=F, message=F}
+b110_dge_results_1rep <- map_df(c('CACO2', 'COLO32', 'SW480'), function(cl){
+  ## test with estimate dispersion
+  onerep_test <- exactTest(DGEList(dge[,grepl(paste0(cl, '_C'), colnames(dge))], 
+                                   group = 1:2), 
+                         pair = 1:2,
+                         dispersion=est_disp^2)
+  
+  ## return results
+  onerep_test %>% topTags(n=Inf) %>% as.data.frame() %>% 
+    as_tibble(rownames='symbol') %>%
+    mutate(FDR_ihw = adj_pvalues(ihw(PValue, logCPM, alpha = 0.2)),
+           cellline = cl,
+           logFC = -1 * logFC)
+  
+})
+
+## combine with previous results
+b110_dge_res <- b110_dge_res %>% 
+  bind_rows(b110_dge_results_1rep %>% 
+              mutate(knockdown = 'CTNNB1')) %>%
+  mutate(cellline = ifelse(cellline == 'COLO32', 'COLO320', cellline))
+```
+
+We annotate whether the genes are essential in their respective lines (if information available).
+
+```{r, results='hide', warning=F, message=F}
+b110_dge_res <- b110_dge_res %>% left_join(
+  depmap_ceres %>% 
+    filter(cellline %in% c('HT29', 'DLD1', 'HCT116',
+                           'COLO320', 'SW480', 'CACO2')) %>% 
+    dplyr::select(cellline, symbol, cscore)
+)
+```
+
+We can check a few selected results by plotting.
+
+```{r, results='hide', warning=F, message=F}
+cpm_long %>% 
+  filter(symbol == 'HDC', knockdown %in% c('CTRL', 'CTNNB1')) %>% 
+  ggplot(aes(knockdown, cpm)) + 
+  stat_summary(fun.y = 'mean', geom = 'bar') + 
+  geom_point(aes(colour = rep)) + 
+  facet_wrap(~ cellline)
+```
+
+We make volcano plots for each test. WeI also perform gene set enrichment analysis to identify regulated processes.
+
+```{r, results='hide', warning=F, message=F}
+## volcano plots
+b110_dge_res %>% 
+  ggplot(aes(logFC, -log10(PValue), colour = logCPM)) + 
+  ggrastr::geom_point_rast() + 
+  geom_vline(xintercept = 0, linetype = 'dashed') + 
+  facet_wrap(~cellline) + 
+  scale_colour_gradient(low = '#f7f7f7', high = '#4285f4')
+
+## go biological process
+src <- src_organism('TxDb.Hsapiens.UCSC.hg38.knownGene')
+goterms <- tbl(src, 'id') %>% distinct(symbol, entrez) %>% 
+  filter(symbol %in% local(b110_dge_res$symbol)) %>% 
+  inner_join(tbl(src, 'id_go') %>% filter(ontology == 'BP')) %>% 
+  collect(n=Inf) %>% mutate(go_term = Term(GOTERM)[go])
+fgsea_go <- goterms %>% split(.$go_term) %>% map(~ unique(.x$symbol))
+
+## go enrichment
+enr_process <- b110_dge_res %>% 
+  group_by(cellline) %>%
+  mutate(s = -sign(logFC)*(-log10(PValue))) %>%
+  arrange(s) %>%
+  group_modify(~{
+    fgsea_ranks <- setNames(.x$s, .x$symbol)
+    fgsea_results <- fgsea(pathways = fgsea_go, 
+                          stats = fgsea_ranks, 
+                          minSize = 15, maxSize = 500, 
+                          nperm = 1e4) 
+    return(as_tibble(fgsea_results))
+  }) %>% 
+  ungroup()
+```
+
+#### Overlap between cell lines
+
+While the analysis and experiments worked it seems at first glance that there are strong differences between the Wnt target genes for different cell lines. We quantify the overlap between individual cell lines by correlation and by Venn diagrams (after specifying a P-value cutoff).
+
+```{r, results='hide', warning=F, message=F}
+## list of commonly mutated genes
+mut_genes <- c('TP53', 'KRAS', 'BRAF', 'APC', 'CTNNB1')
+
+## mutations of key cancer genes in our cell lines
+cl_mut <- ccle_mut %>% 
+  filter(symbol %in% mut_genes, 
+         cellline %in% b110_dge_res$cellline) %>% 
+  filter(isTCGAhotspot | isDeleterious, class != 'Splice_Site') %>%
+  distinct(cellline, symbol) %>%
+  mutate(has = 1) %>% 
+  spread(symbol, has) %>%
+  mutate_all(~ ifelse(is.na(.x), 0, .x)) %>%
+  ## add dld1 manually
+  bind_rows(
+    tribble(
+      ~cellline, ~APC, ~BRAF, ~CTNNB1, ~KRAS, ~TP53,
+      'DLD1', 1, 0, 0, 1, 0,
+    )
+  )
+
+## a mutation annotation for cell lines
+mut_anno <- cl_mut %>% dplyr::select(cellline, APC, CTNNB1) %>% 
+  mutate(MSI = as.factor(ifelse(cellline %in% c('DLD1', 'HCT116', 'RKO'), 
+                      'MSI', 'MSS'))) %>%
+  as.data.frame() %>% column_to_rownames('cellline')
+
+## a LD-TF expression annotation
+expr_anno <- ccle_expr_crc %>% 
+  group_by(symbol) %>% mutate(tpm_scaled = scale(tpm)[,1]) %>% ungroup() %>%
+  filter(cellline %in% b110_dge_res$cellline,
+         symbol %in% c('CDX2', 'HNF4A', 'GATA6', 'KLF5')) %>% 
+  dplyr::select(symbol, cellline, tpm_scaled) %>% 
+  spread(symbol, tpm_scaled) %>% 
+  as.data.frame() %>% column_to_rownames('cellline')
+
+## colors to visulaize expr. annotation effects
+expr_anno_colors <- list(
+  CDX2 = colorRampPalette(c('#ffffff', '#4285f4'))(50),
+  HNF4A = colorRampPalette(c('#ffffff', '#4285f4'))(50),
+  GATA6 = colorRampPalette(c('#ffffff', '#4285f4'))(50),
+  KLF5 = colorRampPalette(c('#ffffff', '#4285f4'))(50),
+  MSI = c(MSS = '#ffffff', MSI = '#f4b400'),
+  APC = c('#ffffff', '#db4437'),
+  CTNNB1 = c('#ffffff', '#db4437')
+)
+
+## exclude genes that are not expressed in any of the lines
+not_expr <- rownames(b110_mat_raw)[b110_mat_raw %>% apply(1, function(x) !any(x > 10))]
+
+## top hundred targets per line
+top100 <- b110_dge_res %>% filter(knockdown == 'CTNNB1') %>% 
+  group_by(cellline) %>% top_n(100, -PValue) %>% ungroup() %>% 
+  pull(symbol)
+
+## correlation heatmap
+colors <- c(rep('#fff5f0',4),'#fee0d2','#fcbba1',
+            '#fc9272','#fb6a4a','#ef3b2c',
+            '#cb181d','#a50f15', rep('#67000d', 7))
+
+b110_dge_res %>% filter(!symbol %in% not_expr, knockdown == 'CTNNB1') %>% 
+  filter(symbol %in% top100) %>%
+  mutate(signif = sign(logFC) * -log10(PValue)) %>%
+  acast(symbol ~ cellline, value.var = 'signif') %>% 
+  cor(method = 'pearson') %>% 
+  pheatmap(clustering_method = 'ward.D2',
+           color = colorRampPalette(colors)(50),
+           annotation_col = mut_anno,
+           annotation_row = expr_anno,
+           annotation_colors = expr_anno_colors)
+```
+
+## Genome-wide targets of colorectal cancer cells in LOVO
+
+A large number of TF binding sites were previously profiled in the LOVO colorectal cancer cell line (https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE49402#4). We want to know whether HNF4A/CDX2/GATA6 occupy the same genomic locations as TCF7L2. We analyse these data accordingly. We first parse the peaks for different experiments.
+
+```{r, results='hide', warning=F, message=F}
+data('lovo_chip_data', package = 'HDCRC2019')
+```
+
+## Overlapping peaks between TFs
+
+```{r, results='hide', warning=F, message=F}
+## get peak ranges for each tf in lovo
+data('peak_ranges', package = 'HDCRC2019')
+
+## convert to list
+peak_ranges_list <- peak_ranges$peak_ranges
+names(peak_ranges_list) <- gsub('.bed', '', basename(peak_ranges$bed_files))
+
+## read count per peak
+for(i in 1:length(peak_ranges_list)){
+  peak_ranges_list[[i]]$nreads <- 
+    chip_data[chip_data$name %in% names(peak_ranges_list[[i]]),'tags']$tags
 }
 
-p_gsk3b <- plot_mitf_coess('GSK3B')
-p_axin1 <- plot_mitf_coess('AXIN1')
-p_dvl2 <- plot_mitf_coess('DVL2')
+## fraction of tcf7l2 compared to sequence covered by all peaks
+frac_tcf7l2 <- chip_data %>% filter(symbol == 'TCF7L2') %>% 
+  summarise(total_peak_length = sum(length)) %>%
+  mutate(frac = total_peak_length/sum(width(Reduce(union, peak_ranges_list)))) %>% 
+  pull(frac)
+  
+## calculate overlap between TCF7L2 and other TF pairs
+walk(names(peak_ranges_list), ~ {
+  ovlp2 <- findOverlaps(peak_ranges_list[[.x]], peak_ranges_list$TCF7L2)
+  
+  print(.x)
+  cat(sprintf( "%d of %d (%g percent) promoters are overlapped by an enriched region.\n",
+    length(unique(subjectHits(ovlp2))), length(peak_ranges_list$TCF7L2),
+    round(length(unique(subjectHits(ovlp2)))/length(peak_ranges_list$TCF7L2)*100, 2)))
+  
+  ## binomial test
+  print(binom.test(
+    length(unique(subjectHits(ovlp2))), 
+    length(peak_ranges_list[[.x]]), 
+    frac_tcf7l2)$p.value)
+})
+```
 
-## draw to canvas
-p_gsk3b + p_axin1 + p_dvl2 + plot_layout(c(3,1))
+## Visualization of co-binding patterns
 
-## correlation coefficients
-depmap_ceres %>%
-  filter(symbol %in% c('MITF', 'GSK3B', 'AXIN1', 'DVL2'),
-         tissue == 'Skin Cancer') %>%
-  dplyr::select(symbol, cscore, cellline) %>%
-  spread(symbol, cscore) %>%
-  gather(gene, cscore, -cellline, -MITF) %>%
-  group_by(gene) %>%
-  summarise(PCC = cor(MITF, cscore, method='pearson'),
-            SCC = cor(MITF, cscore, method='spearman')) %>%
-  ungroup()
+```{r, results='hide', warning=F, message=F}
+## first we load human gene ranges
+data('gene_ranges', package = 'HDCRC2019')
+
+## list of promoter regions (+/- 200bp around TSS)
+promoter_regions <- GRanges(
+  seqnames = Rle( paste0('chr', gene_ranges$chr) ),
+  ranges = IRanges( start = gene_ranges$tss - 200,
+                            end = gene_ranges$tss + 200 ),
+          strand = Rle( rep("*", nrow(gene_ranges)) ),
+          gene = gene_ranges$symbol)
+
+## get top tcf7l2 peaks
+tcf7l2_top500 <- chip_data %>% filter(symbol == 'TCF7L2') %>% 
+  top_n(1000, `-10*log10(pvalue)`) %>% 
+  pull(`-10*log10(pvalue)`) %>% min()
+tcf7l2_top500 <- peak_ranges_list$TCF7L2[peak_ranges_list$TCF7L2$score > tcf7l2_top500]
+
+## which promoters overlap with top TCF7L2 peaks
+tcf7l2_tss <- chip_data %>% filter(symbol == 'TCF7L2') %>% 
+  arrange(desc(`-10*log10(pvalue)`)) %>%
+  dplyr::slice(1:500) %>%
+  mutate(peak_center = round(end - ((end-start)/2), 0), 
+         strand = '1',
+         peak_name = paste(symbol, 1:n(), sep='_')) %>%
+  filter(chr %in% as.character(1:22))
+
+## genome information
+genome <- BSgenome.Hsapiens.UCSC.hg19
+si <- seqinfo(genome)
+si <- si[ paste0('chr', c(1:22, 'X', 'Y'))]
+
+## tiling
+tiles <- sapply( 1:nrow(tcf7l2_tss), function(i)
+   if( tcf7l2_tss$strand[i] == '1' )
+      tcf7l2_tss$peak_center[i] + seq(-2500, 2400, length.out=30)
+   else
+      tcf7l2_tss$peak_center[i] + seq( 2400, -2500, length.out=30 ))
+
+tiles <- GRanges(tilename = paste( rep( tcf7l2_tss$peak_name, each=30), 1:30, sep='_' ),
+                seqnames = Rle( rep(paste0('chr', tcf7l2_tss$chr), each=30) ), 
+                ranges = IRanges(start = as.vector(tiles),
+                                 width = 30),
+                strand = Rle(rep("*", length(as.vector(tiles)))),
+                seqinfo=si)
+
+## make heat maps
+walk(c('TCF7L2', 'KLF5', 'HNF4A', 'GATA6', 'CDX2', 'MYBL2', 'SREBF1', 'LEF1'), ~ {
+  ## number of reads per overlapping peak
+  ol <- findOverlaps( tiles, peak_ranges_list[[.x]])
+  num_vec <- rep(0, length(tiles))
+  num_vec[queryHits(ol)] <- peak_ranges_list[[.x]][subjectHits(ol)]$nreads
+  tcf7l2_p_mat <- matrix( num_vec, nrow=nrow(tcf7l2_tss), 
+                             ncol=30, byrow=TRUE )
+  
+  ## plot results as heatmap
+  colors <- colorRampPalette(c('#ffffff', '#9ecae1','#4292c6',
+                               rep('#08306b', 15)))(100) 
+  image(x=seq(-2500, 2500, length.out=30),
+        y=1:nrow(tcf7l2_p_mat),
+        z = t(tcf7l2_p_mat),
+        col=colors,
+        xlab='Distance from TCF7L2 (bp)',
+        ylab='Promoters', lwd=2,
+        main = .x)
+  box(col='black', lwd=2)
+  abline(v=0, lwd=1, col='gray')
+})
 ```
 
 # Session info
