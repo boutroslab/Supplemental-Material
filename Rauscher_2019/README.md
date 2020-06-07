@@ -6,7 +6,7 @@ Tumor phenotypes are closely associated with their developmental lineage and cel
 
 ## Supporting analysis code for the manuscript
 
-This directory contains annotated R code that can reproduce analyses and figures in the manuscript "A Pan-Cancer Analysis of Tumor Cell Lineage Dependencies". A corresponding R package including all source data required to run the code can be downloaded from [Figshare](https://figshare.com/s/715b9f34afaca709d41c). The package can then be installed from the command line by typing 
+This directory contains annotated R code that can reproduce analyses and figures in the manuscript "A Pan-Cancer Analysis of Tumor Cell Lineage Dependencies". A corresponding R package including all source data required to run the code can be downloaded from [Figshare](https://figshare.com/s/cb5c58f84e3870817f65). The package can then be installed from the command line by typing 
 
 ```{sh}
 R CMD INSTALL HDCRC2019_0_1_0.tar.gz
