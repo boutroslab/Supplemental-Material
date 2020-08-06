@@ -73,11 +73,11 @@ unix$ gcc 2_identify_best_mapping_genes.c -o 2_identify_best_mapping_genes -lm
 
 unix$ chmod a+x 2_identify_best_mapping_genes
 
-unix$ gcc 3_cross_correlation_to_mapping_genes.c -o 3_cross_correlation_to_mapping_genes
+unix$ gcc 3_cross_correlation_to_mapping_genes.c -o 3_cross_correlation_to_mapping_genes -lm
 
 unix$ chmod a+x 3_cross_correlation_to_mapping_genes
 
-unix$ gcc 4_calculate_expression_maps.c -o 4_calculate_expression_maps.c -lm
+unix$ gcc 4_calculate_expression_maps.c -o 4_calculate_expression_maps -lm
 
 unix$ chmod a+x 4_calculate_expression_maps
 ```
