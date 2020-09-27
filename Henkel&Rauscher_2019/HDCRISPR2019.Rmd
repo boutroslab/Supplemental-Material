@@ -1,14 +1,14 @@
 ---
-title: "Empirical design of genome-scale CRISPR/Cas9 libraries"
+title: "Pooled CRISPR screening at high sensitivity with an empirically designed sgRNA library"
 author: "Benedikt Rauscher"
 date: "`r Sys.Date()`"
 abstract: >
-  Until today large-scale CRISPR/Cas9 screens for the identification of essential genes have been conducted in several hundred mammalian cell lines to identify functional dependencies. However, optimal criteria for library composition and experimental design for high-quality CRISPR/Cas9 screens at minimal experimental size remain to be explored. In this study, we analyzed previously published CRISPR screens in human cells to identify single-guide (sg) RNAs with consistent high on-target and low off-target activity. We then performed screens with an empirically designed genome-scale CRISPR library in the near-haploid human HAP1 cell line, comparing hit calling in a Cas9-expressing bulk population as well as two single cell clones selected for high Cas9 activity. Our library achieved near-optimal performance at distinguishing core- and nonessential genes, identified context-dependent essential genes and avoided off-target effects of previous libraries. Depletion phenotypes were stronger in single cell clones enabling essential gene identification at a reduced library coverage of 4 sgRNAs per gene. Overall, the compendium of essential genes was highly similar between bulk population and single cell clones. Furthermore, our screens revealed previously undescribed dependencies of HAP1 cells on the Fanconi anemia pathway and the pluripotency factors SOX2 and POU5F1 (Oct4), which in part are shared dependencies with embryonic stem cells. In summary, we demonstrate that highly active CRISPR/Cas9 libraries can be designed using prior information on previously published sgRNA phenotypes. Our results further indicate that single cell clones with high Cas9 activity are powerful models to increase the dynamic range in gene essentiality screens at reduced library coverage. 
+  Given their broad utility in functionally annotating genomes, the experimental design of genome-scale CRISPR screens can vary greatly and criteria for optimal experimental implementation and library composition are still emerging. In this study, we report advantages of conducting viability screens in selected Cas9 single cell clones in contrast to Cas9 bulk populations. We further systematically analyzed published CRISPR screens in human cells to identify single-guide (sg)RNAs with consistent high on-target and low off-target activity. Selected guides were collected in a new genome-scale sgRNA library, which efficiently identifies core and context-dependent essential genes. In summary, we show how empirically designed libraries in combination with an optimised experimental design increase the dynamic range in gene essentiality screens at reduced library coverage. 
 output: BiocStyle::pdf_document
 vignette: >
   %\VignetteIndexEntry{Empirical design}
   %\VignetteEncoding{UTF-8}
-  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEngine{knitr::knitr}
 editor_options: 
   chunk_output_type: console
 ---
@@ -28,6 +28,8 @@ library(clusterProfiler)
 library(limma)
 library(org.Hs.eg.db)
 library(preprocessCore)
+library(mixtools)
+library(Biostrings)
 library(gscreend)
 library(SummarizedExperiment)
 library(reshape2)
@@ -167,7 +169,7 @@ fchanges %>% filter(pubmed == '27260157') %>%
     theme(panel.grid=element_blank())
 ```
 
-These look absolutely fine. It could be that these screens separate core- and non-essential genes so well that the cutoff becomes negative to generate the 5% FDR that we allow. This might not be too surprising as these screens were used to actually generate the core- and nonessential gene lists. We can confirm this by selecting cutoffs for different false discovery rates.
+These look fine. It could be that these screens separate core- and non-essential genes so well that the cutoff becomes negative to generate the 5% FDR that we allow. This might not be too surprising as these screens were used to actually generate the core- and nonessential gene lists. We can confirm this by selecting cutoffs for different false discovery rates.
 
 ```{r, results='hide', warning=F, message=F}
 ## 4 screens with negative cutoff
@@ -208,7 +210,7 @@ roc_results_fil <- roc_results_fil %>%
   mutate(cutoff = ifelse(cutoff < 0, 0, cutoff))
 ```
 
-We futher compare a screen with a large AUC to a screen with a small AUC.
+We further compare a screen with a large AUC to a screen with a small AUC.
 
 ```{r, results='hide', warning=F, message=F}
 fchanges %>%
@@ -349,6 +351,47 @@ valid_sgRNAs %>% ggplot(aes(n)) +
   ggtitle('Number of hits per sgRNA')
 ```
 
+### Examples of valid and invalid sgRNAs for core-essential genes.
+
+```{r, results='hide', warning=F, message=F}
+## Example: SF1 in Jiyoye
+df <- fchanges %>% filter(cellline == 'Jiyoye') %>% 
+  mutate(SF1 = ifelse(GENE == 'SF1', T, F), 
+         hit = ifelse(SEQID %in% 'GTAATGGGTGTGGGAAGCTGTGG', F, T))
+
+## visualize as histogram
+ggplot() + geom_histogram(data = df, aes(fc)) +
+  geom_vline(xintercept = df %>% filter(SF1, hit) %>% pull(fc),
+             colour = '#4285f4') +
+  geom_vline(xintercept = df %>% filter(SF1, !hit) %>% pull(fc),
+             colour = '#db4437') + 
+  geom_vline(xintercept = quantile(df$fc, probs=0.2),
+             linetype = 'dashed') + 
+  xlab('fold change [log2]') + 
+  ggtitle('SF1-targeting sgRNAs in Jiyoye cells')
+
+## visualize as jitter plot
+fchanges %>% filter(pubmed == '26472758', GENE == 'NOP2') %>% 
+  mutate(invalid = ifelse(SEQID %in% 'GGAGCATTAAATAGGGACTGGGG', F, T),
+         fc = ifelse(fc < -4, -4, fc)) %>%
+  group_by(SEQID) %>% mutate(mean_fc = mean(fc)) %>% ungroup() %>%
+  arrange(desc(mean_fc)) %>%
+  mutate(SEQID = factor(SEQID, levels = unique(SEQID))) %>%
+  ggplot(aes(SEQID, fc, colour = invalid)) + 
+  geom_jitter(width = 0.2) + 
+  stat_summary(fun.y = 'mean', 
+               fun.ymin = 'mean', 
+               fun.ymax = 'mean', 
+               geom='crossbar', 
+               color = 'red', width = 0.5) + 
+  geom_hline(yintercept = 0, linetype = 'dashed') +
+  ylab('fold change [log2]') + xlab('') +
+  scale_colour_manual(values = c('#4285f4', '#111111')) +
+  coord_flip() + 
+  theme_cowplot() + 
+  ggtitle('NOP2 sgRNA phenotypes')
+```
+
 ## Annotated pool of sgRNAs
 
 We load an annotated pool of sgRNAs that compiles all relevant information.
@@ -387,6 +430,19 @@ merged %>% filter(GENE %in% ne$symbol) %>%
   scale_y_continuous(expand = c(0, 0)) + xlim(c(-5, 3))
 ```
 
+How many sgRNAs do we have for each gene?
+
+```{r}
+## count number of guides per gene
+guides_per_gene <- pool %>% count(genes_hit) 
+
+## generate histogram
+guides_per_gene %>% ggplot(aes(n)) + geom_histogram(bins = 30) + xlab('sgRNAs per gene')
+
+## calculate mean/median
+guides_per_gene %>% summarise(median = median(n), avg = mean(n))
+```
+
 ### Removing BbsI restriction sites and setting minimal number of screens
 
 Some additional restrictions: require minimum number of screens for consideration and remove BbsI restriction sites.
@@ -408,21 +464,26 @@ pool <- pool %>% mutate(screen_hit_ratio = ifelse(n_screens >= 5, screen_hit_rat
 pool <- pool %>% filter(!is_bbs1(nopam))
 ```
 
-### Examples of valid and invalid sgRNAs for core-essential genes.
+### How do we avoid enriching for off-targets
 
-For demonstration we generate plots for valid and invalid sequences determined for an essential gene (NOP2) and a nonessential gene (KRT35), highlighting sgRNAs with weak phenotypes or potential off-target effects.
+We exclude sgRNAs that show phenotypes that do not fit with the other designs targeting the same gene.
 
 ```{r, results='hide', warning=F, message=F}
 ## a distribution of effect Z-scores
-pool %>% filter(genes_hit %in% ne$symbol) %>% 
-  ggplot(aes(effect_z)) + geom_histogram() + 
-  geom_vline(xintercept = c(-1.25, 1.25), 
-             linetype = 'dashed', colour = '#db4437') + 
-  xlab('GenomeCRISPR effect score [Z-score]')
+pool %>% mutate(group = ifelse(genes_hit %in% ne$symbol, 'non-essential', 
+                        ifelse(genes_hit %in% ce$symbol, 'core-essential', 
+                               'other'))) %>% 
+  filter(group != 'other') %>% 
+  ggplot(aes(effect_z, mean_log2fc)) + 
+  geom_hex(bins=100, color = '#000000') + 
+  geom_hline(yintercept = 0, linetype='dashed') + geom_vline(xintercept = c(-1.25, 1.25), 
+             linetype = 'dashed', colour = '#db4437') +
+  xlab('GenomeCRISPR effect score [Z-score]') + 
+  facet_wrap(~group) + 
+  ylab('Average log2 fold change')
 
 ## KRT35 example
-krt35_offtarget <- pool %>% 
-  filter(genes_hit %in% ne$symbol, effect_z < -3) %>% 
+krt35_offtarget <- pool %>% filter(genes_hit %in% ne$symbol, effect_z < -3) %>% 
   filter(genes_hit == 'KRT35') %>% pull(sequence)
 
 fchanges %>% filter(GENE == 'KRT35', pubmed == '26472758') %>% 
@@ -431,27 +492,6 @@ fchanges %>% filter(GENE == 'KRT35', pubmed == '26472758') %>%
   geom_vline(xintercept = 0, linetype = 'dashed') + 
   scale_colour_manual(values = c('#444444', '#4285f4')) + 
   ggtitle('KRT35 phenotypes in Wang, 2015')
-
-## visualize as jitter plot
-fchanges %>% filter(pubmed == '26472758', GENE == 'NOP2') %>% 
-  mutate(invalid = ifelse(SEQID %in% 'GGAGCATTAAATAGGGACTGGGG', F, T),
-         fc = ifelse(fc < -4, -4, fc)) %>%
-  group_by(SEQID) %>% mutate(mean_fc = mean(fc)) %>% ungroup() %>%
-  arrange(desc(mean_fc)) %>%
-  mutate(SEQID = factor(SEQID, levels = unique(SEQID))) %>%
-  ggplot(aes(SEQID, fc, colour = invalid)) + 
-  geom_jitter(width = 0.2) + 
-  stat_summary(fun.y = 'mean', 
-               fun.ymin = 'mean', 
-               fun.ymax = 'mean', 
-               geom='crossbar', 
-               color = 'red', width = 0.5) + 
-  geom_hline(yintercept = 0, linetype = 'dashed') +
-  ylab('fold change [log2]') + xlab('') +
-  scale_colour_manual(values = c('#4285f4', '#111111')) +
-  coord_flip() + 
-  theme_cowplot() + 
-  ggtitle('NOP2 sgRNA phenotypes in Wang, 2015')
 ```
 
 ## Summary statistics of final library
@@ -473,29 +513,34 @@ pool <- pool %>% group_by(genes_hit) %>% mutate(max_shr = max(screen_hit_ratio))
 
 ## calculate percentages, make pie chart.
 n_a <- libA_seqs %>% dplyr::select(nopam) %>% 
-  left_join(pool %>% dplyr::select(nopam, screen_hit_ratio, max_shr)) %>% 
-  mutate(valid = ifelse(is.na(screen_hit_ratio), F, 
-                 ifelse(screen_hit_ratio > 0 & max_shr > 0.05, T, F))) %>% 
-  count(valid)
+  left_join(pool %>% dplyr::select(nopam, screen_hit_ratio, max_shr, in_libraries)) %>% 
+  mutate(valid = ifelse(is.na(in_libraries), 'de_novo',
+                 ifelse(is.na(screen_hit_ratio), 'empirical_nonessential', 
+                 ifelse(screen_hit_ratio > 0 & max_shr > 0.05, 'empirical_essential', 
+                        'empirical_nonessential'))))
+
 n_b <- libB_seqs %>% dplyr::select(nopam) %>% 
-  left_join(pool %>% dplyr::select(nopam, screen_hit_ratio, max_shr)) %>% 
-  mutate(valid = ifelse(is.na(screen_hit_ratio), F, 
-                 ifelse(screen_hit_ratio > 0 & max_shr > 0.05, T, F))) %>%
-  count(valid)
+  left_join(pool %>% dplyr::select(nopam, screen_hit_ratio, max_shr, in_libraries)) %>% 
+  mutate(valid = ifelse(is.na(in_libraries), 'de_novo',
+                 ifelse(is.na(screen_hit_ratio), 'empirical_nonessential', 
+                 ifelse(screen_hit_ratio > 0 & max_shr > 0.05, 'empirical_essential', 
+                        'empirical_nonessential'))))
 
 ## fractions
-n_a %>% summarise(frac = n[2]/sum(n))
-n_b %>% summarise(frac = n[2]/sum(n))
+n_a %>% count(valid) %>% mutate(frac = (n/sum(n)*100))
+n_b %>% count(valid) %>% mutate(frac = (n/sum(n)*100))
 
 ## pie charts
-n_a %>% ggplot(aes(x='', y=n, fill=valid)) + 
+n_a %>% count(valid) %>% 
+  ggplot(aes(x='', y=n, fill=valid)) + 
   geom_bar(stat='identity') + coord_polar('y', start = 0) + 
-  scale_fill_manual(values = c('#D3D3D3', '#377EB8')) + 
+  scale_fill_manual(values = c('#D3D3D3', '#053061', '#377EB8')) + 
   theme_nothing()
 
-n_b %>% ggplot(aes(x='', y=n, fill=valid)) + 
+n_b %>% count(valid) %>% 
+  ggplot(aes(x='', y=n, fill=valid)) + 
   geom_bar(stat='identity') + coord_polar('y', start = 0) + 
-  scale_fill_manual(values = c('#D3D3D3', '#377EB8')) +
+  scale_fill_manual(values = c('#D3D3D3', '#053061', '#377EB8')) +
   theme_nothing()
 ```
 
@@ -537,6 +582,224 @@ lib_df %>% split(.$lib) %>% walk(~{
      sabatini = filter(.x, grepl('Sabatini', in_libraries)) %>% .$nopam
   ) %>% fromList() %>% upset(nsets=10)
 })
+```
+
+We make a plot showing phenotypic range for individual guides.
+
+```{r}
+effect_diff <- pool %>% group_by(genes_hit) %>%
+  filter(n() > 2) %>%
+  summarize(effect_diff = max(mean_effect) - min(mean_effect)) %>%
+  ungroup() %>%
+  mutate(group = 'all')
+
+published_libs <- pool %>% 
+  dplyr::select(nopam, genes_hit, mean_effect, in_libraries) %>%
+  separate_rows(in_libraries, sep=',') %>%
+  filter(!in_libraries %in% c('Sabatini2014', 'Sabatini2015', 'Novartis'),
+         !is.na(in_libraries)) %>%
+  group_by(genes_hit, in_libraries) %>%
+  filter(n() > 2) %>%
+  summarize(effect_diff = max(mean_effect) - min(mean_effect)) %>%
+  ungroup() %>%
+  dplyr::rename(group = in_libraries)
+
+effect_hd_crispr_a <- pool %>% 
+  filter(nopam %in% libA_seqs$nopam) %>% 
+  group_by(genes_hit) %>%
+  filter(n() > 2) %>%
+  summarize(effect_diff = max(mean_effect) - min(mean_effect)) %>%
+  ungroup() %>%
+  mutate(group = 'HD CRISPR A')
+
+effect_hd_crispr_b <- pool %>% 
+  filter(nopam %in% libB_seqs$nopam) %>% 
+  group_by(genes_hit) %>%
+  filter(n() > 2) %>%
+  summarize(effect_diff = max(mean_effect) - min(mean_effect)) %>%
+  ungroup() %>%
+  mutate(group = 'HD CRISPR B')
+
+## plot, only genome-wide libraries
+effect_diff %>% bind_rows(published_libs) %>%
+  bind_rows(effect_hd_crispr_a) %>% 
+  bind_rows(effect_hd_crispr_b) %>% 
+  group_by(group) %>%
+  mutate(median = median(effect_diff)) %>%
+  ungroup() %>%
+  arrange(median) %>%
+  mutate(group = factor(group, levels = unique(group))) %>%
+  ggplot(aes(group, effect_diff)) + 
+  geom_boxplot() + 
+  ylab('max(sgRNA effect) - min(sgRNA effect)') +
+  coord_flip()
+```
+
+# Sequence characteristics
+
+We examine how the HD CRISPR library compares to other libraries or random guides based on certain published sequence properties (e.g. Ruleset 2 score). We generate a file containing sgRNA sequences that we can evalute.
+
+## Ruleset 2 scores
+
+We used the software published in Doench et al., 2016 to calculate ruleset 2 scores for various published libraries as well as the HD CRISPR libraries. We load and visualize the results.
+
+```{r}
+data('rs2_scores', package = 'HDCRISPR2019')
+
+## published libraries
+rs2_scores %>% 
+  ggplot(aes(rs2_score, color = in_libraries)) + 
+  geom_density() + 
+  scale_y_continuous(expand = c(0,0))
+
+## median brunello and random
+med_brunello <- rs2_scores %>% filter(in_libraries == 'Brunello') %>% 
+  pull(rs2_score) %>% median()
+set.seed(1234)
+med_random <- rs2_scores %>% slice_sample(n = 70000) %>% 
+  pull(rs2_score) %>% median()
+
+## with hd crispr
+df <- lib_df %>% dplyr::select(lib, nopam) %>% 
+  inner_join(rs2_scores %>% dplyr::select(nopam, rs2_score) %>% distinct()) %>%
+  inner_join(bind_rows(n_a, n_b) %>% dplyr::select(nopam, valid)) %>%
+  bind_rows(rs2_scores %>% distinct(rs2_score, nopam) %>%
+              slice_sample(n = 70000) %>% mutate(lib = 'random')) %>%
+  bind_rows(rs2_scores %>% dplyr::select(lib = in_libraries, rs2_score) %>%
+              filter(lib %in% c('TKOv3', 'Brunello', 'GeCKOv2'))) %>%
+  group_by(lib) %>% mutate(med = median(rs2_score)) %>% ungroup() %>%
+  arrange(med) %>% 
+  mutate(lib = factor(lib, levels = unique(lib)),
+         group2 = ifelse(grepl('^library', lib), 'HD CRISPR',
+                 ifelse(lib == 'random', 'random', 'reference')))
+
+df %>% ggplot(aes(lib, rs2_score, fill = group2)) + 
+  geom_violin() +  
+  stat_summary(fun.y = 'median', fun.ymax = 'median', fun.ymin = 'median',
+               geom = 'crossbar', color = 'black') + 
+  theme(axis.text.x = element_text(angle=45, hjust=1)) + 
+  scale_fill_manual(values = c('#053061', '#aaaaaa', '#B2182B'))
+
+df %>% filter(group2 == 'HD CRISPR') %>%
+  unite(group, lib, valid, sep = '_', remove =F) %>%
+  group_by(group) %>% mutate(med = median(rs2_score)) %>% ungroup() %>%
+  ggplot(aes(group, rs2_score, fill = valid)) + 
+  geom_violin(aes(group, rs2_score, fill = valid)) +  
+  stat_summary(fun.y = 'median', fun.ymax = 'median', fun.ymin = 'median',
+               geom = 'crossbar', color = 'black') + 
+  theme(axis.text.x = element_text(angle=45, hjust=1)) + 
+  scale_fill_manual(values = c('#D3D3D3', '#053061', '#377EB8'))
+```
+
+## Deep HF score
+
+Deep HF scores were calculated using the software published be authors of the score (derrived from GitHub). We load the results and visualize them.
+
+```{r}
+data('deephf_scores', package = 'HDCRISPR2019')
+
+## visualize published libraries
+deephf_scores %>% ggplot(aes(deephf_score, color = in_libraries)) + 
+  geom_density() + scale_y_continuous(expand = c(0,0))
+
+## selected published libraries plus hd crispr
+deephf_scores %>%
+    bind_rows(lib_df %>% dplyr::select(in_libraries=lib, sequence = nopam) %>%
+                  inner_join(deephf_scores %>% dplyr::select(sequence, deephf_score))) %>% 
+  filter(in_libraries %in% c('TKOv3', 'TKOv1', 'GeCKOv2', 'Brunello', 'library A', 'library B')) %>% 
+  ggplot(aes(deephf_score)) + geom_density(aes(color = in_libraries))  + 
+  scale_y_continuous(expand = c(0,0))
+```
+
+We visualize the Deep HF scores for the HD CRISPR libraries.
+
+```{r}
+## median brunello and random
+med_brunello <- deephf_scores %>% filter(in_libraries == 'Brunello') %>% 
+  pull(deephf_score) %>% median()
+set.seed(1234)
+med_random <- deephf_scores %>% slice_sample(n = 70000) %>% 
+  pull(deephf_score) %>% median()
+
+## hd crispr empirical vs non-empirical
+df <- lib_df %>% dplyr::select(lib, sequence = nopam) %>% 
+  inner_join(deephf_scores) %>%
+  inner_join(bind_rows(n_a, n_b) %>% dplyr::select(sequence = nopam, valid)) %>%
+  bind_rows(deephf_scores %>% distinct(deephf_score, sequence) %>%
+              slice_sample(n = 70000) %>% mutate(lib = 'random')) %>%
+  bind_rows(deephf_scores %>% dplyr::select(lib = in_libraries, deephf_score) %>%
+              filter(lib %in% c('TKOv3', 'Brunello', 'GeCKOv2'))) %>%
+  group_by(lib) %>% mutate(med = median(deephf_score)) %>% ungroup() %>%
+  arrange(med) %>% 
+  mutate(lib = factor(lib, levels = unique(lib)),
+         group = ifelse(grepl('^library', lib), 'HD CRISPR',
+                 ifelse(lib == 'random', 'random', 'reference')))
+
+df %>% ggplot(aes(lib, deephf_score, fill = group)) + 
+  geom_violin() +  
+  stat_summary(fun.y = 'median', fun.ymax = 'median', fun.ymin = 'median',
+               geom = 'crossbar', color = 'black') + 
+  theme(axis.text.x = element_text(angle=45, hjust=1)) + 
+  scale_fill_manual(values = c('#053061', '#aaaaaa', '#B2182B'))
+
+df %>% filter(group == 'HD CRISPR') %>%
+  unite(group, lib, valid, sep = '_', remove =F) %>%
+  ggplot(aes(group, deephf_score, fill = valid)) + 
+  geom_violin() +  
+  stat_summary(fun.y = 'median', fun.ymax = 'median', fun.ymin = 'median',
+               geom = 'crossbar', color = 'black') + 
+  theme(axis.text.x = element_text(angle=45, hjust=1)) + 
+  scale_fill_manual(values = c('#D3D3D3', '#053061', '#377EB8'))
+```
+
+## Hart gRNA sequence score
+
+Hart et al. 2017 derived a sequence score that we can also used to evaluate guide RNAs in the HD CRISPR library. For this purpose a matrix was published containing a score for each nucleotide at each position of a 20-bp guide RNA. We load this matrix and use it to calculate the corresponding scores.
+
+```{r}
+data('tko3_score', package = 'HDCRISPR2019')
+
+## score all sequences, takes a while since not vectorized
+tko3_scores <- pool %>% dplyr::select(in_libraries, nopam) %>%
+  rowwise() %>% 
+  mutate(tko3_score = PWMscoreStartingAt(tko3_score, nopam, starting.at = 1)) %>%
+  ungroup()
+
+## visualize the results
+tko3_scores %>% separate_rows(in_libraries, sep = ',') %>%
+  ggplot(aes(tko3_score, color = in_libraries)) + geom_density()
+
+## hd crispr library
+set.seed(1234)
+df <- lib_df %>% dplyr::select(lib, nopam) %>% 
+  inner_join(tko3_scores %>% dplyr::select(-in_libraries) %>% distinct()) %>%
+  inner_join(bind_rows(n_a, n_b) %>% dplyr::select( nopam, valid)) %>%
+  bind_rows(tko3_scores %>% distinct(tko3_score, nopam) %>%
+              slice_sample(n = 70000) %>% mutate(lib = 'random')) %>%
+  bind_rows(tko3_scores %>% dplyr::select(lib = in_libraries, tko3_score) %>%
+              filter(lib %in% c('TKOv3', 'Brunello', 'GeCKOv2'))) %>%
+  group_by(lib) %>% mutate(med = median(tko3_score)) %>% ungroup() %>%
+  arrange(med) %>% 
+  mutate(lib = factor(lib, levels = unique(lib)),
+         group = ifelse(grepl('^library', lib), 'HD CRISPR',
+                 ifelse(lib == 'random', 'random', 'reference')))
+
+df %>% ggplot(aes(lib, tko3_score, fill = group)) + 
+  geom_violin() +  
+  stat_summary(fun.y = 'median', fun.ymax = 'median', fun.ymin = 'median',
+               geom = 'crossbar', color = 'black') + 
+  theme(axis.text.x = element_text(angle=45, hjust=1)) + 
+  scale_fill_manual(values = c('#053061', '#aaaaaa', '#B2182B'))
+
+df %>% filter(group == 'HD CRISPR') %>%
+  unite(group, lib, valid, sep = '_', remove =F) %>%
+  group_by(group) %>% mutate(med = median(tko3_score)) %>% ungroup() %>%
+  ggplot(aes(group, tko3_score, fill = valid)) + 
+  geom_violin() +  
+  stat_summary(fun.y = 'median', fun.ymax = 'median', fun.ymin = 'median',
+               geom = 'crossbar', color = 'black') + 
+  theme(axis.text.x = element_text(angle=45, hjust=1)) + 
+  scale_fill_manual(values = c('#D3D3D3', '#053061', '#377EB8'))
 ```
 
 # Screen analysis
@@ -712,6 +975,160 @@ fold_changes %>%
   ungroup()
 ```
 
+### Percentage ranks
+
+We generate an alternative visualization showing percent-ranks for each sgRNA compared to the cumulative fraction.
+
+```{r}
+fold_changes %>% 
+  group_by(library, type, Gene, symbol, sgRNA) %>% 
+  summarise(log2fc = mean(log2fc)) %>% ungroup() %>%
+  mutate(gene_type = ifelse(symbol %in% ce$symbol, 'core-essential', 
+                     ifelse(symbol %in% ne$symbol, 'non-essential', 
+                     ifelse(Gene == 'NONTARG', 'non-targeting',
+                                   'other')))) %>% 
+  group_by(library, type) %>%
+  mutate(perc_rank = percent_rank(log2fc)) %>% 
+  ungroup() %>%
+  filter(gene_type != 'other') %>%
+  ggplot(aes(perc_rank, color = type, linetype = gene_type)) + 
+  stat_ecdf() + 
+  scale_x_continuous(expand = c(0,0)) + 
+  scale_y_continuous(expand = c(0,0)) + 
+  facet_wrap(~ library) +
+  scale_colour_manual(values = c('#67001F', '#053061', '#4393C3')) + 
+  xlab('percent-rank of sgRNAs') + 
+  ylab('cumulative fraction')
+```
+
+We show AUC values for these curves looking at individual replicates separately.
+
+```{r}
+ecdf_aucs <- fold_changes %>% group_by(library, type, rep) %>%
+  arrange(log2fc) %>%
+  mutate(perc_rank = percent_rank(log2fc)) %>% 
+  ungroup() %>%
+  mutate(gene_type = ifelse(symbol %in% ce$symbol, 'core-essential', 
+                     ifelse(symbol %in% ne$symbol, 'non-essential', 
+                     ifelse(Gene == 'NONTARG', 'non-targeting',
+                                   'other')))) %>% 
+  filter(gene_type != 'other') %>%
+  group_by(library, type, rep, gene_type) %>%
+  group_modify(~{
+    ## get ecdf function
+    fun_ecdf <- ecdf(.x$perc_rank)
+    .x %>% mutate(cum_frac = fun_ecdf(perc_rank))
+  }) %>% 
+  summarise(auc = pracma::trapzfun(approxfun(perc_rank, cum_frac,
+                                             yleft = 0, yright = 1),
+                                   a = 0, b = 1)$value) %>%
+  ungroup()
+
+## generate auc plot
+ecdf_aucs %>% ggplot(aes(type, auc, color = gene_type)) + 
+  geom_jitter(width = 0.1, size = 3) + 
+  facet_wrap(~library) + 
+  scale_y_continuous(limits = c(0.0, 1.0)) + 
+  scale_colour_manual(values = c('#67001F', '#053061', '#4393C3')) + 
+  xlab('') + ylab('AUC')
+```
+
+```{r, results='hide', warning=F, message=F}
+## select three representative screens:
+## K562 Sabatini, A375 Avana, Hela TKO
+fc_select <- fchanges %>% filter(cellline %in% c('K562', 'DLD1'), 
+                                 !pubmed %in% c('27661255', '26780180',
+                                                '27260157', '28700943'))
+
+## add inhouse TKO screen in Hap1 cells
+data('hap1_tko1', package = 'HDCRISPR2019')
+
+## hap1 hdcrispr screens
+fc_combined <- fold_changes %>% 
+  select(sgRNA, symbol, library, type, rep, log2fc) %>% 
+  spread(rep, log2fc) %>% 
+  mutate(log2fc = rowMeans(cbind(R1, R2)), 
+         library = paste0('HDCRISPR_', library),
+         cellline = paste('HAP1', type)) %>%
+  dplyr::select(sgRNA, symbol, library, cellline, log2fc) %>%
+  ## hap1 tko screen
+  bind_rows(hap1_tko1 %>% select(-files) %>%
+              rename(sgRNA = sequence) %>% 
+              mutate(log2fc = rowMeans(cbind(R1, R1))) %>% 
+              select(sgRNA, symbol, library, cellline, timepoint, log2fc)) %>%
+  ## external screens
+  bind_rows(fc_select %>% 
+              mutate(library = ifelse(pubmed == '26472758', 'Sabatini',
+                               ifelse(pubmed == '27260156', 'GeCKOv2',
+                               ifelse(pubmed == '29083409', 'Avana',
+                               ifelse(pubmed == '26627737', 'TKOv1', 'other'))))) %>%
+              select(sgRNA = SEQID, symbol = GENE, library, 
+                     cellline, log2fc = fc)) %>%
+  mutate(type = gsub(' NA$', '', paste(library, cellline, timepoint)))
+
+## density plot
+fc_combined %>% 
+  mutate(group = ifelse(grepl('HDCRISPR', library), 'HAP1 HDCRISPR',
+                 ifelse(!is.na(timepoint), 'HAP1 TKO', 'Published screens')),
+         gene_type = ifelse(symbol %in% ce$symbol, 'core-essential', 
+                     ifelse(symbol %in% ne$symbol, 'non-essential', 
+                      'other'))) %>% 
+  filter(gene_type != 'other') %>%
+  ggplot(aes(log2fc, color = type)) + 
+  geom_density(aes(linetype = gene_type)) + 
+  facet_wrap(~group, scales = 'free_y') + 
+  scale_y_continuous(expand = c(0,0))
+
+## generate percentage rank plot
+fc_combined %>% 
+  group_by(type, symbol, sgRNA) %>% 
+  summarise(log2fc = mean(log2fc)) %>% ungroup() %>%
+  mutate(gene_type = ifelse(symbol %in% ce$symbol, 'core-essential', 
+                     ifelse(symbol %in% ne$symbol, 'non-essential', 
+                      'other'))) %>% 
+  group_by(type) %>%
+  mutate(perc_rank = percent_rank(log2fc)) %>% 
+  ungroup() %>%
+  filter(gene_type != 'other') %>%
+  ggplot(aes(perc_rank, color = type, linetype = gene_type)) + 
+  stat_ecdf() + 
+  scale_x_continuous(expand = c(0,0)) + 
+  scale_y_continuous(expand = c(0,0)) +
+  xlab('percent-rank of sgRNAs') + 
+  ylab('cumulative fraction')
+
+ecdf_aucs_combined <- fc_combined %>% group_by(type) %>%
+  arrange(log2fc) %>%
+  mutate(perc_rank = percent_rank(log2fc)) %>% 
+  ungroup() %>%
+  mutate(gene_type = ifelse(symbol %in% ce$symbol, 'core-essential', 
+                     ifelse(symbol %in% ne$symbol, 'non-essential', 
+                      'other'))) %>% 
+  filter(gene_type != 'other') %>%
+  group_by(library, type, gene_type) %>%
+  group_modify(~{
+    ## get ecdf function
+    fun_ecdf <- ecdf(.x$perc_rank)
+    .x %>% mutate(cum_frac = fun_ecdf(perc_rank))
+  }) %>% 
+  summarise(auc = pracma::trapzfun(approxfun(perc_rank, cum_frac,
+                                             yleft = 0, yright = 1),
+                                   a = 0, b = 1)$value) %>%
+  ungroup()
+
+## generate auc plot
+ecdf_aucs_combined %>% arrange(desc(auc)) %>%
+  mutate(type = factor(type, levels = unique(type))) %>%
+  ggplot(aes(type, auc, color = gene_type)) + 
+  geom_jitter(width = 0.1, size = 3) +
+  scale_y_continuous(limits = c(0.35, 1.0)) + 
+  scale_colour_manual(values = c('#67001F', '#053061', '#4393C3')) + 
+  theme(axis.text.x = element_text(angle=45, hjust=1),
+        panel.grid.major.y = element_line(color = '#dddddd'),
+        panel.grid.minor.y = element_line(color = '#dddddd')) + 
+  xlab('') + ylab('AUC')
+```
+
 ## Hit calling with BAGEL
 
 We use BAGEL to calculate Bayes Factors for each screen to determine essential genes. We run the tool separately for each sample type and each library. We also run the tool for each sample type based on combined libraries (such that we get 8 sgRNAs per sample). As input files we must first generate tables of log2-fold changes that we can feed into BAGEL.
@@ -814,17 +1231,54 @@ Genome-scale Hap1 gene dropout screens have been conducted previously with the T
 ```{r, reuslts='hide', warning=F, message=F}
 ## previous screens in hap1 cells (gene trap and tkov1)
 data('previous_hap1_screens', package = 'HDCRISPR2019')
+data('tko3_bf_hap1', package = 'HDCRISPR2019')
+```
+
+We create a precision recall curve for the TKOv3 screen to check what the area under the curve is.
+
+```{r}
+pr_with_tko3 <- bfs %>% filter(type == 'Pool') %>% 
+  bind_rows(tko3_bf_hap1 %>% rename(BF = BF_tko3) %>% mutate(library = 'TKOv3')) %>%
+  bind_rows(tko1_bf_hap1 %>% rename(BF = BF_HAP1) %>% filter(!is.na(BF)) %>% mutate(library = 'TKOv1')) %>%
+  mutate(gene_type = ifelse(GENE %in% ce$symbol, 'core-essential',
+                     ifelse(GENE %in% ne$symbol, 'non-essential', 'other'))) %>%
+  filter(gene_type != 'other') %>%
+  group_by(library) %>%
+  group_modify(~{
+    pred <- prediction(.x$BF, labels = ifelse(.x$gene_type == 'core-essential', 1, 0))
+    perf <- performance(pred, measure = 'prec', x.measure = 'rec')
+    auc <- performance(pred, measure = 'auc')@y.values[[1]]
+    fdr5 <- perf@alpha.values[[1]][max(which(perf@y.values[[1]] > 0.97))]
+    tibble(
+      prec = perf@y.values[[1]],
+      rec = perf@x.values[[1]],
+      co = fdr5,
+      auc = auc
+    )
+  }) %>% ungroup()
+
+## draw curves
+pr_with_tko3 %>% filter(library != 'combined') %>%
+  ggplot(aes(rec, prec)) + geom_line(aes(colour = library)) +
+  geom_abline(linetype = 'dashed') + 
+  xlab('recall') + ylab('precision') + 
+  scale_colour_manual(values = c('#67001F', '#053061', '#f4b400', '#2e8b57')) + 
+  xlim(c(0.9, 1)) + ylim(c(0.9, 1))
 ```
 
 We create scatter plots to see whether Bayes Factors for our screens correlate with the previously published HAP1 screens.
 
 ```{r, results='hide', warning=F, message=F}
 ## datasets
-comp_tko <- bfs %>% filter(type == 'Pool', library != 'B') %>% 
+comp_tko <- bfs %>% filter(type == 'Pool', library %in% c('A', 'B')) %>% 
   dplyr::select(GENE, BF, library) %>% 
   inner_join(tko1_bf_hap1)
 
-comp_genetrap <- bfs %>% filter(type == 'Pool', library != 'B') %>% 
+comp_tko3 <- bfs %>% filter(type == 'Pool', library %in% c('A', 'B')) %>%
+  dplyr::select(GENE, BF, library) %>% 
+  inner_join(tko3_bf_hap1)
+
+comp_genetrap <- bfs %>% filter(type == 'Pool', library %in% c('A', 'B')) %>%
   dplyr::select(GENE, BF, library) %>% 
   inner_join(genetrap_ess %>% dplyr::select(-q.val))
 
@@ -840,11 +1294,28 @@ comp_tko %>% ggplot(aes(BF, BF_HAP1)) +
   geom_vline(xintercept = 0, linetype = 'dashed') + 
   xlab('BF Hap1 HD CRISPR bulk') + ylab('BF Hap1 TKOv1')
 
+comp_tko3 %>% ggplot(aes(BF, BF_tko3)) + 
+  geom_hex(bins=100, fill = '#d3d3d3') + 
+  geom_point(data = subset(comp_tko3, GENE %in% ce$symbol),
+             aes(BF, BF_tko3), colour = '#B2182B', size=0.5) +
+  geom_point(data = subset(comp_tko3, GENE %in% ne$symbol),
+             aes(BF, BF_tko3), colour = '#2166AC', size=0.5) +
+  facet_wrap(~ library, scales = 'free_x') + geom_abline(linetype = 'dashed') + 
+  geom_hline(yintercept = 0, linetype = 'dashed') + 
+  geom_vline(xintercept = 0, linetype = 'dashed') + 
+  xlab('BF Hap1 HD CRISPR bulk') + ylab('BF Hap1 TKOv3')
+
 ## correlation coefficients
 comp_tko %>% drop_na() %>%
   group_by(library) %>%
   summarise(PCC = cor(BF, BF_HAP1), 
             SCC = cor(BF, BF_HAP1, method='spearman')) %>% 
+  ungroup()
+
+comp_tko3 %>% drop_na() %>%
+  group_by(library) %>%
+  summarise(PCC = cor(BF, BF_tko3), 
+            SCC = cor(BF, BF_tko3, method='spearman')) %>% 
   ungroup()
 
 ## same for bloomen
@@ -873,16 +1344,16 @@ We can also make a Venn diagram. We make two lists, representing libraries A and
 venn_a <- list(
   gt = genetrap_ess %>% filter(q.val < 0.05) %>% pull(GENE),
   tkov1 = tko1_bf_hap1 %>% filter(BF_HAP1 > 6) %>% pull(GENE),
-  hd_pool_a = bfs %>% 
-    filter(library == 'A', essential, type == 'Pool') %>% pull(GENE)
+  tkov3 = tko3_bf_hap1 %>% filter(BF_tko3 > 6) %>% pull(GENE),
+  hd_pool_a = bfs %>% filter(library == 'A', essential, type == 'Pool') %>% pull(GENE)
 )
 
 ## HAP1 TKOv1 cutoff selected as described in Hart et al, 2017
 venn_b <- list(
   gt = genetrap_ess %>% filter(q.val < 0.05) %>% pull(GENE),
   tkov1 = tko1_bf_hap1 %>% filter(BF_HAP1 > 6) %>% pull(GENE),
-  hd_pool_b = bfs %>% 
-    filter(library == 'B', essential, type == 'Pool') %>% pull(GENE)
+  tkov3 = tko3_bf_hap1 %>% filter(BF_tko3 > 6) %>% pull(GENE),
+  hd_pool_b = bfs %>% filter(library == 'B', essential, type == 'Pool') %>% pull(GENE)
 )
 
 ## plot venn diagrams
@@ -919,6 +1390,60 @@ venn_comp <- list(
 
 ## draw venn
 gplots::venn(venn_comp)
+```
+
+We make a box plot visualizing the phenotypic space (max fold change - min. fold change of all guides targeting a gene) comparing HD CRISPR and TKO libraries in Hap1 cells.
+
+```{r}
+## tkov3 differences
+data('tkov3_fc', package = 'HDCRISPR2019')
+
+## hd crispr
+hdcrispr_bulk_diff <- fold_changes %>%
+  filter(type == 'Pool', library %in% c('A', 'B')) %>% 
+  dplyr::select(sgRNA, library, rep, log2fc, symbol) %>%
+  spread(rep, log2fc) %>% 
+  mutate(avg_fc = rowMeans(cbind(R1, R2)),
+         avg_fc = avg_fc / sd(avg_fc)) %>% 
+  group_by(library, symbol) %>% 
+  summarise(diff = max(avg_fc) - min(avg_fc)) %>% 
+  ungroup() %>%
+  mutate(library = paste('HD CRISPR', library))
+
+hdcrispr_all_diff <- fold_changes %>%
+  filter(library %in% c('A', 'B')) %>% 
+  dplyr::select(sgRNA, library, type, rep, log2fc, symbol) %>%
+  spread(rep, log2fc) %>% 
+  mutate(avg_fc = rowMeans(cbind(R1, R2)),
+         avg_fc = avg_fc / sd(avg_fc)) %>% 
+  group_by(library, type, symbol) %>% 
+  summarise(diff = max(avg_fc) - min(avg_fc)) %>% 
+  ungroup() %>%
+  mutate(library = paste('HD CRISPR', library))
+
+## tkov1 differences
+data('tkov1_fc', package = 'HDCRISPR2019')
+
+## visualize as boxplot
+overlapping_symbols <- intersect(intersect(tkov3_fc$symbol, tkov1_fc$symbol),
+                                 hdcrispr_bulk_diff$symbol)
+tkov1_fc %>% bind_rows(tkov3_fc) %>% 
+  bind_rows(hdcrispr_bulk_diff) %>%
+  filter(symbol %in% overlapping_symbols) %>% 
+  group_by(library) %>% mutate(median = median(diff)) %>% ungroup() %>%
+  arrange(median) %>% mutate(library = factor(library, levels = unique(library))) %>%
+  ggplot(aes(library, diff)) + geom_boxplot() +
+  ylab('max(log fold change) - min(log fold change)') + 
+  coord_flip()
+
+## visualize differences between bulk and single cell
+hdcrispr_all_diff %>%
+  unite(screen, library, type) %>%
+  group_by(screen) %>% mutate(median = median(diff)) %>% ungroup() %>%
+  arrange(median) %>% mutate(screen = factor(screen, levels = unique(screen))) %>%
+  ggplot(aes(screen, diff)) + geom_boxplot() +
+  ylab('max(log fold change) - min(log fold change)') + 
+  coord_flip()
 ```
 
 ## Context-dependent essential genes
@@ -1121,7 +1646,6 @@ mageck_res %>% mutate(essential = ifelse(FDR < 0.05 & lfc < 0, T, F)) %>%
   theme(legend.position = 'bottom') + 
   scale_fill_manual(values = c('#67001F', '#053061', '#4393C3')) +
   ylab('number of essential genes')
-
 ```
 
 ### gscreend (Imkeller et al.)
@@ -1264,6 +1788,194 @@ venn_diagrams <- map(names(venn_bagel_vs_mageck),
 n <- length(venn_diagrams)
 nCol <- floor(sqrt(n))
 do.call("grid.arrange", c(venn_diagrams, ncol=nCol))
+```
+
+## Cutting and non-cutting sgRNAs
+
+We notice that there is a small but distinct phenotypic difference between the targeting and non-targeting sgRNA controls in the HD CRISPR library. We explore how well these can actually be separated from each other. This might be useful to inform whether a gene targeting a non-essential gene might cut the DNA or not. 
+
+```{r, results='hide', warning=F, message=F}
+## a data frame containing control phenotypes
+ctrl_df <- fold_changes %>% filter(grepl('_C_', sgRNA)) %>% 
+  mutate(control_type = ifelse(Gene %in% nontarg, 'non-targeting', 'targeting')) %>% 
+  bind_rows(fold_changes %>% filter(symbol %in% ne$symbol) %>% 
+              mutate(control_type = 'non-essential'))
+
+## plot control fold changes for all ctrl sgrnas
+ctrl_df %>% ggplot(aes(log2fc)) + 
+  geom_density(aes(colour = control_type)) + 
+  facet_grid(library ~ type) + 
+  scale_y_continuous(expand = c(0,0)) + 
+  panel_border() + 
+  xlim(c(-5, 5)) + 
+  xlab('fold change [log2]')
+
+## plot specifically for SCC12 library A
+ctrl_df %>% filter(library == 'A', type == 'SCC12', 
+                   control_type != 'non-essential') %>%
+  ggplot(aes(log2fc)) + 
+  geom_density(aes(colour = control_type)) +
+  scale_y_continuous(expand = c(0,0)) + 
+  xlim(c(-5, 5))
+```
+
+```{r}
+## set for indeterministic mixture model
+set.seed(1234)
+
+df_cutting_noncutting <- purrr::map_df(c('A', 'B'), function(lib){
+  ## data for fitting
+  logfcs <- ctrl_df %>% 
+    filter(library == lib, 
+           type == 'SCC12', 
+           control_type != 'non-essential')
+  
+  ## starting parameters for mixture model
+  start_params <- logfcs %>% group_by(control_type) %>% 
+    summarise(med = median(log2fc), mad = mad(log2fc))
+  
+  ## fit mixture model, 3 components
+  mm <- normalmixEM(logfcs$log2fc, k = 4,
+                    lambda = c(1, 1, 0.25, 0.25),
+                    mu = c(start_params$med[1], start_params$med[2], -2, -4), 
+                    sigma = c(start_params$mad[1], start_params$mad[2], 3, 3))
+  
+  ## plot fit
+  plot(mm, which = 2, breaks = 50)
+  
+  ## extract parameters
+  params_nt <- list(mu = mm$mu[1], sigma = mm$sigma[1])
+  params_targ <- list(mu = mm$mu[2], sigma = mm$sigma[2])
+  
+  ## compare fit to targeting/non-targeting controls
+  logfcs %>% 
+    mutate(log2fc_sim_nt = rnorm(n(), mean = params_nt$mu, sd = params_nt$sigma), 
+           log2fc_sim_targ = rnorm(n(), mean = params_targ$mu, sd = params_targ$sigma)) %>% 
+    ggplot() + 
+    geom_density(aes(log2fc, color = control_type)) + 
+    geom_density(aes(log2fc_sim_nt), color = '#cccccc', linetype='dashed') + 
+    geom_density(aes(log2fc_sim_targ), color = '#f4b400', linetype='dashed') + 
+    geom_vline(xintercept = start_params$med, linetype='dashed') + 
+    scale_y_continuous(expand = c(0, 0))
+  
+  ## extract posterior probabilities from model
+  post_probs <- as_tibble(cbind(mm$x, mm$posterior), .name_repair = 'minimal') %>% 
+    `colnames<-`(c('closest_log2fc', 'p_nontarg', 'p_targ', 'p_pheno', 'p_strong_pheno'))
+  
+  ## annotate closest value in posterior probability table
+  closest_anno <- fold_changes %>% filter(library == lib, type == 'SCC12') %>% 
+    group_by(library, symbol, sgRNA) %>% 
+    summarise(log2fc = mean(log2fc)) %>% ungroup() %>%
+    rowwise() %>% 
+    mutate(closest = which.min(abs(post_probs$closest_log2fc - log2fc))) %>% 
+    ungroup()
+  
+  closest_anno %>% 
+    bind_cols(post_probs %>% dplyr::slice(closest_anno$closest)) %>%
+    mutate(p_pheno = p_pheno + p_strong_pheno) %>% 
+    dplyr::select(-p_strong_pheno)
+})
+```
+
+Do the closest control fold changes correspond well to the closest annotated fold changes?
+
+```{r}
+## scatter plot comparing matched values
+df_cutting_noncutting %>% 
+  ggplot(aes(log2fc, closest_log2fc)) + 
+  geom_hex(bins = 100) + 
+  facet_wrap(~ library)
+```
+
+Now we can assign to each sgRNA whether it's likely non-cutting, cutting or cutting with a phenotype, or unclear.
+
+```{r}
+df_cutting_noncutting <- df_cutting_noncutting %>% 
+  mutate(pheno_group = ifelse(p_targ > 0.8, 'likely cutting', 
+                       ifelse(p_nontarg > 0.8, 'likely not cutting', 
+                       ifelse(p_pheno > 0.8 & log2fc < 0, 'growth phenotype', 
+                              'unclear'))))
+
+## phenotype ranges
+df_cutting_noncutting %>% 
+  group_by(library, pheno_group) %>% 
+  summarise(min_fc = min(log2fc), max_fc = max(log2fc)) %>% 
+  ungroup()
+```
+
+Now we can summarize for the whole screen how many sgRNAs are cutting, non-cutting or have a phenotype.
+
+```{r}
+## results from bagel analysis
+mageck_essential <- mageck_res %>% 
+  filter(sample == 'SCC12', lib == 'combined') %>% 
+  filter(lfc < 0, FDR < 0.05, !is.na(symbol)) %>% 
+  pull(symbol)
+
+## annotate sgrnas for plotting
+for_plotting <- df_cutting_noncutting %>% 
+  filter(!grepl('CONTROL', sgRNA)) %>% 
+  mutate(reference_group = ifelse(symbol %in% ce$symbol, 'core-essential', 
+                           ifelse(symbol %in% ne$symbol, 'nonessential', 
+                                  'other')), 
+         gene_group = ifelse(symbol %in% mageck_essential, 
+                             'HAP1 essential', 'HAP1 non-essential')) %>%
+  inner_join(libA_seqs %>% mutate(sgRNA = gsub('>', '', guide_id)) %>% 
+               inner_join(n_a %>% dplyr::select(nopam, valid)) %>% 
+               dplyr::select(sgRNA, valid) %>%
+               mutate(library = 'A') %>%
+               bind_rows(
+                 libB_seqs %>% mutate(sgRNA = gsub('>', '', guide_id)) %>% 
+                   inner_join(n_b %>% dplyr::select(nopam, valid)) %>% 
+                   dplyr::select(sgRNA, valid) %>%
+                   mutate(library = 'B')
+               ))
+
+## reference gene sets
+for_plotting %>% filter(!grepl('CONTROL', sgRNA)) %>%
+  filter(symbol %in% c(ce$symbol, ne$symbol)) %>%
+  count(library, gene_group, pheno_group) %>% 
+  group_by(library, gene_group) %>% 
+  mutate(perc = n/sum(n) * 100) %>% 
+  ungroup() %>% 
+  ggplot(aes(gene_group, perc, fill = pheno_group)) + 
+  geom_bar(stat = 'identity', position = 'dodge') + 
+  facet_wrap(~library, ncol = 1) +
+  ggtitle('HAP1 SCC12, library A, reference gene sets')
+
+## mageck hits, without reference genes
+for_plotting %>% 
+  filter(!grepl('CONTROL', sgRNA),
+         !symbol %in% c(ce$symbol, ne$symbol)) %>%
+  mutate(gene_group = ifelse(symbol %in% mageck_essential, 
+                             'HAP1 essential', 'HAP1 non-essential')) %>%
+  count(library, gene_group, pheno_group) %>% 
+  ggplot(aes(gene_group, n, fill = pheno_group)) + 
+  geom_bar(stat = 'identity', position = 'dodge') + 
+  facet_wrap(~library, ncol = 1) +
+  ggtitle('HAP1 SCC12, library A, excluding reference gene sets')
+```
+
+Finally, we also compare differences between empirically designed and not empirically designed sgRNAs.
+
+```{r}
+## plot with reference genes
+for_plotting %>% count(library, gene_group, valid, pheno_group) %>% 
+  ggplot(aes(valid, n, fill = pheno_group)) + 
+  geom_bar(stat='identity', position = 'dodge') + 
+  facet_grid(library~gene_group) + 
+  panel_border() + 
+  xlab('empirical sgRNA') + ylab('percentage of sgRNAs in group')
+
+## without reference genes
+for_plotting %>% filter(reference_group != 'core-essential') %>%
+  count(library, gene_group, valid, pheno_group) %>% 
+  complete(library, gene_group, valid, pheno_group, fill = list(n = 0)) %>%
+  ggplot(aes(valid, n, fill = pheno_group)) + 
+  geom_bar(stat='identity', position = 'dodge') + 
+  facet_grid(library~gene_group) + 
+  panel_border() + 
+  xlab('empirical sgRNA') + ylab('number of sgRNAs in group')
 ```
 
 ## Differential essentiality between SCC and Bulk
