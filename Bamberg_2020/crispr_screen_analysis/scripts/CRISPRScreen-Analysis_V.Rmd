@@ -1,0 +1,370 @@
+---
+title: "HDAC inhibitor screen analysis"
+author: "F. Heigwer"
+date: "8/17/2018"
+output:
+  html_document: default
+  pdf_document: 
+    keep_tex: yes
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+library(FitAR)
+library(corrr)
+library(ggrastr)
+library(ggrepel)
+library(broom)
+
+theme_b110<- function(){
+  theme_classic() +
+  theme(
+    axis.text = element_text(size = 16), 
+    axis.title = element_text(size = 16),
+    plot.title = element_text(size = 22,hjust = 0.5,face = "bold"),
+    legend.title = element_text(size = 22),
+    legend.text = element_text(size = 16),
+    legend.position = "bottom"
+    )
+}
+
+```
+
+## B110 Colors
+
+```{r colors}
+sgi_blue    = '#5087C8'
+sgi_yellow1 = '#F2EE35'
+sgi_yellow2 = '#FED98E'
+b110_grey   = '#808080'
+b110_grey_light   = '#909090'
+b110_transparent_black = alpha('#000000',0.5)
+google_red = '#dd4b39'
+google_green = '#0F9D58'
+google_yellow = '#F4B400'
+google_blue = '#4285F4'
+
+```
+## Data input
+
+Lets check how the data looks like and what the objectives of the analyses are.
+
+We conclude that we have data for two cell lines, in two different passages each. Each was measured for the abundance of 146 different analytes between two treatments. These are however always a little bit different.
+
+```{r data_input}
+
+treat1<-read_delim(file = "../raw_data_counts/counts_vorinostat_screen/Vorinostat1_S3_L001_R1_001.txt",delim = "\t")
+treat2<-read_delim(file = "../raw_data_counts/counts_vorinostat_screen/Vorinostat2_S4_L001_R1_001.txt",delim = "\t")
+
+dmso1<-read_delim(file = "../raw_data_counts/counts_vorinostat_screen/DMSO1_S1_L001_R1_001.txt",delim = "\t")
+dmso2<-read_delim(file = "../raw_data_counts/counts_vorinostat_screen/DMSO2_S2_L001_R1_001.txt",delim = "\t")
+
+mydata<-treat1 %>% 
+  left_join(treat2) %>% 
+  left_join(dmso1) %>% 
+  left_join(dmso2) %>%
+  extract(sgRNA,c("sgRNA","gene_id"),"((\\w+)_.*)") %>%
+  gather(treatment,count,-sgRNA,-gene_id) %>%
+  extract(treatment,c("treatment","replicate"),"(\\w+)_(\\d)")
+
+anno<-read_delim("../meta_data/gene_names.txt",delim="\t")
+
+```
+
+## Lets normalize the data
+
+```{r Normalization, echo=FALSE}
+
+mydata %<>% 
+  mutate(count=if_else(count>10,count,NA_real_)) %>%    #filter low read counts
+  group_by(treatment,replicate) %>% #group by treatment and replicate
+  mutate(normval=asinh(count/median(count,na.rm = T)))
+
+```
+
+## Lets do some data QC
+
+```{r QC, echo=FALSE}
+
+#on sgRNA level
+p1 <- mydata %>% 
+  select(-count) %>%
+  spread(replicate,normval) %>%
+  ggplot(aes(x=`1`,y=`2`)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    facet_wrap(~treatment,scales = "free") +
+    theme_b110()
+
+ggsave("../graphics/normalized_readcount_replicates_sgRNA_Vorinostat.pdf",width = 8,height = 8)
+
+print(p1)
+
+mydata %>% 
+  select(-count) %>%
+  spread(replicate,normval) %>%
+  split(.$treatment) %>%
+  lapply(function(x){x %>% ungroup() %>% select(`1`,`2`) %>% correlate() %>% rearrange() %>% shave() %>% fashion()})
+
+# from this analysis we get a replicate correlation of 0.78 and 0.89 for the DMSO and Vorinostat treated samples respectively
+
+#on gene level
+p1 <- mydata %>% 
+  select(-count) %>%
+  group_by(treatment,gene_id,replicate) %>%
+  summarise(mean_normval=mean(normval,na.rm=T)) %>%
+  spread(replicate,mean_normval) %>%
+  ggplot(aes(x=`1`,y=`2`)) +
+    geom_point() +
+    geom_smooth(method = "lm")+
+    facet_wrap(~treatment,scales = "free") +
+    theme_b110()
+
+ggsave("../graphics/normalized_readcount_replicates_genes_Vorinostat.pdf",width = 8,height = 8)
+
+print(p1)
+
+mydata %>% 
+  group_by(treatment,gene_id,replicate) %>%
+  summarise(mean_normval=mean(normval,na.rm=T)) %>%
+  spread(replicate,mean_normval) %>%
+  split(.$treatment) %>%
+  lapply(function(x){x %>% ungroup() %>% select(`1`,`2`) %>% correlate() %>% rearrange() %>% shave() %>% fashion()})
+  
+# on gene level we get a replicate read count correlation of 0.84 and 0.95 for DMSO and Vorinostat treated samples respectively
+```
+
+
+## QC looks very nice and good so lets calls some foldchanges and hits thereof
+
+```{r hitcalling, echo=FALSE}
+
+#we average replicates and plot treated versus untreated samples
+#sgRNA level
+p1 <- mydata %>% 
+  group_by(sgRNA,gene_id,treatment) %>%
+  summarise(value=mean(normval,na.rm=T)) %>%
+  spread(treatment,value) %>%
+  ggplot(aes(x=dmso,y=treat)) +
+    geom_point() +
+    theme_b110()
+
+ggsave("../graphics/readcount_dmso_vs_vorinostat_sgRNA_Vorinostat.pdf",width = 8,height = 8)
+
+print(p1)
+
+
+#gene level
+p1 <- mydata %>% 
+  group_by(gene_id,treatment) %>%
+  summarise(value=mean(normval,na.rm=T)) %>%
+  spread(treatment,value) %>%
+  ggplot(aes(x=dmso,y=treat)) +
+    geom_point() +
+    geom_abline(slope = 1,intercept = c(0,0)) +
+    theme_classic()+
+    theme_b110()
+
+ggsave("../graphics/readcount_dmso_vs_vorinostat_genes_Vorinostat.pdf",width = 8,height = 8)
+
+print(p1)
+
+#lets call some foldchanges and hits
+tmp<-mydata %>% 
+  group_by(sgRNA,gene_id,treatment) %>%
+  summarise(value=mean(normval,na.rm=T)) %>%
+  spread(treatment,value) %>%
+  ungroup() %>%
+  mutate(logfc=log2(treat/dmso)) 
+
+stats<- tmp %>%
+  group_by(gene_id) %>%
+  do(
+   wilcox.test(.$logfc,tmp$logfc[tmp$gene_id=="random"],alternative = "t") %>% tidy()
+  ) %>%
+  ungroup() %>%
+  mutate(fdr=p.adjust(p.value,method="BH"))
+
+final_sg<- tmp %>% left_join(stats) %>% mutate(significant=if_else(fdr<0.1,"significant","non-significant"))
+
+final_gene<-
+  final_sg %>%
+  group_by(gene_id) %>%
+  summarise(dmso=mean(dmso,na.rm = T),treat=mean(treat,na.rm = T),logfc=mean(logfc,na.rm = T),p.value=unique(p.value),fdr=unique(fdr),significant=unique(significant))
+
+#gene level
+p1 <- final_gene %>% 
+  left_join(anno) %>% 
+  mutate(labels=if_else(gene_symbol %in% c("EHMT1","EHMT2","CARM1","TADA2B"),gene_symbol,NA_character_)) %>%
+  ggplot(aes(x=dmso,y=treat,color=significant,label=labels)) +
+    geom_point() +
+    geom_abline(slope = 1,intercept = c(0,0)) +
+    theme_classic() +
+    geom_label_repel()+
+    scale_color_manual(values = c(b110_grey_light,google_blue))
+
+
+ggsave("../graphics/readcount_dmso_vs_vorinostat_genes_stats_Vorinostat.pdf",width = 8,height = 8)
+
+print(p1)
+
+#gene level
+p1 <- final_gene %>% 
+  left_join(anno) %>% 
+  mutate(labels=if_else(gene_symbol %in% c("EHMT1","EHMT2","CARM1","TADA2B"),gene_symbol,NA_character_)) %>%
+  ggplot(aes(x=logfc,y=-log10(p.value),color=significant,label=labels)) +
+    geom_point() +
+    theme_classic() +
+    geom_label_repel() +
+    scale_color_manual(values = c(b110_grey_light,google_blue))
+
+ggsave("../graphics/volcano_stat_colored_Vorinostat.pdf",width = 8,height = 8)
+
+print(p1)
+
+final_gene %>% 
+  left_join(anno) %>% 
+  write_delim("../results/GeneLevelData_Vorinostat.tsv",delim = "\t")
+
+p1 <- final_sg %>% 
+  left_join(anno) %>% 
+  mutate(labels=if_else(gene_symbol %in% c("EHMT1","EHMT2","CARM1","TADA2B"),gene_symbol,NA_character_)) %>%
+  filter(!is.na(labels)) %>%
+  mutate(cols=factor(sign(logfc))) %>%
+  ggplot(aes(x=reorder(sgRNA,logfc),y=logfc,fill=cols)) +
+    geom_bar(stat = "identity",position = "dodge")  +
+  facet_wrap(~gene_symbol,scales = "free") +
+  theme_classic() +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+    scale_fill_manual(values = c(google_blue,google_red,b110_grey_light))
+
+
+ggsave("../graphics/EHMT_sgRNAs_colored_Vorinostat.pdf",width = 8,height = 8)
+
+print(p1)
+
+final_sg %>% 
+  left_join(anno) %>% 
+  mutate(labels=if_else(gene_symbol %in% c("EHMT1","EHMT2","CARM1","TADA2B"),gene_symbol,NA_character_)) %>%
+  filter(!is.na(labels)) %>%
+  mutate(cols=factor(sign(logfc))) %>% 
+  write_delim("../results/EHMT1_EHMT2_sgRNALevelData_Vorinostat.tsv",delim = "\t")
+
+final_sg %>% 
+  left_join(anno) %>% 
+  filter(gene_id == "random") %>%
+  write_delim("../results/random_sgRNALevelData_Vorinostat.tsv",delim = "\t")
+
+p1 <- final_sg %>% 
+  left_join(anno) %>% 
+  filter(gene_symbol %in% c("EHMT1","EHMT2","CARM1","TADA2B") | gene_id %in% c("random")) %>%
+  mutate(labels = if_else(is.na(gene_symbol),gene_id,gene_symbol)) %>%
+  mutate(cols = factor(sign(logfc))) %>%
+  select(labels,sgRNA,logfc,cols) %>%
+  drop_na() %>%
+  ggplot(aes(x = reorder(sgRNA,logfc), y = logfc, fill = cols)) +
+    geom_bar(stat = "identity",position = "dodge")  +
+  facet_wrap(~labels,scales = "free_x") +
+  theme_classic() +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank()) +
+    scale_fill_manual(values = c(google_blue,google_red))
+
+
+ggsave("../graphics/EHMT_random_sgRNAs_colored_Vorinostat.pdf",width = 8,height = 8)
+
+print(p1)
+```
+
+#try an alternaitve analysis using mageck
+
+first we count the sgRNA abundance
+
+ mageck count -l library_design/chrom-modulators/chrom_mod.5.0.1.20.604.pos_list.1.0.1.20.17_short_oligos_final.mageck.txt -n vorinostat --sample-label LIB,DMSO1,DMSO2,V1,V2 --fastq raw_data/library_sequencing/chrom_modulators/5.0.1.20.604/fastq_raw/2171_CRISPR_CM5_Plasmid.fastq raw_data/reads_vorinostat_screen/2546_CRISPR_CM_DMSO1.fastq raw_data/reads_vorinostat_screen/2547_CRISPR_CM_DMSO2.fastq raw_data/reads_vorinostat_screen/2548_CRISPR_CM_Vorinostat1.fastq raw_data/reads_vorinostat_screen/2549_CRISPR_CM_Vorinostat2.fastq
+ 
+ 
+ second we calculate foldchagnes and significance using mageck RRA
+ 
+ mageck test -k vorinostat.count.txt -t V1,V2 -c DMSO1,DMSO2 -n vorinostat --control-sgrna meta_data/controls.sgRNA
+ 
+ third we test the DMSO vs library sample
+ 
+ then we read int the result
+ 
+```{r}
+
+mageck_result <- read_delim("../mageck_analysis/vorinostat.gene_summary.txt",delim = "\t") %>% left_join(anno %>% rename("id" = gene_id ))
+
+#gene level
+p1 <- mageck_result %>% 
+  mutate(labels=if_else(gene_symbol %in% c("EHMT1","EHMT2","CARM1","TADA2B"),gene_symbol,NA_character_),significant = if_else(`neg|fdr`<0.1,T,F)) %>%
+  ggplot(aes(x=`neg|lfc`,y=-log10(`neg|p-value`),color=significant,label=labels)) +
+    geom_point() +
+    theme_classic() +
+    geom_label_repel() +
+    scale_color_manual(values = c(b110_grey_light,google_blue))
+
+ggsave("../graphics/volcano_stat_colored_Vorinostat_mageck_neg_VORoverDMSO.pdf",width = 8,height = 8)
+
+print(p1)
+
+#gene level
+p1 <- mageck_result %>% 
+  mutate(labels=if_else(gene_symbol %in% c("EHMT1","EHMT2","CARM1","TADA2B"),gene_symbol,NA_character_),significant = if_else(`pos|fdr`<0.1,T,F)) %>%
+  ggplot(aes(x=`pos|lfc`,y=-log10(`pos|p-value`),color=significant,label=labels)) +
+    geom_point() +
+    theme_classic() +
+    geom_label_repel() +
+    scale_color_manual(values = c(b110_grey_light,google_blue))
+
+ggsave("../graphics/volcano_stat_colored_Vorinostat_mageck_pos_VORoverDMSO.pdf",width = 8,height = 8)
+
+print(p1)
+```
+ 
+# DMSO vs Library
+
+```{r}
+
+mageck_result <- read_delim("../mageck_analysis/drop_out.gene_summary.txt",delim = "\t") %>% left_join(anno %>% rename("id" = gene_id ))
+
+#gene level
+p1 <- mageck_result %>% 
+  mutate(labels=if_else(gene_symbol %in% c("EHMT1","EHMT2","CARM1","TADA2B"),gene_symbol,NA_character_),significant = if_else(`neg|fdr`<0.1,T,F)) %>%
+  ggplot(aes(x=`neg|lfc`,y=-log10(`neg|p-value`),color=significant,label=labels)) +
+    geom_point() +
+    theme_classic() +
+    geom_label_repel() +
+    scale_color_manual(values = c(b110_grey_light,google_blue))
+
+ggsave("../graphics/volcano_stat_colored_Vorinostat_mageck_neg_DMSOoverLIB.pdf",width = 8,height = 8)
+
+print(p1)
+
+#gene level
+p1 <- mageck_result %>% 
+  mutate(labels=if_else(gene_symbol %in% c("EHMT1","EHMT2","CARM1","TADA2B"),gene_symbol,NA_character_),significant = if_else(`pos|fdr`<0.1,T,F)) %>%
+  ggplot(aes(x=`pos|lfc`,y=-log10(`pos|p-value`),color=significant,label=labels)) +
+    geom_point() +
+    theme_classic() +
+    geom_label_repel() +
+    scale_color_manual(values = c(b110_grey_light,google_blue))
+
+ggsave("../graphics/volcano_stat_colored_Vorinostat_mageck_pos_DMSOoverLIB.pdf",width = 8,height = 8)
+
+print(p1)
+```
+ 
+
+# Session info
+
+```{r}
+writeLines(capture.output(sessionInfo()), paste("../results/SessionInfo_Vorinostat.txt",sep = ""))
+```
