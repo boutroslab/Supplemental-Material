@@ -1,0 +1,8 @@
+Sample name,title,source name,organism,characteristics: treatment,molecule,Drosophila processed data file,Human processed data file 
+DS27.1_lib2,Species_Mix_Unfixed_techn.repl.1_biolog_rep1,HEK293T/Kc167,Human/Drosophila melanogaster,Unfixed,polyA RNA,DGE_dm_DS27.1_lib2.txt,DGE_hs_DS27.1_lib2.txt
+DS27.1_lib3,Species_Mix_Unfixed_techn.repl.2_biolog_rep1,HEK293T/Kc167,Human/Drosophila melanogaster,Unfixed,polyA RNA,DGE_dm_DS27.1_lib3.txt,DGE_hs_DS27.1_lib3.txt
+DS27.7_lib1,Species_Mix_Glyoxal_techn.repl.1_biolog_rep2,HEK293T/Kc167,Human/Drosophila melanogaster,Glyoxal-fixed,polyA RNA,DGE_dm_DS27.7_lib1.txt,DGE_hs_DS27.7_lib1.txt
+DS27.7_lib2,Species_Mix_Glyoxal_techn.repl.2_biolog_rep2,HEK293T/Kc167,Human/Drosophila melanogaster,Glyoxal-fixed,polyA RNA,DGE_dm_DS27.7_lib2.txt,DGE_hs_DS27.7_lib2.txt
+DS34.1_lib1,Species_Mix_Unfixed_techn.repl.1_biolog_rep2,HEK293T/Kc167,Human/Drosophila melanogaster,Unfixed,polyA RNA,DGE_dm_DS34.1_lib1.txt,DGE_hs_DS34.1_lib1.txt
+DS34.2_lib1,Species_Mix_Unfixed_techn.repl.2_biolog_rep2,HEK293T/Kc167,Human/Drosophila melanogaster,Unfixed,polyA RNA,DGE_dm_DS34.2_lib1.txt,DGE_hs_DS34.2_lib1.txt
+DS34.5_lib1,Species_Mix_Glyoxal_biolog_rep2,HEK293T/Kc167,Human/Drosophila melanogaster,Glyoxal-fixed,polyA RNA,DGE_dm_DS34.5_lib1.txt,DGE_hs_DS34.5_lib1.txt
