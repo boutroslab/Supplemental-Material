@@ -1,0 +1,22 @@
+{
+    "read_files": "[ /shares/B110-Isilon1/004927/data/151209_SN7001427_0173_BC800BANXX/AS-96221-LR-13830/fastq/AS-96221-LR-13830_R1.fastq.gz ]",
+    "expected_format": "U",
+    "compatible_fragment_ratio": 1.0,
+    "num_compatible_fragments": 11552884,
+    "num_assigned_fragments": 11552884,
+    "num_frags_with_concordant_consistent_mappings": 11628783,
+    "num_frags_with_inconsistent_or_orphan_mappings": 0,
+    "strand_mapping_bias": 0.49617771696315945,
+    "MSF": 0,
+    "OSF": 0,
+    "ISF": 0,
+    "MSR": 0,
+    "OSR": 0,
+    "ISR": 0,
+    "SF": 5769943,
+    "SR": 5858840,
+    "MU": 0,
+    "OU": 0,
+    "IU": 0,
+    "U": 0
+}

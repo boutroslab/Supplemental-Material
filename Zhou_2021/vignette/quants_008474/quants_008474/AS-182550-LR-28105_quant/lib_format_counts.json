@@ -1,0 +1,22 @@
+{
+    "read_files": "[ /shares/B110-Isilon1/008474/data/170817_D00759_0119_ACAT9TANXX/AS-182550-LR-28105/fastq/AS-182550-LR-28105_R1.fastq.gz ]",
+    "expected_format": "SR",
+    "compatible_fragment_ratio": 1.0,
+    "num_compatible_fragments": 13898285,
+    "num_assigned_fragments": 13898285,
+    "num_frags_with_concordant_consistent_mappings": 13898244,
+    "num_frags_with_inconsistent_or_orphan_mappings": 320,
+    "strand_mapping_bias": 0.000023023961324349769,
+    "MSF": 0,
+    "OSF": 0,
+    "ISF": 0,
+    "MSR": 0,
+    "OSR": 0,
+    "ISR": 0,
+    "SF": 320,
+    "SR": 13898244,
+    "MU": 0,
+    "OU": 0,
+    "IU": 0,
+    "U": 0
+}

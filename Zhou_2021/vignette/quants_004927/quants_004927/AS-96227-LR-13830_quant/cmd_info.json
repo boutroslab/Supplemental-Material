@@ -1,0 +1,10 @@
+{
+    "salmon_version": "1.0.0",
+    "index": "salmon_index",
+    "libType": "A",
+    "unmatedReads": "/shares/B110-Isilon1/004927/data/151209_SN7001427_0173_BC800BANXX/AS-96227-LR-13830/fastq/AS-96227-LR-13830_R1.fastq.gz",
+    "threads": "8",
+    "validateMappings": [],
+    "output": "quants_004927/AS-96227-LR-13830_quant",
+    "auxDir": "aux_info"
+}

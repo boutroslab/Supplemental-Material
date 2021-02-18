@@ -1,0 +1,10 @@
+{
+    "salmon_version": "1.0.0",
+    "index": "salmon_index",
+    "libType": "A",
+    "unmatedReads": "/shares/B110-Isilon1/008474/data/170817_D00759_0119_ACAT9TANXX/AS-182551-LR-28104/fastq/AS-182551-LR-28104_R1.fastq.gz",
+    "threads": "8",
+    "validateMappings": [],
+    "output": "quants_008474/AS-182551-LR-28104_quant",
+    "auxDir": "aux_info"
+}

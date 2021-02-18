@@ -1,0 +1,13 @@
+Go term_BP enrichment,genes No.,P-value,LOG10 P
+mitochondrial translation,34,3.00E-10,-9.522878745
+oxidation-reduction process,90,6.70E-09,-8.173925197
+metabolic process,38,4.30E-06,-5.366531544
+proteolysis,84,1.40E-04,-3.853871964
+cell adhesion,25,1.80E-04,-3.744727495
+JNK cascade,9,1.10E-02,-1.958607315
+midgut development,9,2.40E-02,-1.619788758
+intestinal stem cell homeostasis,7,3.10E-02,-1.508638306
+JAK-STAT cascade ,5,3.20E-02,-1.494850022
+immune response,20,3.50E-02,-1.455931956
+EGFR signaling,7,"9.1E-2	",-1.040958608
+cell morphogenesis,11,8.90E-02,-1.050609993

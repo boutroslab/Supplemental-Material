@@ -1,0 +1,50 @@
+[2020-04-07 11:44:34.936] [jointLog] [info] Fragment incompatibility prior below threshold.  Incompatible fragments will be ignored.
+[2020-04-07 11:44:34.936] [jointLog] [info] Usage of --validateMappings implies use of minScoreFraction. Since not explicitly specified, it is being set to 0.65
+[2020-04-07 11:44:34.936] [jointLog] [info] Usage of --validateMappings implies a default consensus slack of 0.2. Setting consensusSlack to 0.35.
+[2020-04-07 11:44:34.936] [jointLog] [info] parsing read library format
+[2020-04-07 11:44:34.936] [jointLog] [info] There is 1 library.
+[2020-04-07 11:44:35.173] [jointLog] [info] Loading pufferfish index
+[2020-04-07 11:44:35.173] [jointLog] [info] Loading dense pufferfish index.
+[2020-04-07 11:44:35.861] [jointLog] [info] done
+[2020-04-07 11:44:35.861] [jointLog] [info] Index contained 31,940 targets
+[2020-04-07 11:44:35.873] [jointLog] [info] Number of decoys : 1,870
+[2020-04-07 11:44:35.873] [jointLog] [info] First decoy index : 30,069 
+[2020-04-07 11:44:36.105] [jointLog] [info] Automatically detected most likely library type as U
+[2020-04-07 11:44:59.006] [jointLog] [info] Computed 44,443 rich equivalence classes for further processing
+[2020-04-07 11:44:59.006] [jointLog] [info] Counted 14,689,181 total reads in the equivalence classes 
+[2020-04-07 11:44:59.012] [jointLog] [info] Number of mappings discarded because of alignment score : 988,911
+[2020-04-07 11:44:59.012] [jointLog] [info] Number of fragments entirely discarded because of alignment score : 115,220
+[2020-04-07 11:44:59.012] [jointLog] [info] Number of fragments discarded because they are best-mapped to decoys : 41,292
+[2020-04-07 11:44:59.012] [jointLog] [info] Number of fragments discarded because they have only dovetail (discordant) mappings to valid targets : 0
+[2020-04-07 11:44:59.012] [jointLog] [info] Mapping rate = 78.0678%
+
+[2020-04-07 11:44:59.012] [jointLog] [info] finished quantifyLibrary()
+[2020-04-07 11:44:59.013] [jointLog] [info] Starting optimizer
+[2020-04-07 11:44:59.026] [jointLog] [info] Marked 0 weighted equivalence classes as degenerate
+[2020-04-07 11:44:59.028] [jointLog] [info] iteration = 0 | max rel diff. = 21092.5
+[2020-04-07 11:44:59.007] [fileLog] [info] 
+At end of round 0
+==================
+Observed 18815930 total fragments (18815930 in most recent round)
+
+[2020-04-07 11:44:59.210] [jointLog] [info] iteration = 100 | max rel diff. = 7.66534
+[2020-04-07 11:44:59.402] [jointLog] [info] iteration = 200 | max rel diff. = 3.90242
+[2020-04-07 11:44:59.594] [jointLog] [info] iteration = 300 | max rel diff. = 9.30907
+[2020-04-07 11:44:59.788] [jointLog] [info] iteration = 400 | max rel diff. = 9.80171
+[2020-04-07 11:44:59.981] [jointLog] [info] iteration = 500 | max rel diff. = 1.77868
+[2020-04-07 11:45:00.174] [jointLog] [info] iteration = 600 | max rel diff. = 8.84513
+[2020-04-07 11:45:00.375] [jointLog] [info] iteration = 700 | max rel diff. = 0.51205
+[2020-04-07 11:45:00.574] [jointLog] [info] iteration = 800 | max rel diff. = 0.0925811
+[2020-04-07 11:45:00.769] [jointLog] [info] iteration = 900 | max rel diff. = 1.67847
+[2020-04-07 11:45:00.963] [jointLog] [info] iteration = 1,000 | max rel diff. = 0.132902
+[2020-04-07 11:45:01.157] [jointLog] [info] iteration = 1,100 | max rel diff. = 0.0447725
+[2020-04-07 11:45:01.349] [jointLog] [info] iteration = 1,200 | max rel diff. = 0.079376
+[2020-04-07 11:45:01.541] [jointLog] [info] iteration = 1,300 | max rel diff. = 0.520907
+[2020-04-07 11:45:01.734] [jointLog] [info] iteration = 1,400 | max rel diff. = 0.0420413
+[2020-04-07 11:45:01.931] [jointLog] [info] iteration = 1,500 | max rel diff. = 0.492573
+[2020-04-07 11:45:02.125] [jointLog] [info] iteration = 1,600 | max rel diff. = 0.0326988
+[2020-04-07 11:45:02.317] [jointLog] [info] iteration = 1,700 | max rel diff. = 1.97009
+[2020-04-07 11:45:02.483] [jointLog] [info] iteration = 1,787 | max rel diff. = 0.00946162
+[2020-04-07 11:45:02.484] [jointLog] [info] Finished optimizer
+[2020-04-07 11:45:02.484] [jointLog] [info] writing output 
+

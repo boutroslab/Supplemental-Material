@@ -1,0 +1,50 @@
+[2020-04-07 12:11:30.039] [jointLog] [info] Fragment incompatibility prior below threshold.  Incompatible fragments will be ignored.
+[2020-04-07 12:11:30.039] [jointLog] [info] Usage of --validateMappings implies use of minScoreFraction. Since not explicitly specified, it is being set to 0.65
+[2020-04-07 12:11:30.039] [jointLog] [info] Usage of --validateMappings implies a default consensus slack of 0.2. Setting consensusSlack to 0.35.
+[2020-04-07 12:11:30.039] [jointLog] [info] parsing read library format
+[2020-04-07 12:11:30.039] [jointLog] [info] There is 1 library.
+[2020-04-07 12:11:30.259] [jointLog] [info] Loading pufferfish index
+[2020-04-07 12:11:30.259] [jointLog] [info] Loading dense pufferfish index.
+[2020-04-07 12:11:31.064] [jointLog] [info] done
+[2020-04-07 12:11:31.064] [jointLog] [info] Index contained 31,940 targets
+[2020-04-07 12:11:31.078] [jointLog] [info] Number of decoys : 1,870
+[2020-04-07 12:11:31.078] [jointLog] [info] First decoy index : 30,069 
+[2020-04-07 12:11:31.304] [jointLog] [info] Automatically detected most likely library type as U
+[2020-04-07 12:11:59.695] [fileLog] [info] 
+At end of round 0
+==================
+Observed 22937942 total fragments (22937942 in most recent round)
+
+[2020-04-07 12:11:59.694] [jointLog] [info] Computed 47,873 rich equivalence classes for further processing
+[2020-04-07 12:11:59.694] [jointLog] [info] Counted 17,723,675 total reads in the equivalence classes 
+[2020-04-07 12:11:59.701] [jointLog] [info] Number of mappings discarded because of alignment score : 1,207,200
+[2020-04-07 12:11:59.701] [jointLog] [info] Number of fragments entirely discarded because of alignment score : 135,724
+[2020-04-07 12:11:59.701] [jointLog] [info] Number of fragments discarded because they are best-mapped to decoys : 48,748
+[2020-04-07 12:11:59.701] [jointLog] [info] Number of fragments discarded because they have only dovetail (discordant) mappings to valid targets : 0
+[2020-04-07 12:11:59.701] [jointLog] [info] Mapping rate = 77.2679%
+
+[2020-04-07 12:11:59.701] [jointLog] [info] finished quantifyLibrary()
+[2020-04-07 12:11:59.701] [jointLog] [info] Starting optimizer
+[2020-04-07 12:11:59.721] [jointLog] [info] Marked 0 weighted equivalence classes as degenerate
+[2020-04-07 12:11:59.723] [jointLog] [info] iteration = 0 | max rel diff. = 38030.5
+[2020-04-07 12:11:59.923] [jointLog] [info] iteration = 100 | max rel diff. = 5.87896
+[2020-04-07 12:12:00.122] [jointLog] [info] iteration = 200 | max rel diff. = 15.8782
+[2020-04-07 12:12:00.320] [jointLog] [info] iteration = 300 | max rel diff. = 5.91247
+[2020-04-07 12:12:00.520] [jointLog] [info] iteration = 400 | max rel diff. = 1.81309
+[2020-04-07 12:12:00.720] [jointLog] [info] iteration = 500 | max rel diff. = 1.63653
+[2020-04-07 12:12:00.920] [jointLog] [info] iteration = 600 | max rel diff. = 3.04487
+[2020-04-07 12:12:01.121] [jointLog] [info] iteration = 700 | max rel diff. = 1.43159
+[2020-04-07 12:12:01.321] [jointLog] [info] iteration = 800 | max rel diff. = 3.12692
+[2020-04-07 12:12:01.520] [jointLog] [info] iteration = 900 | max rel diff. = 0.0694891
+[2020-04-07 12:12:01.719] [jointLog] [info] iteration = 1,000 | max rel diff. = 0.191748
+[2020-04-07 12:12:01.919] [jointLog] [info] iteration = 1,100 | max rel diff. = 0.100339
+[2020-04-07 12:12:02.120] [jointLog] [info] iteration = 1,200 | max rel diff. = 0.0621755
+[2020-04-07 12:12:02.320] [jointLog] [info] iteration = 1,300 | max rel diff. = 0.148997
+[2020-04-07 12:12:02.513] [jointLog] [info] iteration = 1,400 | max rel diff. = 0.0395811
+[2020-04-07 12:12:02.703] [jointLog] [info] iteration = 1,500 | max rel diff. = 0.0302132
+[2020-04-07 12:12:02.893] [jointLog] [info] iteration = 1,600 | max rel diff. = 0.0494706
+[2020-04-07 12:12:03.080] [jointLog] [info] iteration = 1,700 | max rel diff. = 0.0454169
+[2020-04-07 12:12:03.183] [jointLog] [info] iteration = 1,756 | max rel diff. = 0.00465769
+[2020-04-07 12:12:03.184] [jointLog] [info] Finished optimizer
+[2020-04-07 12:12:03.184] [jointLog] [info] writing output 
+

@@ -1,0 +1,398 @@
+---
+title: "Mechanical competition drives immune cell death to fuel intestinal tumorigenesis "
+author: "Erica Valentini"
+date: "`r Sys.Date()`"
+abstract: >
+  Tissue homeostasis is achieved by balancing stem cell maintenance, cell proliferation and differentiation, as well as the purging damaged cells. Competition for space induces elimination of unfit cells in tissue development. However, the underlying mechanisms driving competitive growth when homeostasis fails, for example during tumorigenesis, remain largely unresolved. Here, using a Drosophila intestinal model, we find that tumor cells outcompete nearby enterocytes (ECs) by exerting junctional tensile forces. This process relies on activating the immune-responsive Relish/NF-kB pathway to induce EC delamination and requires a JNK-dependent transcriptional upregulation of the peptidoglycan recognition protein PGRP-LA. Consequently, in organisms with impaired PGRP-LA function, tumor growth is delayed, and lifespan extended. Our study identifies a non-cell autonomous role for a JNK/PGRP-LA/Relish signaling axis in mediating death of neighboring normal cells to facilitate tumor growth.  We propose that intestinal tumors ‘hijack’ innate immune signaling to eliminate enterocytes in order to support their own growth.
+bibliography: reference.bib
+VignetteBuilder: knitr
+Suggests: BiocStyle, knitr, rmarkdown
+output: BiocStyle::pdf_document
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning=FALSE, cache = FALSE)
+```
+
+# About
+
+This document contains computer code to reproduce the heatmaps and differential gene expression analyses presented in the manuscript.
+
+For this analysis two different datasets have been analysed:
+
+The first dataset consists in the following samples:
+
+1. WT day7 (three replicates)
+2. Shn RNAi day7 (two replicates)
+3. Shn RNAi PucE69/+ (two replicates)
+
+The comparison performed in section [Differential gene expression] is:
+__WT day7 vs. Shn RNAi PucE69/+__
+
+The second dataset is described in the last section [Second dataset] and contains the following experiments:
+
+1. WT_PMG (two replicates)
+2. RelKO_PMG (two replicates)
+3. Shn_PMG (three replicates)
+4. ShnRelKO_PMG (two replicates)
+
+# Dependencies
+
+We load a number of packages whose functions are needed throughout the analysis
+
+```{r imports}
+library("tximport")
+library("readr")
+library("tximportData")
+library("tidyverse")
+library("tibble")
+library("tximeta")
+library("org.Dm.eg.db")
+library("DESeq2")
+library("vsn")
+library("pheatmap")
+library("RColorBrewer")
+library("readxl")
+library("apeglm")
+library("fgsea")
+```
+
+# Transcript mapping and quantification 
+
+Salmon [@Patro_Duggal_Love_Irizarry_Kingsford_2017] was used to map and quantify the transcripts.
+
+The last version of Salmon (salmon-1.0.0_linux_x86_64.tar.gz
+) was downloaded from [github](https://github.com/COMBINE-lab/salmon/releases)
+
+The reference genome and transcriptome were downloaded from: [ensembl](ftp://ftp.ensembl.org/pub/release-98/fasta/drosophila_melanogaster/).
+
+In order to run it one needs first to create an index:
+
+```{bash index, eval=FALSE}
+grep "^>" <(gunzip -c Drosophila_melanogaster.BDGP6.22.dna_rm.toplevel.fa.gz) | 
+cut -d " " -f 1 > decoys.txt
+
+sed -i.bak -e 's/>//g' decoys.txt
+
+cat Drosophila_melanogaster.BDGP6.22.cdna.all.fa.gz
+Drosophila_melanogaster.BDGP6.22.dna_rm.toplevel.fa.gz > gentrome.fa.gz
+
+./salmon-latest_linux_x86_64/bin/salmon index -t gentrome.fa.gz -d decoys.txt 
+-p 12 -i salmon_index
+```
+
+And then to quantify the transcripts using a bash script like the following:
+
+```{bash salmon, eval=FALSE}
+#!/bin/bash
+
+for fn in directory_with_fastq_files/*;
+    do
+        samp=`basename ${fn}`
+        echo "Processing sample ${samp}"
+        echo "located in $fn/fastq/${samp}_R1.fastq.gz"
+        ./salmon-latest_linux_x86_64/bin/salmon  quant -i salmon_index -l A \
+            -r $fn/fastq/${samp}_R1.fastq.gz \
+            -p 8 --validateMappings -o quants/${samp}_quant
+done
+```
+
+## Import metadata and quantification files
+
+The quantification files are then imported together with a file containing all the metadata regarding the project.
+
+```{r metadata}
+# load metadata
+samples <- read_csv("samples.csv")
+samples %>% dplyr::select(id, condition, SAMPLE_ID, sample_name, FASTQ_FILE)
+# load files with quantification
+files <- file.path(samples$directory, "quant.sf")
+names(files) <- samples$sample_name
+```
+
+## Transform transcript to gene
+
+Tximeta [@Love_Soneson_Hickey_Johnson_Pierce_Shepherd_Morgan_Patro_2020] was used to import the quantification files and map them to the Drosophila genome.
+
+```{r tximport}
+coldata <- data.frame(files, names = samples$sample_name)
+se <- tximeta(coldata)
+gse <- summarizeToGene(se)
+```
+
+Gene symbol and names were added to the FlyBase identifiers:
+
+```{r new_id}
+gse <- addIds(gse, "REFSEQ", gene=TRUE)
+mcols(gse)
+```
+
+# Gene expression analysis
+
+The `SummarizedExperiment` object produced by tximeta is loaded into DESeq2 [@Love_Huber_Anders_2014] to perform the gene expression analysis. The different conditions __WT day7_, __Shrn RNAi day7__ and __Shn RNAi PucE69/+__ were used for the design with WT as reference level.
+
+```{r deseq2}
+colData(gse)$condition <- as_factor(samples$condition)
+dds <- DESeqDataSet(gse, design = ~ condition)
+dds$condition <- relevel(dds$condition, ref = "WT day7")
+```
+
+## Filter
+
+Only genes with at least 5 counts among all samples are kept.
+
+```{r dseq-analysis}
+before <- nrow(dds)
+#remove low counts
+dds <- dds[rowSums(counts(dds)) >= 5, ]
+after <- nrow(dds)
+#rename genes
+rownames(dds) <- mcols(dds)$symbol
+```
+
+After filtering the number of genes went from `r before ` to `r after `.
+
+## Normalization
+
+VST or Variance Stabilizing Transformation [@vst] was the chosen transformation.
+VST produces transformed data on the log2 scale which has been normalized with respect to library size and other normalization factors to remove the dependence of the variance on the mean, particularly the high variance of the logarithm of count data when the mean is low.
+
+```{r normalization}
+# apply VST normalization
+vsd <- vst(dds, blind = FALSE)
+```
+
+# Heatmaps
+
+The following heatmaps have been produced using the normalized data and centering and scaling the genes.
+
+## Figure 1D
+
+The heatmap in figure 1D shows the normalized expression of a subset of the genes involved in innate immunity.
+
+```{r heatmap_1D, fig.height=6}
+# load genes to show in heatmap
+NFkB_signature_subset <- read.csv("NFkB_signature.csv", 
+  row.names=1, stringsAsFactors = FALSE)
+colnames(NFkB_signature_subset) <- "gene"
+# make heatmap
+pheatmap(assay(vsd)[NFkB_signature_subset$gene,], 
+         scale= 'row', 
+         color=colorRampPalette(rev(brewer.pal(n=11, name = "RdBu")))(200), 
+         cluster_cols = F)
+```
+
+## Figure 5A
+
+The heatmap in figure 5A shows a list of genes involved in the activation of Imd/Relish pathway.
+
+```{r heatmap_5A}
+#load genes to show in heatmap
+upregulated_genes_immunity <- read.csv("upregulated_genes_immunity.csv", 
+  row.names=1, stringsAsFactors = FALSE)
+colnames(upregulated_genes_immunity) <- "gene"
+#make heatmap
+pheatmap(assay(vsd)[upregulated_genes_immunity$gene,], 
+         scale= 'row', 
+         color=colorRampPalette(rev(brewer.pal(n=11, name = "RdBu")))(200), 
+         cluster_cols = F)
+```
+
+
+
+# Differential gene expression
+
+We calculated the log2 fold changes between __Shn RNAi PucE69/+__ and control __WT day7__. The log2 fold changes have then been schrinked using apeglm [@Zhu_Ibrahim_Love_2018] to reduce high variability in low expressing genes.
+
+```{r res}
+dds <- DESeq(dds)
+res_wt_puc <- results(dds, contrast = c("condition", "Shn RNAi PucE69/+", "WT day7"))
+res <- lfcShrink(dds, coef="condition_Shn.RNAi.PucE69.._vs_WT.day7", type="apeglm")
+```
+
+## GO analysis
+
+A total of `r sum(res$pvalue<0.01, na.rm=TRUE)` genes are differentially expressed with a p-value below 0.01. Those have been used as input for the gene ontology analysis of biological processes using the online tool DAVID [@Huang_Sherman_Lempicki_2009].
+
+The output of the analysis has been plot using the following:
+
+```{r go}
+# load go analysis output
+res_wt_vs_puc_schrinked <- read_csv("res_wt_vs_puc_schrinked.csv")
+# plot results
+ggplot(res_wt_vs_puc_schrinked, 
+       aes(reorder(`Go term_BP enrichment`, `LOG10 P`), -`LOG10 P`)) +
+  geom_col(aes(fill=`P-value`<0.05)) +
+  coord_flip() +
+  labs(x="Pathway", y="- Log10 Pvalue",
+       title="GO-analysis") + 
+  theme_minimal()
+```
+
+## GSEA analysis
+
+We perform gene set enrichment analysis using the Broad Institute's [GSEA](http://software.broadinstitute.org/gsea/index.jsp) [@Subramanian_Tamayo_Mootha_Mukherjee_Ebert_Gillette_Paulovich_Pomeroy_Golub_Lander_2005]. An R version of the algorithm is implemented in the `fgsea` algorithm [@fgsea], which we use for this analysis.
+
+First we load the two gene signatures:
+
+```{r load_gene_signatures}
+NFkB_dependent_gene_list <- read.csv("NFkB_dependent_gene_list.csv", 
+  row.names=1, stringsAsFactors = FALSE)
+colnames(NFkB_dependent_gene_list) <- "gene"
+
+Hippo_signaling_gene_list <- read.csv("Hippo signaling.csv", 
+  row.names=1, stringsAsFactors = FALSE)
+colnames(Hippo_signaling_gene_list) <- "gene"
+```
+
+Then we run `fgsea`: 
+
+```{r gsea}
+pathway <- list()
+pathway$NFkB <- NFkB_dependent_gene_list$gene
+pathway$Hippo <- Hippo_signaling_gene_list$gene
+
+res_gsea <- as.data.frame(res_wt_puc) %>% 
+  rownames_to_column(var="SYMBOL") %>% 
+  dplyr::select(SYMBOL, stat)
+
+ranks <- deframe(res_gsea)
+
+fgseaRes <- fgsea(pathways=pathway, stats=ranks, nperm=1000)
+```
+
+
+We want to visualize the results as a barcode plot. `fgsea` already implements a nice barcode plot, which we customize a bit to adapt it according to our expectations using the following script inspired from [@boutroslab_Supplemental-Material].
+
+
+```{r fgsea-plot-custom}
+custom_barcode_plot <- function(stat_vector, sig){
+## genes in signature
+sig_genes <- pathway[[sig]]
+## generate barcode plot
+bc_plot <- plotEnrichment(sig_genes, stat_vector)
+## remove unwanted layers
+bc_plot$layers <- list()
+## add barcode at the bottom
+lowest_pos <- min(bc_plot$data[,2])
+dash_length <- abs(purrr::reduce(range(bc_plot$data[,2]), `-`)*0.1)
+middle <- which.min(abs(sort(stat_vector, decreasing=T)))
+bc_plot_custom <- bc_plot + geom_segment(aes(x=x, xend=x), y=lowest_pos,
+yend=lowest_pos-dash_length) +
+geom_line(colour='#4daf4a') +
+geom_hline(yintercept=lowest_pos, colour='#cccccc') +
+geom_hline(yintercept=0, colour='#cccccc') + xlab('') +
+theme_classic() +
+geom_tile(data=tibble(rank=1:length(stat_vector),
+y=lowest_pos-(1.25*dash_length)),
+aes(x=rank, y=y, fill=rank),
+width=1,
+height=0.5*dash_length) +
+scale_fill_gradient2(low ='#b2182b', high='#2166ac',
+mid='#f7f7f7', midpoint = middle) +
+scale_x_continuous(expand = c(0, 0)) +
+scale_y_continuous(expand = c(0, 0)) +
+theme(panel.grid=element_blank(),
+axis.text.x=element_blank(),
+axis.ticks.x = element_blank(),
+legend.position = 'none') +
+ggtitle(paste(str_replace_all(sig, "_", " "), "signature", sep = " ")) +
+ylab('Enrichment score')
+return(bc_plot_custom)
+}
+
+bc_plots <- map(1:length(pathway), function(j){
+bcp <- custom_barcode_plot(ranks, names(pathway[j])) +
+annotate('text', x=Inf , y=Inf, hjust=1, vjust=1,
+label=paste('NES =', round(fgseaRes$NES[j], 2),
+'\nFDR =', round(fgseaRes$padj[j], 3)))
+return(bcp)
+})
+
+print(bc_plots)
+```
+
+# Second dataset
+
+For the analysis of the second dataset `Salmon` was also used and imported with tximeta as explained in the previous sections.
+
+## Import metadata and quantification files
+
+The quantification files are then imported together with a file containing all the metadata regarding the project.
+
+```{r data-import_second_dataset}
+# load metadata
+samples <- read_csv("samples_second_dataset.csv")
+samples %>% dplyr::select(id, condition, SAMPLE_ID, sample_name, FASTQ_FILE)
+# load files with quantification
+files <- file.path(samples$directory, "quant.sf")
+names(files) <- samples$sample_name
+
+# Transform transcript to gene
+coldata <- data.frame(files, names = samples$sample_name)
+se <- tximeta(coldata)
+gse <- summarizeToGene(se)
+
+# Gene symbol and names were added to the FlyBase identifiers:
+gse <- addIds(gse, "REFSEQ", gene=TRUE)
+```
+
+## Gene expression analysis
+
+The different conditions __WT_PMG__, __RelKO_PMG__, __Shn_PMG__ and __ShnRelKO_PMG__ were used for the design with __WT_PMG__ as reference level.
+
+```{r deseq2_second_dataset}
+colData(gse)$condition <- as_factor(samples$condition)
+dds <- DESeqDataSet(gse, design = ~ condition)
+dds$condition <- relevel(dds$condition, ref = "WT_PMG")
+```
+
+## Filter and normalization
+
+Only genes with at least 5 counts among all samples are kept.
+
+```{r dseq-analysis_second_dataset}
+# number of genes before:
+nrow(dds)
+#remove low counts
+dds <- dds[rowSums(counts(dds)) >= 5, ]
+#number of genes after:
+nrow(dds)
+#rename genes
+rownames(dds) <- mcols(dds)$symbol
+# apply VST normalization
+vsd <- vst(dds, blind = FALSE)
+```
+
+## Heatmap Figure S3C
+
+The heatmap in figure S3C shows the normalized expression of upregulated genes involved in pro-apoptotic processes.
+
+```{r heatmap_S3C}
+# load genes to show in heatmap
+apoptotic_genes <- read.csv("apoptotic_genes.csv", 
+  row.names=1, stringsAsFactors = FALSE)
+colnames(apoptotic_genes) <- "gene"
+# make heatmap
+pheatmap(assay(vsd)[apoptotic_genes$gene,], 
+         scale= 'row', 
+         color=colorRampPalette(rev(brewer.pal(n=11, name = "RdBu")))(200), 
+         cluster_cols = F)
+```
+
+# Session info
+
+```{r}
+sessionInfo()
+```
+
+# Bibliography
+
+
+

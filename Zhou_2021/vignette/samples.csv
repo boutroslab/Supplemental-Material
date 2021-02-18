@@ -1,0 +1,8 @@
+,FASTQ_FILE,SAMPLE_ID,id,condition,sample_name,directory
+AS-96216-LR-13830_R1.fastq.gz,AS-96216-LR-13830_R1.fastq.gz,1.WT day7,1,WT day7,w1118_1,./quants_004927/quants_004927/AS-96216-LR-13830_quant
+AS-97402-LR-13624_R1.fastq.gz,AS-97402-LR-13624_R1.fastq.gz,2. WT day7,2,WT day7,w1118_2,./quants_004927/quants_004927/AS-97402-LR-13624_quant
+AS-97404-LR-13625_R1.fastq.gz,AS-97404-LR-13625_R1.fastq.gz,3. WT day7,3,WT day7,w1118_3,./quants_004927/quants_004927/AS-97404-LR-13625_quant
+AS-96218-LR-13830_R1.fastq.gz,AS-96218-LR-13830_R1.fastq.gz,4. Shn RNAi day7,4,Shn RNAi day7,Shn-RNAi_1,./quants_004927/quants_004927/AS-96218-LR-13830_quant
+AS-97406-LR-13624_R1.fastq.gz,AS-97406-LR-13624_R1.fastq.gz,5. Shn RNAi day7,5,Shn RNAi day7,Shn-RNAi_2,./quants_004927/quants_004927/AS-97406-LR-13624_quant
+AS-97409-LR-13625_R1.fastq.gz,AS-97409-LR-13625_R1.fastq.gz,6. Shn RNAi PucE69/+,6,Shn RNAi PucE69/+,"Shn-RNAi,PucE69/+_1",./quants_004927/quants_004927/AS-97409-LR-13625_quant
+AS-96221-LR-13830_R1.fastq.gz,AS-96221-LR-13830_R1.fastq.gz,7. Shn RNAi PucE69/+,7,Shn RNAi PucE69/+,"Shn-RNAi,PucE69/+_2",./quants_004927/quants_004927/AS-96221-LR-13830_quant
