@@ -216,7 +216,7 @@ res_wt_puc <- results(dds, contrast = c("condition", "Shn RNAi PucE69/+", "WT da
 res <- lfcShrink(dds, coef="condition_Shn.RNAi.PucE69.._vs_WT.day7", type="apeglm")
 ```
 
-## GO analysis
+## GO analysis: Figure 1B
 
 A total of `r sum(res$pvalue<0.01, na.rm=TRUE)` genes are differentially expressed with a p-value below 0.01. Those have been used as input for the gene ontology analysis of biological processes using the online tool DAVID [@Huang_Sherman_Lempicki_2009].
 
@@ -235,7 +235,7 @@ ggplot(res_wt_vs_puc_schrinked,
   theme_minimal()
 ```
 
-## GSEA analysis
+## GSEA analysis: Figure 1C
 
 We perform gene set enrichment analysis using the Broad Institute's [GSEA](http://software.broadinstitute.org/gsea/index.jsp) [@Subramanian_Tamayo_Mootha_Mukherjee_Ebert_Gillette_Paulovich_Pomeroy_Golub_Lander_2005]. An R version of the algorithm is implemented in the `fgsea` algorithm [@fgsea], which we use for this analysis.
 

@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020 Gentoo Linux) (preloaded format=pdflatex 2021.1.11)  18 FEB 2021 14:12
+This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020 Gentoo Linux) (preloaded format=pdflatex 2021.1.11)  19 FEB 2021 10:29
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -928,12 +928,12 @@ Package atveryend Info: Empty hook `AfterLastShipout' on input line 881.
 Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 881.
 Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 881.
 Package rerunfilecheck Info: File `zhou_2021.out' has not changed.
-(rerunfilecheck)             Checksum: F5B70FAA27D2B5DB53D51CF82DFAABF1;1345.
+(rerunfilecheck)             Checksum: 092C99198686157859D4A29A23204447;1367.
  ) 
 Here is how much of TeX's memory you used:
  13845 strings out of 482834
- 214069 string characters out of 5957597
- 530507 words of memory out of 5000000
+ 214089 string characters out of 5957597
+ 530529 words of memory out of 5000000
  28652 multiletter control sequences out of 15000+600000
  602705 words of font info for 105 fonts, out of 8000000 for 9000
  36 hyphenation exceptions out of 8191
@@ -947,7 +947,7 @@ type1/public/lm/lmss10.pfb></usr/share/texmf-dist/fonts/type1/public/lm/lmssbo1
 mf-dist/fonts/type1/public/lm/lmsso10.pfb></usr/share/texmf-dist/fonts/type1/pu
 blic/cm-super/sftt1000.pfb></usr/share/texmf-dist/fonts/type1/urw/helvetic/uhvb
 8a.pfb></usr/share/texmf-dist/fonts/type1/urw/helvetic/uhvr8a.pfb>
-Output written on zhou_2021.pdf (16 pages, 279337 bytes).
+Output written on zhou_2021.pdf (16 pages, 279301 bytes).
 PDF statistics:
  336 PDF objects out of 1000 (max. 8388607)
  267 compressed objects within 3 object streams
