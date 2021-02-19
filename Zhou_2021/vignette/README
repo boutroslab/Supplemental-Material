@@ -1,1 +1,9 @@
 The directory contains the code that was used to analyze RNAseq data and perform enrichment analysis.
+
+It contains the code that was used to produce the following figures in the paper:
+
+1. Figure 1B
+2. Figure 1C
+3. Figure 1D
+4. Figure 5A
+5. Supplementary figure 3C
