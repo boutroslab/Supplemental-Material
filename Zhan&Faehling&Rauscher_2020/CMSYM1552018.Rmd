@@ -36,11 +36,10 @@ library(GEOquery)
 library(preprocessCore)
 library(pheatmap)
 library(openxlsx)
-library(sva)
-library(impute)
 library(reshape2)
 library(ggsignif)
 library(CMSclassifier)
+library(CMScaller)
 library(ggrepel)
 library(perm)
 library(patchwork)
@@ -124,8 +123,9 @@ data('adai_sample_anno', package='CMSYM1552018')
 ```
 
 ```{r, results='hide', warning=F, message=F}
-## add to adai_for_cms data
-adai_for_cms <- adai_for_cms %>% left_join(adai_sample_anno)
+## add to adai_for_cms data, exclude misclassified lines
+adai_for_cms <- adai_for_cms %>% left_join(adai_sample_anno) %>%
+  filter(!cellline %in% c('COLO741', 'NCIH630', 'FHC', 'FHS'))
 ```
 
 Now we classify the CRC subtypes of the Adai cell line data set using the CMSclassifier [@Guinney2015].
@@ -138,14 +138,25 @@ adai_mat <- adai_for_cms %>% dplyr::select(entrez, sample, expr) %>%
   data.frame() %>% column_to_rownames('entrez')
 adai_anno <- adai_for_cms %>% distinct(sample, cellline)
 
-## classify using RF
-adai_cms <- classifyCMS.RF(as.data.frame(adai_mat))
+## classify using RF, 1000 random samples
+adai_cms <- map_df(1:1000, function(i){
+  classifyCMS.RF(as.data.frame(adai_mat)[,sample(1:ncol(adai_mat), sample(5:ncol(adai_mat), 1))]) %>%
+    as_tibble(rownames = 'sample') %>%
+    mutate(iteration = i)
+})
 
 ## annotate samples with CMS predictions
 adai_cms <- adai_anno %>% 
-  left_join(adai_cms %>% data.frame() %>% mutate(sample=rownames(.)) %>% tbl_df %>% 
-              `colnames<-`(gsub('.posteriorProb', '', gsub('RF.', '', colnames(.))))) %>%
-  mutate(predictedCMS = ifelse(is.na(predictedCMS), 'np', predictedCMS))
+  left_join(adai_cms %>% `colnames<-`(gsub('.posteriorProb', '', gsub('RF.', '', colnames(.))))) %>%
+  mutate(predictedCMS = ifelse(is.na(predictedCMS), 'np', predictedCMS)) %>%
+  group_by(sample, cellline) %>% count(predictedCMS) %>% ungroup()
+
+## Cell-line CMS classifier
+adai_cms_preclin <- CMScaller(adai_mat)
+adai_cms_preclin <- adai_cms_preclin %>% as_tibble(rownames='sample') %>% 
+  dplyr::select(sample, CMSpreclinical = prediction) %>% 
+  inner_join(adai_anno)
+adai_cms <- adai_cms %>% inner_join(adai_cms_preclin)
 ```
 
 ## Wagner cell line
@@ -171,7 +182,8 @@ Again we annotate the cell line for each sample.
 data('wagner_sample_info', package='CMSYM1552018')
 
 ## add to wagner_for_cms data
-wagner_for_cms <- wagner_for_cms %>% left_join(wagner_sample_info)
+wagner_for_cms <- wagner_for_cms %>% left_join(wagner_sample_info) %>%
+  filter(!cellline %in% c('COLO741', 'NCIH630', 'FHC', 'FHS'))
 ```
 
 Now we classify the CRC subtypes of the Wagner cell line data set using the CMSclassifier.
@@ -184,14 +196,25 @@ wagner_mat <- wagner_for_cms %>% dplyr::select(entrez, sample, expr) %>%
   data.frame() %>% column_to_rownames('entrez')
 wagner_anno <- wagner_for_cms %>% distinct(sample, cellline)
 
-## classify using RF
-wagner_cms <- classifyCMS.RF(as.data.frame(wagner_mat))
+## classify using RF, 1000 random samples
+wagner_cms <- map_df(1:1000, function(i){
+  classifyCMS.RF(as.data.frame(wagner_mat)[,sample(1:ncol(wagner_mat), sample(5:ncol(wagner_mat), 1))]) %>%
+    as_tibble(rownames = 'sample') %>%
+    mutate(iteration = i)
+})
 
 ## annotate samples with CMS predictions
 wagner_cms <- wagner_anno %>% 
-  left_join(wagner_cms %>% data.frame() %>% mutate(sample=rownames(.)) %>% tbl_df %>% 
-              `colnames<-`(gsub('.posteriorProb', '', gsub('RF.', '', colnames(.))))) %>%
-  mutate(predictedCMS = ifelse(is.na(predictedCMS), 'np', predictedCMS))
+  left_join(wagner_cms %>% `colnames<-`(gsub('.posteriorProb', '', gsub('RF.', '', colnames(.))))) %>%
+  mutate(predictedCMS = ifelse(is.na(predictedCMS), 'np', predictedCMS)) %>%
+  group_by(sample, cellline) %>% count(predictedCMS) %>% ungroup()
+
+## Cell-line CMS classifier
+wagner_cms_preclin <- CMScaller(wagner_mat)
+wagner_cms_preclin <- wagner_cms_preclin %>% as_tibble(rownames='sample') %>% 
+  dplyr::select(sample, CMSpreclinical = prediction) %>% 
+  inner_join(wagner_anno)
+wagner_cms <- wagner_cms %>% inner_join(wagner_cms_preclin)
 ```
 
 ## Garnett cell line
@@ -217,7 +240,8 @@ data('garnett_sample_info', package='CMSYM1552018')
 
 ```{r, results='hide', warning=F, message=F}
 ## add to wagner_for_cms data
-garnett_for_cms <- garnett_for_cms %>% left_join(garnett_sample_info)
+garnett_for_cms <- garnett_for_cms %>% left_join(garnett_sample_info) %>%
+  filter(!cellline %in% c('COLO741', 'NCIH630', 'FHC', 'FHS'))
 ```
 
 Now we classify the CRC subtypes of the Garnett cell line data set using the CMSclassifier.
@@ -230,14 +254,25 @@ garnett_mat <- garnett_for_cms %>% dplyr::select(entrez, sample, expr) %>%
   data.frame() %>% column_to_rownames('entrez')
 garnett_anno <- garnett_for_cms %>% distinct(sample, cellline)
 
-## classify using RF
-garnett_cms <- classifyCMS.RF(as.data.frame(garnett_mat))
+## classify using RF, 1000 random samples
+garnett_cms <- map_df(1:1000, function(i){
+  classifyCMS.RF(as.data.frame(garnett_mat)[,sample(1:ncol(garnett_mat), sample(5:ncol(garnett_mat), 1))]) %>%
+    as_tibble(rownames = 'sample') %>%
+    mutate(iteration = i)
+})
 
 ## annotate samples with CMS predictions
-garnett_cms <- garnett_anno %>% 
-  left_join(garnett_cms %>% data.frame() %>% mutate(sample=gsub('^X', '', rownames(.))) %>% tbl_df %>% 
-              `colnames<-`(gsub('.posteriorProb', '', gsub('RF.', '', colnames(.))))) %>%
-  mutate(predictedCMS = ifelse(is.na(predictedCMS), 'np', predictedCMS))
+garnett_cms <- garnett_anno %>% mutate(sample = paste0('X', sample)) %>%
+  left_join(garnett_cms %>% `colnames<-`(gsub('.posteriorProb', '', gsub('RF.', '', colnames(.))))) %>%
+  mutate(predictedCMS = ifelse(is.na(predictedCMS), 'np', predictedCMS)) %>%
+  group_by(sample, cellline) %>% count(predictedCMS) %>% ungroup()
+
+## Cell-line CMS classifier
+garnett_cms_preclin <- CMScaller(garnett_mat)
+garnett_cms_preclin <- garnett_cms_preclin %>% as_tibble(rownames='sample') %>% 
+  dplyr::select(sample, CMSpreclinical = prediction) %>% 
+  inner_join(garnett_anno %>% mutate(sample = paste0('X', sample)))
+garnett_cms <- garnett_cms %>% inner_join(garnett_cms_preclin)
 ```
 
 ## Barettina cell line
@@ -265,7 +300,8 @@ data('ccle_sample_info', package='CMSYM1552018')
 ```{r, results='hide', warning=F, message=F}
 ## add to wagner_for_cms data
 ccle_for_cms <- ccle_for_cms %>% mutate(sample = gsub('\\.', '-', sample)) %>% 
-  inner_join(ccle_sample_info)
+  inner_join(ccle_sample_info) %>%
+  filter(!cellline %in% c('COLO741', 'NCIH630', 'FHC', 'FHS'))
 ```
 
 Now we classify the CRC subtypes of the CCLE cell line data set using the CMSclassifier.
@@ -279,28 +315,58 @@ ccle_mat <- ccle_for_cms %>% dplyr::select(entrez, sample, expr) %>%
 ccle_anno <- ccle_for_cms %>% distinct(sample, cellline) %>% 
   mutate(sample = gsub('-', '.', sample))
 
-## classify using RF
-ccle_cms <- classifyCMS.RF(as.data.frame(ccle_mat))
+## classify using RF, 1000 random samples
+ccle_cms <- map_df(1:1000, function(i){
+  classifyCMS.RF(as.data.frame(ccle_mat)[,sample(1:ncol(ccle_mat), sample(5:ncol(ccle_mat), 1))]) %>%
+    as_tibble(rownames = 'sample') %>%
+    mutate(iteration = i)
+})
 
 ## annotate samples with CMS predictions
 ccle_cms <- ccle_anno %>% 
-  left_join(ccle_cms %>% data.frame() %>% mutate(sample=rownames(.)) %>% tbl_df %>% 
-              `colnames<-`(gsub('.posteriorProb', '', gsub('RF.', '', colnames(.))))) %>%
-  mutate(predictedCMS = ifelse(is.na(predictedCMS), 'np', predictedCMS))
+  left_join(ccle_cms %>% `colnames<-`(gsub('.posteriorProb', '', gsub('RF.', '', colnames(.))))) %>%
+  mutate(predictedCMS = ifelse(is.na(predictedCMS), 'np', predictedCMS)) %>%
+  group_by(sample, cellline) %>% count(predictedCMS) %>% ungroup()
+
+## Cell-line CMS classifier
+ccle_cms_preclin <- CMScaller(ccle_mat)
+ccle_cms_preclin <- ccle_cms_preclin %>% as_tibble(rownames='sample') %>% 
+  dplyr::select(sample, CMSpreclinical = prediction) %>% 
+  inner_join(ccle_anno)
+ccle_cms <- ccle_cms %>% inner_join(ccle_cms_preclin)
 ```
 
 Recently there has also been a large RNAseq data set with colorectal cell lines released [@Meyers2017]. We can also try to classify based on this set to see if the results are coherent.
 
 ```{r, results='hide', warning=F, message=F}
 data('ccle_rnaseq_mat', package='CMSYM1552018')
+ccle_rnaseq_mat <- ccle_rnaseq_mat[,!colnames(ccle_rnaseq_mat) %in% c('COLO741', 'NCIH630', 'FHC', 'FHS')]
+
+ccle_rnaseq_cms <- map_df(1:1000, function(i){
+  ## sample columns for classification
+  sample_cols <- sample(1:ncol(ccle_rnaseq_mat), 
+                        sample(5:ncol(ccle_rnaseq_mat), 1))
+  
+  ## determine cms for this iteration
+  cms_it <- classifyCMS.RF(as.data.frame(ccle_rnaseq_mat)[,sample_cols]) %>%
+    as_tibble(rownames = 'sample') %>%
+    mutate(iteration = i)
+  
+  return(cms_it)
+})
 
 ## classify subtypes
-ccle_rnaseq_cms <- classifyCMS.RF(as.data.frame(ccle_rnaseq_mat)) %>% 
-  rownames_to_column('cellline') %>% tbl_df %>% 
-  `colnames<-`(gsub('RF.', '', gsub('.posteriorProb', '', 
-                                    colnames(.)))) %>% 
-  mutate(sample=cellline) %>%
-  mutate(predictedCMS = ifelse(is.na(predictedCMS), 'np', predictedCMS))
+ccle_rnaseq_cms <- ccle_rnaseq_cms %>% 
+  `colnames<-`(gsub('RF.', '', gsub('.posteriorProb', '', colnames(.)))) %>% 
+  mutate(predictedCMS = ifelse(is.na(predictedCMS), 'np', predictedCMS)) %>% 
+  count(sample, predictedCMS)
+
+## Cell-line CMS classifier
+ccle_rnaseq_cms_preclin <- CMScaller(ccle_rnaseq_mat)
+ccle_rnaseq_cms_preclin <- ccle_rnaseq_cms_preclin %>% 
+  as_tibble(rownames='sample') %>% 
+  dplyr::select(sample, CMSpreclinical = prediction)
+ccle_rnaseq_cms <- ccle_rnaseq_cms %>% inner_join(ccle_rnaseq_cms_preclin)
 ```
 
 ## Medico cell line
@@ -330,8 +396,9 @@ data('medico_samples', package='CMSYM1552018')
 ```
 
 ```{r, results='hide', warning=F, message=F}
-## merge sample info with data
-medico_for_cms <- medico_for_cms %>% inner_join(medico_samples)
+## merge sample info with data, exclude misclassified lines
+medico_for_cms <- medico_for_cms %>% inner_join(medico_samples) %>%
+  filter(!cellline %in% c('COLO741', 'NCIH630', 'FHC', 'FHS', 'HUTU80'))
 ```
 
 Now we classify the CRC subtypes of the CCLE cell line data set using the CMSclassifier.
@@ -345,14 +412,26 @@ medico_mat <- medico_for_cms %>% dplyr::select(entrez, sample, expr) %>%
 medico_anno <- medico_for_cms %>% distinct(sample, cellline) %>% 
   mutate(sample = gsub('-', '.', sample))
 
-## classify using RF
-medico_cms <- classifyCMS.RF(as.data.frame(medico_mat))
+## classify using RF, 1000 random samples
+medico_cms <- map_df(1:1000, function(i){
+  classifyCMS.RF(as.data.frame(medico_mat)[,sample(1:ncol(medico_mat), sample(5:ncol(medico_mat), 1))]) %>%
+    as_tibble(rownames = 'sample') %>%
+    mutate(iteration = i)
+})
 
 ## annotate samples with CMS predictions
 medico_cms <- medico_anno %>% 
-  left_join(medico_cms %>% data.frame() %>% mutate(sample=rownames(.)) %>% tbl_df %>% 
-              `colnames<-`(gsub('.posteriorProb', '', gsub('RF.', '', colnames(.))))) %>%
-  mutate(predictedCMS = ifelse(is.na(predictedCMS), 'np', predictedCMS))
+  left_join(medico_cms %>% `colnames<-`(gsub('.posteriorProb', '', gsub('RF.', '', colnames(.))))) %>%
+  mutate(predictedCMS = ifelse(is.na(predictedCMS), 'np', predictedCMS)) %>%
+  group_by(sample, cellline) %>% count(predictedCMS) %>% ungroup()
+
+## Cell-line CMS classifier
+medico_cms_preclin <- CMScaller(medico_mat)
+medico_cms_preclin <- medico_cms_preclin %>% 
+  as_tibble(rownames='sample') %>% 
+  dplyr::select(sample, CMSpreclinical = prediction) %>%
+  inner_join(medico_anno)
+medico_cms <- medico_cms %>% inner_join(medico_cms_preclin)
 ```
 
 # Aggregation of subtype data
@@ -363,10 +442,23 @@ Now that we have classified all datasets for molecular subtypes we aggregate the
 data('msi_status', package='CMSYM1552018')
 
 ## combine classification results of individual datasets
-all_cms <- adai_cms %>% bind_rows(wagner_cms) %>% bind_rows(garnett_cms) %>% 
-  bind_rows(ccle_cms) %>% bind_rows(medico_cms) %>% bind_rows(ccle_rnaseq_cms) %>% 
-  mutate(cellline = toupper(cellline)) %>% group_by(cellline) %>% 
-  summarise(cms_profile = paste(predictedCMS, collapse=',')) %>% 
+all_cms <- adai_cms %>% mutate(set = 'Adai') %>%
+  bind_rows(wagner_cms %>% mutate(set = 'Wagner')) %>% 
+  bind_rows(garnett_cms %>% mutate(set = 'Garnett')) %>% 
+  bind_rows(ccle_cms %>% mutate(set = 'CCLE')) %>% 
+  bind_rows(medico_cms %>% mutate(set = 'Medico')) %>% 
+  bind_rows(ccle_rnaseq_cms %>% mutate(set = 'CCLE_RNAseq', cellline = sample)) %>% 
+  mutate(cellline = toupper(cellline), 
+         CMSpreclinical = ifelse(is.na(CMSpreclinical), 'np', as.character(CMSpreclinical))) %>% 
+  filter(n >= 150) %>% 
+  group_by(set, cellline, sample) %>% arrange(predictedCMS) %>% dplyr::slice(1) %>% ungroup() %>%
+  group_by(cellline, set) %>% 
+  summarise(predictedCMS = names(sort(table(predictedCMS), decreasing=T))[1],
+            CMSpreclinical = names(sort(table(CMSpreclinical), decreasing=T))[1]) %>% 
+  ungroup() %>%
+  group_by(cellline) %>% 
+  summarise(cms_profile = paste(predictedCMS, collapse=','),
+            cms_profile_preclin = paste(CMSpreclinical, collapse=',')) %>% 
   ungroup()
 
 ## add MSI info
@@ -378,12 +470,14 @@ We can also generate a visualization of the predicted subtypes across data sets.
 ```{r, results='hide', warning=F, message=F}
 adai_cms %>% mutate(set = 'Adai') %>%
   bind_rows(wagner_cms %>% mutate(set = 'Wagner')) %>% 
-  bind_rows(garnett_cms %>% mutate(set='Garnett')) %>% 
+  bind_rows(garnett_cms %>% mutate(set = 'Garnett')) %>% 
   bind_rows(ccle_cms %>% mutate(set = 'CCLE')) %>% 
   bind_rows(medico_cms %>% mutate(set = 'Medico')) %>% 
-  bind_rows(ccle_rnaseq_cms %>% mutate(set = 'CCLE_RNAseq')) %>% 
+  bind_rows(ccle_rnaseq_cms %>% mutate(set = 'CCLE_RNAseq', cellline = sample)) %>% 
   mutate(cellline = toupper(cellline)) %>% 
+  group_by(set, cellline, sample) %>% arrange(desc(n)) %>% dplyr::slice(1) %>% ungroup() %>% 
   dplyr::select(cellline, set, predictedCMS) %>% distinct() %>% 
+  filter(!cellline %in% c('COLO741', 'NCIH630', 'FHC', 'FHS')) %>%
   ggplot(aes(set, cellline, fill = predictedCMS)) + 
   geom_tile() + theme_classic()
 ```
@@ -397,20 +491,37 @@ cms_cl <- all_cms %>%
   mutate(cms = map(cms_profile, 
                    function(x) strsplit(x, ',') %>% unlist() %>%
                      table() %>% .[. == max(.)] %>% names() %>% 
-                     sort() %>% .[1])) %>% unnest(cms)
-
-## we exclude COLO741, which was shown to be a melanoma cell line
-cms_cl <- cms_cl %>% filter(!cellline %in% c('COLO741', 'HCT15', 'C32'))
+                     sort() %>% .[1]),
+         cms_preclin = map(cms_profile_preclin, 
+                   function(x) strsplit(x, ',') %>% unlist() %>%
+                     table() %>% .[. == max(.)] %>% names() %>% 
+                     sort() %>% .[1])) %>% 
+  unnest(c(cms, cms_preclin))
 ```
 
 In agreement with other reports in tumour organoids we observe a strong tendency towards classification into CMS1 or CMS2, whereas CMS3 and CMS4 are only rarely observed.
 
 ```{r, echo=F, fig.cap='Distribution of CRC cell line subtypes'}
-cms_cl %>% mutate(cms = factor(cms, levels = rev(sort(unique(cms))))) %>%
-  ggplot(aes(cms, fill=cms)) + geom_bar() + theme_classic() +
+## including the preclinical classifier
+cms_cl %>% gather(cms_type, cms, cms, cms_preclin) %>% 
+  mutate(classifier = ifelse(cms_type == 'cms', 'primary CMS', 'preclinical CMS')) %>% 
+  mutate(cms = factor(cms, levels = rev(sort(unique(cms))))) %>%
+  ggplot(aes(cms, fill=cms)) + geom_bar() + 
+  facet_wrap(~ classifier) + theme_classic() +
   scale_fill_manual(values=rev(c('#e4a103','#0270b1','#cc79a5',
                                  '#019f74', '#cccccc'))) + 
   coord_flip() + xlab('') +
+  theme(legend.position = 'none', axis.line.y = element_blank())
+
+## only the primary classifier
+cms_cl %>% gather(cms_type, cms, cms, cms_preclin) %>% 
+  mutate(classifier = ifelse(cms_type == 'cms', 'primary CMS', 'preclinical CMS')) %>% 
+  mutate(cms = factor(cms, levels = rev(sort(unique(cms))))) %>%
+  filter(cms_type == 'cms') %>%
+  ggplot(aes(cms, fill=cms)) + geom_bar() +
+  scale_fill_manual(values=rev(c('#e4a103','#0270b1','#cc79a5',
+                                 '#019f74', '#cccccc'))) + 
+  coord_flip() + xlab('') + theme_classic() +
   theme(legend.position = 'none', axis.line.y = element_blank())
 ```
 
@@ -418,7 +529,13 @@ Based on the paper we would assume that there is a significant relationship betw
 
 ```{r, message=F, results='hide', warning=F, message=F}
 cms_cl %>% filter(cms %in% c('CMS1', 'CMS2')) %>% 
-  dplyr::select(-c(cellline, cms_profile)) %>% table() %>% fisher.test()
+  dplyr::select(-c(cellline, cms_profile, cms_profile_preclin, cms_preclin)) %>% 
+  table() %>% fisher.test()
+
+## for preclinical classification
+cms_cl %>% filter(cms_preclin %in% c('CMS1', 'CMS2')) %>% 
+  dplyr::select(-c(cellline, cms_profile, cms_profile_preclin, cms)) %>% 
+  table() %>% fisher.test()
 ```
 
 # Comparison with other studies
@@ -470,33 +587,6 @@ sveen_cms %>% full_join(cms_cl %>% dplyr::select(cellline, CMS_original=cms)) %>
   pheatmap(color=c('#ffffff', '#e4a103','#0270b1','#cc79a5','#019f74'))
 ```
 
-Percent of matching class labels for each pair of classifiers.
-
-```{r, results='hide', warning=F, message=F}
-cms_comp <- sveen_cms %>% full_join(cms_cl %>% 
-                                      dplyr::select(cellline, CMS_original=cms)) %>% 
-  full_join(linne_cms) %>% mutate_all(~gsub('CMS', '', .)) %>% 
-  mutate_all(~ifelse(. %in% c('np', 'No label'), 0, .)) %>% 
-  dplyr::select(-cellline) %>% mutate_all('as.integer')
-
-calc_ol <- function(x, y) {
-  dat <- cms_comp[,c(x,y)] %>% drop_na() %>% data.frame()
-  ol <- sum(dat[,1] == dat[,2]) / nrow(dat)
-  return(ol)
-}
-
-combn(colnames(cms_comp), 2) %>% t %>% tbl_df %>% 
-  mutate(overlap = map2(V1, V2, function(x,y) calc_ol(x,y))) %>% 
-  unnest(overlap) %>% unite(comparison, V1, V2, sep=' ') %>% 
-  mutate(overlap = overlap * 100) %>%
-  ggplot(aes(comparison, overlap)) + geom_bar(stat='identity') + 
-  theme_classic() + ylim(c(0,100)) + 
-  geom_hline(yintercept=100, linetype='dashed') +
-  geom_hline(yintercept=50, linetype='dashed') +
-  ylab('classification overlap (in %)') + 
-  theme(axis.text.x = element_text(angle=45, hjust=1))
-```
-
 # Characterization of predicted subytpes
 
 We next try to recreate the copy number and mutation plots shown in the paper by Guinney et al., to observe if cell lines behave similarly. To do this, we use data from the COSMIC database [@Forbes2015]. Mutations include all non-silent mutation events. Copy number changes of X and Y chromosomes are disregarded.
@@ -504,16 +594,34 @@ We next try to recreate the copy number and mutation plots shown in the paper by
 ```{r, results='hide', warning=F, message=F}
 ## read and preprocess data exported from CCLE
 data('ccle_cnv', package='CMSYM1552018')
+ccle_cnv <- ccle_cnv %>% dplyr::select(EGID:value) %>%
+  inner_join(cms_cl)
 
 ## plot cna across groups (boxplot)
-scna_plot <- ccle_cnv %>% mutate(cnv=round((2^value)*2, digits=0)) %>%
+scna_plot <- ccle_cnv %>% filter(tissue == 'LARGE_INTESTINE') %>%
+  mutate(cnv=round((2^value)*2, digits=0)) %>%
   filter(!cnv %in% 2, CHR %in% as.character(1:22)) %>% 
-  count(cms, cellline) %>%
+  gather(cms_type, cms, cms, cms_preclin) %>% 
+  count(cms_type, cms, cellline) %>% 
+  filter(cms != 'np') %>%
+  ggplot(aes(cms, n, fill=cms)) + geom_boxplot() + theme_classic() +
+  geom_signif(comparisons = list(c('CMS1', 'CMS2'))) +
+  facet_wrap(~cms_type, ncol=1) +
+  xlab('') + ylab('SCNA count') + 
+  scale_fill_manual(values=c('#e4a103','#0270b1','#cc79a5',
+                                 '#019f74', '#cccccc')) + 
+  theme(legend.position='none')
+
+ccle_cnv %>% filter(tissue == 'LARGE_INTESTINE') %>%
+  mutate(cnv=round((2^value)*2, digits=0)) %>%
+  filter(!cnv %in% 2, CHR %in% as.character(1:22)) %>% 
+  gather(cms_type, cms, cms, cms_preclin) %>% 
+  count(cms_type, cms, cellline) %>% 
+  filter(cms_type == 'cms', cms %in% c('CMS1', 'CMS2', 'np')) %>%
   ggplot(aes(cms, n, fill=cms)) + geom_boxplot() + theme_classic() +
   geom_signif(comparisons = list(c('CMS1', 'CMS2'))) +
   xlab('') + ylab('SCNA count') + 
-  scale_fill_manual(values=c('#e4a103','#0270b1',
-                             '#019f74', '#ffffff')) + 
+  scale_fill_manual(values=c('#e4a103','#0270b1', '#cccccc')) + 
   theme(legend.position='none')
 ```
 
@@ -525,12 +633,28 @@ data('cosmic_mut_crc', package='CMSYM1552018')
 
 ## boxplot of mutations across subtypes
 mut_plot <- cosmic_mut_crc %>% dplyr::select(cellline, symbol) %>% 
-  distinct() %>% inner_join(cms_cl) %>%
-  count(cellline, cms) %>% dplyr::select(`Molecular subtype`=cms, Count=n) %>%
+  distinct() %>% inner_join(cms_cl) %>% 
+  gather(cms_type, cms, cms, cms_preclin) %>%
+  count(cms_type, cellline, cms) %>% 
+  filter(cms != 'np') %>%
+  dplyr::select(`Molecular subtype`=cms, Count=n, everything()) %>%
   ggplot(aes(`Molecular subtype`, Count, fill=`Molecular subtype`)) +
+  geom_boxplot() + facet_wrap(~cms_type, ncol=1) +
+  theme_classic() +
+  scale_fill_manual(values=c('#e4a103','#0270b1','#cc79a5',
+                                 '#019f74', '#cccccc')) + 
+  geom_signif(comparisons=list(c('CMS1', 'CMS2'))) + 
+  xlab('') + ylab('Mutation count') + 
+  theme(legend.position='none')
+
+cosmic_mut_crc %>% dplyr::select(cellline, symbol) %>% 
+  distinct() %>% inner_join(cms_cl) %>% 
+  gather(cms_type, cms, cms, cms_preclin) %>%
+  count(cms_type, cms, cellline) %>% 
+  filter(cms_type == 'cms', cms %in% c('CMS1', 'CMS2', 'np')) %>%
+  ggplot(aes(cms, n, fill=cms)) +
   geom_boxplot() + theme_classic() +
-  scale_fill_manual(values=c('#e4a103','#0270b1',
-                             '#019f74', '#ffffff')) + 
+  scale_fill_manual(values=c('#e4a103','#0270b1', '#cccccc')) + 
   geom_signif(comparisons=list(c('CMS1', 'CMS2'))) + 
   xlab('') + ylab('Mutation count') + 
   theme(legend.position='none')
@@ -541,102 +665,40 @@ mut_plot + scna_plot
 ## barplot of mutation frequencey for known oncogenes
 cosmic_mut_crc %>% filter(symbol %in% c('KRAS', 'BRAF', 'APC', 'TP53')) %>%
   dplyr::select(symbol, cellline, `Mutation AA`) %>% distinct() %>%
-  inner_join(cms_cl) %>% filter(cellline != 'HT115') %>%
-  group_by(cellline, cms) %>% summarise(
+  inner_join(cms_cl) %>% 
+  gather(cms_type, cms, cms, cms_preclin) %>%
+  group_by(cellline, cms, cms_type) %>% summarise(
     APC=ifelse('APC' %in% symbol, T, F),
     TP53=ifelse('TP53' %in% symbol, T, F),
     KRAS=ifelse('KRAS' %in% symbol, T, F),
     BRAF=ifelse(('BRAF' %in% symbol) & 
                   ('p.V600E' %in% `Mutation AA`), T, F)) %>% ungroup() %>%
   filter(cms %in% c('CMS1', 'CMS2')) %>%
-  group_by(cms) %>% summarise(
+  group_by(cms, cms_type) %>% summarise(
     APC=length(which(APC))/n(),
     TP53=length(which(TP53))/n(),
     KRAS=length(which(KRAS))/n(),
     BRAF=length(which(BRAF))/n()) %>% ungroup() %>%
-  gather(oncogene, `Mutation rate`, -cms) %>% 
+  gather(oncogene, `Mutation rate`, -c(cms, cms_type)) %>% 
   dplyr::select(`Molecular subtype`=cms, everything()) %>%
   ggplot(aes(x=`Molecular subtype`, y=`Mutation rate`)) + 
-  geom_bar(stat='identity') + ylim(c(0,1)) + theme_bw() + 
-  facet_wrap(~oncogene, nrow=1) + ylab('Proportion') + 
+  geom_bar(stat='identity') +
+  ylim(c(0,1)) + theme_bw() + 
+  facet_grid(cms_type~oncogene) + ylab('Proportion') + 
   theme(panel.grid=element_blank()) 
 ```
 
 Finally, we compare microsatellite instability status.
 
 ```{r, results='hide', warning=F, message=F}
-cms_cl %>% filter(cms %in% c('CMS1', 'CMS2')) %>% 
-  group_by(cms) %>% 
+cms_cl %>% gather(cms_type, cms, cms, cms_preclin) %>%
+  filter(cms %in% c('CMS1', 'CMS2')) %>% 
+  group_by(cms_type, cms) %>% 
   summarise(Proportion=sum(msi_status == 'MSI', na.rm=T)/n()) %>% 
   ungroup() %>% mutate(type='MSI') %>% 
   ggplot(aes(cms, Proportion)) + geom_bar(stat='identity') + 
   theme_bw() + theme(panel.grid=element_blank()) + 
-  facet_wrap(~type) + xlab('') + ylim(c(0,1))
-```
-
-# CMS in PDX models
-
-One might hypothesize that lack of CMS3 and CMS4 could be explained by a missing tumour microenvironment. Perhaps engrafted cell lines can change their subtype over time. To investigate this we downloaded expression data of engrafted human cell lines and observe if different subtype classifications are observed over time.
-
-The supplementary materials in Hollingshead et al [@Hollingshead2014] contain already normalized expression data (rma) from the U133+2 micrarray platform. We should be able to use these data off the shelf to classify CMS.
-
-```{r, results='hide', warning=F, message=F}
-data('pdx_rma', package='CMSYM1552018')
-```
-
-We select relevant probes, select only CRC cell line samples and perform CMS classification.
-
-```{r, results='hide', warning=F, message=F}
-pdx_for_cms <- probe_map %>% filter(entrez %in% entrez_ref) %>%
-  dplyr::select(probe = `Affy HG U133-PLUS-2 probeset`, entrez) %>% 
-  filter(entrez %in% entrez_ref) %>% 
-  drop_na() %>% distinct() %>% 
-  inner_join(pdx_rma %>% dplyr::select(-c(symbol, entrez))) %>%
-  filter(cellline %in% c(cms_cl$cellline, 'HCT15'))
-
-## select probe for each entrez
-## make probe mapping
-gpl <- probe_map %>% dplyr::select(matches('PLUS-2'), entrez) %>% 
-  drop_na() %>% distinct() %>% 
-  group_by_at(1) %>% dplyr::slice(1) %>% ungroup() %>% 
-  as.data.frame() %>% 
-  column_to_rownames('Affy HG U133-PLUS-2 probeset')
-
-## expression matrix
-em <- pdx_for_cms %>% acast(probe ~ sample, value.var = 'expr', fun.aggregate = mean)
-
-## aggregate per entrez
-eset_aggr <- probesToEntrez(em, gpl, entrez = 'entrez')
-
-## subtypes for engrafted samples
-pdx_cms <- eset_aggr %>%
-  as.data.frame() %>% classifyCMS.RF() %>%
-  as_tibble(rownames='sample') %>%
-  inner_join(distinct(pdx_for_cms, sample, cellline, passage))
-```
-
-We visualize the results.
-
-```{r, results='hide', warning=F, message=F}
-## data in format that is easy to plot with ggplot2
-for_pdx_viz <- pdx_cms %>% dplyr::select(-sample) %>% 
-  gather(cms, prob, RF.CMS1.posteriorProb:RF.CMS4.posteriorProb) %>% 
-  mutate(cms = gsub('RF.', '', gsub('.posteriorProb', '', cms)),
-         cms = factor(cms, levels=paste0('CMS', 1:4)),
-         passage=factor(passage, levels=c('P0', 'P01', 'P04'))) 
-
-## line chart with one line for each CMS.
-for_pdx_viz %>%
-  ggplot(aes(passage, prob, group=cms, colour=cms)) + 
-  geom_line() + geom_point() +
-  geom_hline(yintercept = 0.5, linetype = 'dashed') +
-  facet_wrap(~cellline, nrow = 2) +
-  theme_bw() + 
-  theme(legend.position = 'bottom', 
-        panel.grid = element_blank()) + 
-  ylab('Posterior probability') + xlab('Passage') +
-  scale_colour_manual(values=c('#e4a103','#0270b1',
-                             '#cc78a6', '#019f74'))
+  facet_grid(cms_type~type) + xlab('') + ylim(c(0,1))
 ```
 
 # CMS-dependent drug response drived from public drug screening data
@@ -664,7 +726,7 @@ resp_auc <- drug_resp %>% dplyr::slice(-1) %>% tbl_df %>%
   mutate(Sample.Names=gsub('-', '', 
                       gsub('\\.', '', toupper(Sample.Names)))) %>% 
   dplyr::select(cellline=Sample.Names, everything()) %>% 
-  filter(cellline %in% (cms_cl %>% filter(cms %in% c('CMS1', 'CMS2')) %>% .$cellline))
+  filter(cellline %in% cms_cl$cellline)
 ## type cast drug effects to numeric
 resp_auc <- cbind(resp_auc[,1], apply(resp_auc[,2:ncol(resp_auc)], 2, as.numeric)) %>% tbl_df
 ## annotate drugs and cms
@@ -673,7 +735,32 @@ resp_auc <- resp_auc %>% melt %>% tbl_df %>%
   inner_join(drug_map) %>% inner_join(cms_cl)
 
 ## permutation test
-drug_results <- resp_auc %>% nest(-name) %>% 
+drug_results_cms12_primary <- resp_auc %>% 
+  filter(cms %in% c('CMS1', 'CMS2')) %>%
+  nest(-name) %>% 
+  mutate(test = map(data, ~ permTS(value ~ cms, data=.x, method="exact.mc", 
+                                   control=permControl(nmc=10^4)))) %>% 
+  mutate(res = map(test, ~ tibble(p.value = .x$p.value, 
+                                  delta_auc = .x$estimate))) %>% 
+  unnest(res) %>% mutate(fdr = p.adjust(p.value, method='BH')) %>% 
+  arrange(delta_auc)
+
+## repeat the above analysis with MSI status
+drug_results_msi_primary <- resp_auc %>% 
+  filter(cms %in% c('CMS1', 'CMS2')) %>%
+  nest(-name) %>% 
+  mutate(test = map(data, ~ permTS(value ~ msi_status, data=.x, method="exact.mc", 
+                                   control=permControl(nmc=10^4)))) %>% 
+  mutate(res = map(test, ~ tibble(p.value = .x$p.value, 
+                                  delta_auc = .x$estimate))) %>% 
+  unnest(res) %>% mutate(fdr = p.adjust(p.value, method='BH')) %>% 
+  arrange(delta_auc)
+
+drug_results_cms14_preclin <- resp_auc %>% 
+  mutate(cms = ifelse(cms_preclin %in% c('CMS1', 'CMS4'), 'CMS14',
+               ifelse(cms_preclin %in% c('CMS2', 'CMS3'), 'CMS23', 'np'))) %>%
+  filter(cms != 'np') %>%
+  nest(-name) %>% 
   mutate(test = map(data, ~ permTS(value ~ cms, data=.x, method="exact.mc", 
                                    control=permControl(nmc=10^4)))) %>% 
   mutate(res = map(test, ~ tibble(p.value = .x$p.value, 
@@ -684,35 +771,284 @@ drug_results <- resp_auc %>% nest(-name) %>%
 ## visualize as volcano plot
 plot_drug_volcano_ym <- function(df){
   ## approximate 20% FDR cutoff
-  fdr10 <- df %>% filter(fdr > 0.1) %>% arrange(fdr) %>% 
+  fdr10 <- df %>% filter(fdr > 0.2) %>% arrange(p.value) %>% 
     .$p.value %>% .[1] %>% log10() %>% `*`(-1)  
   
   ## plot volcano
-  df %>% mutate(col=ifelse(fdr < 0.1 & delta_auc > 0, 'CMS2', 
-                    ifelse(fdr < 0.1 & delta_auc < 0, 'CMS1', 'none'))) %>% 
+  df %>% mutate(col=ifelse(fdr < 0.2 & delta_auc > 0, 'CMS2', 
+                    ifelse(fdr < 0.2 & delta_auc < 0, 'CMS1', 'none'))) %>% 
     mutate(label = ifelse(name %in% c('YM155', 'SN-38', '5-Fluorouracil'), 
                           as.character(name), '')) %>%
     ggplot(aes(delta_auc, -log10(p.value), colour=col)) + geom_point() + 
     geom_vline(xintercept=0, linetype = 'dashed') + 
     geom_hline(yintercept = fdr10, linetype='dashed') +
-    geom_text_repel(aes(label=label), nudge_y = 0.1, colour='black') +
+    geom_text_repel(aes(label=label), nudge_y = 0.2, colour='black',
+                    min.segment.length = 0) +
     scale_colour_manual(values = c('#e4a103', '#cccccc')) + 
     xlab('AUC_CMS1 - AUC_CMS2') + ylab('P-value [-log10]') + 
     theme(legend.position = 'none') + 
     theme_classic()
 }
-plot_drug_volcano_ym(drug_results)
+
+plot_drug_volcano_ym(drug_results_cms12_primary)
+plot_drug_volcano_ym(drug_results_cms14_preclin)
 ```
 
 We further plot a small heat map of drug response in individual cell lines.
 
 ```{r, results='hide', warning=F, message=F}
-resp_auc %>% filter(name %in% c('YM155', 'SN-38', '5-Fluorouracil'), 
+## annotate rownames of heat map to show MSI status
+row_anno <- resp_auc %>% filter(cms %in% c('CMS1', 'CMS2')) %>% 
+  distinct(cellline, cms, msi_status) %>% 
+  as.data.frame() %>% column_to_rownames('cellline')
+
+resp_auc %>% filter(name %in% c('YM155'), 
                     cms %in% c('CMS1', 'CMS2')) %>% arrange(cms, cellline) %>% 
   mutate(cellline = factor(cellline, levels = unique(cellline))) %>% 
   reshape2::acast(cellline ~ name, value.var = 'value') %>% 
   pheatmap(cluster_rows = F, cluster_cols = F, 
+           annotation_row = row_anno,
            color = colorRampPalette(rev(c('#ffffff', '#eff3ff', '#6baed6','#3182bd','#08519c')))(20))
+```
+
+To investigate whether MSI is an equally good predictor for YM-155 sensitivity we perform a comparable test for MSI.
+
+```{r, results='hide', warning=F, message=F}
+drug_results_msi_primary <- resp_auc %>% 
+  filter(cms %in% c('CMS1', 'CMS2')) %>%
+  nest(-name) %>% 
+  mutate(test = map(data, ~ permTS(value ~ as.factor(msi_status), 
+                                   data=.x, method="exact.mc", 
+                                   control=permControl(nmc=10^4)))) %>% 
+  mutate(res = map(test, ~ tibble(p.value = .x$p.value, 
+                                  delta_auc = .x$estimate))) %>% 
+  unnest(res) %>% mutate(fdr = p.adjust(p.value, method='BH')) %>% 
+  arrange(delta_auc)
+```
+
+We also show a boxplot of YM155 response in CMS1,2 vs non-classified lines based on the primary classifier, and a similar plot comparing YM155 across subtypes based on the preclinical classifier.
+
+```{r, results='hide', warning=F, message=F}
+## YM155 response across all subtypes in both classifiers
+resp_auc %>% filter(name == 'YM155') %>% 
+  dplyr::select(cellline, value, msi_status, cms, cms_preclin) %>% 
+  gather(classifier, cms, cms, cms_preclin) %>% 
+  mutate(classifier = ifelse(classifier == 'cms', 'CMS (primary classifier)', 'CMS (preclinical classifier)')) %>%
+  ggplot(aes(cms, value)) + 
+  stat_summary(fun.y = 'mean', geom = 'bar', fill = '#cccccc') + 
+  geom_jitter(aes(color = msi_status), width = 0.2) + 
+  ggsignif::geom_signif(comparisons = list(c('CMS1', 'CMS2'), c('CMS2', 'np'), c('CMS1', 'np')),
+                        step_increase = 0.1) +
+  facet_wrap(~ classifier, ncol = 1) + 
+  cowplot::theme_cowplot() + 
+  labs(color = 'MSI status') +
+  scale_color_manual(values = c('#db4437', '#444444')) + 
+  xlab('') + ylab('Area under DRC') 
+
+## CMS1/4 vs CMS2/3 preclinical
+df <- resp_auc %>% filter(name == 'YM155') %>% 
+  dplyr::select(cellline, value, msi_status, cms, cms_preclin) %>% 
+  gather(classifier, cms, cms, cms_preclin) %>% 
+  mutate(cms = ifelse(classifier == 'cms' & !cms %in% c('CMS1', 'CMS2'), 'other', cms),
+         cms = ifelse(classifier == 'cms_preclin' & cms %in% c('CMS1', 'CMS4'), 'CMS1/4',
+                      ifelse(classifier == 'cms_preclin' & cms %in% c('CMS2', 'CMS3'), 'CMS2/3', cms))) %>%
+  mutate(classifier = ifelse(classifier == 'cms', 'CMS (primary classifier)', 'CMS (preclinical classifier)')) %>%
+  filter(cms != 'np')
+
+p1 <- df %>% filter(classifier == 'CMS (primary classifier)') %>%
+  ggplot(aes(cms, value)) + 
+  stat_summary(fun.y = 'mean', geom = 'bar', fill = '#cccccc') + 
+  geom_jitter(color = '#444444', width = 0.2) + 
+  ggsignif::geom_signif(comparisons = list(c('CMS1', 'CMS2')),
+                        step_increase = 0.1) +
+  cowplot::theme_cowplot() + 
+  xlab('') + ylab('Area under DRC') +
+  ggtitle('Primary classifier')
+
+## permutation p-value
+permTS(value ~ cms, 
+       df %>% filter(classifier == 'CMS (primary classifier)',
+                     cms %in% c('CMS1', 'CMS2')), 
+       method = 'exact.mc', control = permControl(nmc = 10^4))
+
+p2 <- df %>% filter(classifier != 'CMS (primary classifier)') %>%
+  ggplot(aes(cms, value)) + 
+  stat_summary(fun.y = 'mean', geom = 'bar', fill = '#cccccc') + 
+  geom_jitter(color = '#444444', width = 0.2) + 
+  ggsignif::geom_signif(comparisons = list(c('CMS1/4', 'CMS2/3')),
+                        step_increase = 0.1) +
+  cowplot::theme_cowplot() + 
+  xlab('') + ylab('Area under DRC') + 
+  ggtitle('Preclinical classifier')
+
+permTS(value ~ cms, 
+       df %>% filter(classifier != 'CMS (primary classifier)',
+                     cms %in% c('CMS1/4', 'CMS2/3')), 
+       method = 'exact.mc', control = permControl(nmc = 10^4))
+
+resp_auc %>% filter(name == 'YM155') %>% 
+  dplyr::select(cellline, value, msi_status, cms, cms_preclin) %>% 
+  gather(classifier, cms, cms, cms_preclin) %>% 
+  filter(classifier == 'cms_preclin') %>%
+  ggplot(aes(cms, value)) + 
+  stat_summary(fun.y = 'mean', geom = 'bar', fill = '#cccccc') + 
+  geom_jitter(color = '#444444', width = 0.2) + 
+  ggsignif::geom_signif(comparisons = list(c('CMS1/4', 'CMS2/3')),
+                        step_increase = 0.1) +
+  cowplot::theme_cowplot() + 
+  xlab('') + ylab('Area under DRC') + 
+  ggtitle('Preclinical classifier')
+
+p1 + p2 + plot_layout(ncol = 1)
+
+resp_auc %>% filter(cms %in% c('CMS1', 'CMS2'), name == 'YM155') %>% 
+  mutate(cms_msi = paste(cms, msi_status)) %>%
+  ggplot(aes(cms_msi, value)) + 
+  stat_summary(fun.y = 'mean', geom='bar', position = 'dodge', aes(fill = msi_status)) + 
+  geom_jitter(width = 0.1, color = '#cccccc') +
+  cowplot::theme_cowplot() +
+  scale_fill_manual(values = c('#db4437', '#444444')) + 
+  labs(fill = 'MSI status') +
+  xlab('Primary CMS classifier') + ylab('Area under DRC')
+```
+
+We compare YM-155 efficiency in correlation to other features in order to determine if CMS1 is best.
+
+```{r}
+ym155_response <- resp_auc %>% filter(name == 'YM155')
+
+## plots
+## cms1 vs all other
+ym155_response %>% mutate(cms_group = ifelse(cms == 'CMS1', 'CMS1', 'other')) %>%
+  ggplot(aes(cms_group, value, color = cms_group)) + geom_jitter(width = 0.2) + 
+  stat_summary(fun = 'mean', fun.min = 'mean', 
+               fun.max = 'mean', color = 'red', 
+               width = 0.5, geom = 'crossbar') + 
+  ggsignif::geom_signif(comparisons = list(c('CMS1', 'other')), 
+                        color = 'black') +
+  cowplot::theme_cowplot() + 
+  scale_color_manual(values=c('#e4a103', '#444444')) + 
+  ylab('AUC YM-155 treatment') + xlab('')
+
+permTS(value ~ cms_group, 
+       ym155_response %>% mutate(cms_group = ifelse(cms == 'CMS1', 'CMS1', 'other')), 
+       method = 'exact.mc', control = permControl(nmc = 10^4))
+
+## msi vs mss
+ym155_response %>% mutate(cms_group = ifelse(cms == 'CMS1', 'CMS1', 'other')) %>%
+  ggplot(aes(msi_status, value, color = cms_group)) + 
+  geom_jitter(width = 0.2) + 
+  stat_summary(fun = 'mean', fun.min = 'mean', 
+               fun.max = 'mean', color = 'red', 
+               width = 0.5, geom = 'crossbar') + 
+  ggsignif::geom_signif(comparisons = list(c('MSI', 'MSS')), color = 'black',
+                        test = 'permTS', 
+                        test.args = list(method = "exact.mc", 
+                                         control = permControl(nmc=10^4))) +
+  cowplot::theme_cowplot() + 
+  scale_color_manual(values=c('#e4a103', '#444444')) +
+  ylab('AUC YM-155 treatment') + xlab('')
+
+permTS(value ~ msi_status, 
+       ym155_response %>% mutate(cms_group = ifelse(cms == 'CMS1', 'CMS1', 'other')) %>%
+         filter(msi_status %in% c('MSI', 'MSS')), 
+       method = 'exact.mc', control = permControl(nmc = 10^4))
+
+```
+
+### CCLE screens
+
+Similar screens to the above were performed by the Cancer Cell Line Encyclopedia consortium. We hence repeat the above analysis for these data.
+
+```{r, results='hide', warning=F, message=F}
+data('resp_ic50_ccle', package = 'CMSYM1552018')
+
+## primary tumour classifier
+resp_ic50_ccle <- resp_ic50_ccle %>% 
+  filter(cms %in% c('CMS1', 'CMS2')) %>%
+  nest(-drug) %>% 
+  mutate(test = map(data, ~ permTS(ic50 ~ cms, data=.x, method="exact.mc", 
+                                   control=permControl(nmc=10^4)))) %>% 
+  mutate(res = map(test, ~ tibble(p.value = .x$p.value, 
+                                  delta_auc = .x$estimate))) %>% 
+  unnest(res) %>% mutate(fdr = p.adjust(p.value, method='BH')) %>% 
+  arrange(delta_auc)
+```
+
+Here we do not find any siginificant differences. We make a plot that shows overlapping drugs from both screening projects next to each other.
+
+```{r, results='hide', warning=F, message=F}
+## map CCLE drug names to cancerXgene
+drug_id_map <- tribble(
+  ~drug_ccle, ~name,
+  'Irinotecan', 'SN-38',
+  'TAE684', 'NVP-TAE684',
+  'LBW242', 'LBW242',
+  'PD-0325901', 'PD-0325901',
+  'AZD6244', 'AZD6244',
+  'TKI258', 'TKI258',
+  'Topotecan', 'Topotecan',
+  'L-685458', 'L-685458',
+  'Sorafenib', 'Sorafenib',
+  'Paclitaxel', 'Paclitaxel',
+  'Panobinostat', 'Panobinostat',
+  'Erlotinib', 'Erlotinib',
+  '17-AAG', '17-AAG',
+  'RAF265', 'RAF265',
+  'PHA-665752', 'PHA-665752',
+  'Nutlin-3', 'Nutlin-3a',
+  'Nilotinib', 'Nilotinib',
+  'AEW541', 'AEW541',
+  'ZD-6474', 'ZD-6474',
+  'PF2341066', 'Crizotinib',
+  'PD-0332991', 'PD-0332991',
+  'AZD0530', 'AZD-0530',
+  'Lapatinib', 'Lapatinib',
+  'PLX4720', 'PLX4720'
+)
+
+ccle_drug_result <- resp_ic50_ccle %>% 
+  dplyr::select(drug_ccle = drug, everything()) %>% 
+  left_join(drug_id_map) %>% 
+  mutate(in_cosmic = ifelse(name %in% drug_results_cms12_primary$name, T, F))
+  
+## plot volcano
+ccle_p1 <- ccle_drug_result %>%
+  mutate(col=ifelse(fdr < 0.2 & delta_auc > 0, 'CMS2', 
+             ifelse(fdr < 0.2 & delta_auc < 0, 'CMS1', 'none'))) %>% 
+  mutate(label = ifelse(in_cosmic, 
+                        as.character(name), '')) %>%
+  ggplot(aes(delta_auc, -log10(p.value))) + geom_point(colour = '#dddddd') + 
+  geom_vline(xintercept=0, linetype = 'dashed') + 
+  geom_text_repel(aes(label=label), nudge_y = 0.1, colour='black',
+                  min.segment.length = 0) +
+  scale_colour_manual(values = c('#e4a103', '#cccccc')) + 
+  ylim(c(0,4)) +
+  xlab('IC50_CMS1 - IC50_CMS2') + ylab('P-value [-log10]') + 
+  theme(legend.position = 'none') + 
+  theme_classic()
+
+fdr20 <- drug_results_cms12_primary %>% 
+  filter(fdr > 0.2) %>% arrange(p.value) %>% 
+  .$p.value %>% .[1] %>% log10() %>% `*`(-1)  
+ccle_p2 <- drug_results_cms12_primary %>%
+  mutate(col=ifelse(fdr < 0.2 & delta_auc > 0, 'CMS2', 
+             ifelse(fdr < 0.2 & delta_auc < 0, 'CMS1', 'none')),
+         in_cosmic = ifelse(name %in% ccle_drug_result$name, T, F)) %>% 
+  mutate(label = ifelse(in_cosmic, 
+                        as.character(name), '')) %>%
+  ggplot(aes(delta_auc, -log10(p.value), colour=col)) + geom_point() + 
+  geom_vline(xintercept=0, linetype = 'dashed') + 
+  geom_hline(yintercept = 1.9, linetype='dashed') +
+  geom_text_repel(aes(label=label), nudge_y = 0.1, colour='black',
+                  min.segment.length = 0) +
+  scale_colour_manual(values = c('#e4a103', '#cccccc')) + 
+  ylim(c(0,4)) +
+  xlab('AUC_CMS1 - AUC_CMS2') + ylab('P-value [-log10]') + 
+  theme(legend.position = 'none') + 
+  theme_classic()
+
+ccle_p1 + ccle_p2
 ```
 
 ## Validation of YM-155
@@ -720,12 +1056,13 @@ resp_auc %>% filter(name %in% c('YM155', 'SN-38', '5-Fluorouracil'),
 We load the data from proliferation assays that we performed to validate the YM155 effect experimentally in additional cell lines. We define a function that can plot a dose-response curve to use as a figure. We finally define a function that draws a jitter plot comparing area-under-the curve values of cell lines of CMS1 versus CMS2.
 
 ```{r, results='hide', warning=F, message=F}
-cell_lines <- c('HCT116', 'RKO', 'LIM2405', 'WiDr', 'LoVo', 'SNU-C2A', 
-                'CaCo2', 'HT55', 'GP2d', 'HCA-24', 'CL-14', 'SW403')
-start_row <- c(3, 18, 33, 48, 63, 78, 93, 108, 123, 138, 153, 168)
+cell_lines <- c('HCT116', 'RKO', 'LIM2405', 'WiDr', 'LoVo',
+                'SNU-C2A', 
+                'CaCo2', 'HT55', 'GP2d', 'HCA-24', 'CL-14', 'SW403', 'CCK-81')
+start_row <- c(3, 18, 33, 48, 63, 78, 93, 108, 123, 138, 153, 168, 183)
 
 cms1 <- c('RKO', 'HCT116', 'LoVo', 'SNU-C2A', 'WiDr', 'LIM2405')
-cms2 <- c('HT55', 'CaCo', 'CL-14', 'SW403', 'GP2d', 'HCA-24')
+cms2 <- c('HT55', 'CaCo', 'CL-14', 'SW403', 'GP2d', 'HCA-24', 'CCK-81')
 
 plot_prolif <- function(df){
   df %>% ggplot(aes(conc_log, vmean, colour=CMS, group=cellline)) + 
@@ -754,6 +1091,9 @@ compare_plot <- function(df){
 data('ym155', package='CMSYM1552018')
 
 plot_prolif(ym155)
+msi_lines <- c('HCT116', 'RKO', 'LIM2405', 'LoVo', 'SNU-C2A', 
+               'GP2d', 'CCK-81')
+plot_prolif(ym155 %>% filter(cellline %in% msi_lines))
 compare_plot(ym155)
 ```
 
@@ -763,6 +1103,7 @@ compare_plot(ym155)
 data('five_fu', package='CMSYM1552018')
 
 plot_prolif(five_fu)
+plot_prolif(five_fu %>% filter(cellline %in% msi_lines))
 compare_plot(five_fu)
 ```
 
@@ -772,6 +1113,7 @@ compare_plot(five_fu)
 data('sn38', package='CMSYM1552018')
 
 plot_prolif(sn38)
+plot_prolif(sn38 %>% filter(cellline %in% msi_lines))
 compare_plot(sn38)
 ```
 
@@ -970,9 +1312,9 @@ We find no differentially expressed genes in CMS2 samples why nice signal is pre
 
 ```{r, results='hide', warning=F, message=F}
 ## gene ontology annotation
-go_ids <- as_tibble(as.data.frame(GOTERM)) %>% 
+go_ids <- as_tibble(as.data.frame(GOTERM)[,-1]) %>% 
   filter(Ontology == 'BP') %>% distinct(go_id, Term)
-src <- src_organism("TxDb.Hsapiens.UCSC.hg38.knownGene")
+src <- src_organism('TxDb.Hsapiens.UCSC.hg38.knownGene')
 go_map <- tbl(src, 'id_go') %>% filter(ontology == 'BP') %>% 
   distinct(entrez, go) %>% collect(n=Inf) %>% 
   inner_join(go_ids %>% dplyr::select(go = go_id, term = Term)) %>% 
@@ -1229,7 +1571,7 @@ We can conclude that there are recognizable phenotypes, separating distributions
 
 We next check how reproducible our phenotypes are across replicates. We plot scatter plots and annotate Pearson and Spearman correlation coefficients on log2-fold changes.
 
-```{r, results='hide', warning=F, message=F}
+```{r, results='hide', warning=F, message=F, eval = F}
 ## disentangle sample column
 ym_screen <- data_norm %>%
   extract(sample, c('screen', 'treatment', 'replicate'),
@@ -1265,7 +1607,7 @@ purrr::reduce(rep_plots, `+`)
 
 Correlation coefficients are in the same ballpark as previous studies ([based on a GenomeCRISPR meta analysis](https://github.com/bene200/crispr_screen_correlation)). It might be worth pointing out that correlations based on log2 fold changes tend to always be considerably lower than coefficients based normalized read counts that are also often presented. In our experience, however, fold change based correlation coefficients tend to be more 'honest' measures of reproducibility. For the sake of completeness we can also show similar scatter plots based on raw counts.
 
-```{r, results='hide', waning=F, message=F}
+```{r, results='hide', waning=F, message=F, eval = F}
 our_counts <- counts %>% filter(sample != 'd0screenlibrary') %>%
   extract(sample, c('screen', 'treatment', 'replicate'),
           regex='(Screen\\d)(.*)(R\\d)$') %>%
