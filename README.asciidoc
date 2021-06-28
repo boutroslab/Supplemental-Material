@@ -5,34 +5,114 @@ Supplemental material of published manuscripts
 This directory contains scripts and files supporting publications from
 the Boutros lab.
 
-[[rauscher-heigwer-et-al.-nar-2016]]
-Rauscher, Heigwer et al., NAR 2016
+[[zhan-faehling-rauscher-et-al.-2020]]
+Zhan, Faehling, Rauscher et al., International Journal of Cancer 2020
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+https://onlinelibrary.wiley.com/doi/abs/10.1002/ijc.33393[Zhan, Faehling, Rauscher _et al._], 2020, Multi‐omics integration identifies a selective vulnerability of colorectal cancer subtypes to YM155, _International Journal of Cancer_
+
+Tumour heterogeneity is a major challenge to the treatment of colorectal cancer (CRC). Recently, a transcriptome-based classification was developed, segregating CRC into four consensus molecular subtypes (CMS) with distinct biological and clinical characteristics. Here, we applied the CMS classification on CRC cell lines to identify novel subtype-specific drug vulnerabilities. We combined publicly available transcriptome data from multiple resources to assign 157 CRC cell lines to CMS. By integrating results from large-scale drug screens, we discovered that the CMS1 subtype is highly vulnerable to the BIRC5 suppressor YM155. We confirmed our results using an independent panel of CRC cell lines and demonstrate a 100-fold higher sensitivity of CMS1. This vulnerability was specific to YM155 and not observed for commonly used chemotherapeutic agents. In CMS1 cancer, low concentrations of YM155-induced apoptosis and expression signatures were associated with ER stress mediated apoptosis signalling. Using a genome-wide CRISPR/Cas9 screen, we further discovered a novel role of genes involved in LDL-receptor trafficking as modulators of YM155 sensitivity in the CRC cell line HCT116. Our work shows that combining drug response data with CMS classification in cell lines can reveal specific vulnerabilities and proposes YM155 as a novel subtype-specific drug.
+
+
+[[bageritz-et-al.-2019]]
+Bageritz, et al., Nature Methods 2019
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+https://www.nature.com/articles/s41592-019-0492-x[Bageritz _et al._], 2019, Gene expression atlas of a developing tissue by single cell expression correlation analysis, _Nature Methods_
+
+The _Drosophila_ wing disc has been a fundamental model system for the discovery of key signaling pathways and for our understanding of developmental processes. However, a complete map of gene expression in this tissue is lacking. To obtain a gene expression atlas in the wing disc, we employed single cell RNA sequencing (scRNA-seq) and developed a method for analyzing scRNA-seq data based on gene expression correlations rather than cell mapping. This enables us to compute expression maps for all detected genes in the wing disc and to discover 824 genes with spatially restricted expression patterns. This approach identifies clusters of genes with similar expression patterns and functional relevance. As proof of concept, we characterize the previously unstudied gene CG5151 and show that it regulates Wnt signaling. Our method will enable the leveraging of scRNA-seq data for generating expression atlases of undifferentiated tissues during development.
+
+
+[[herrmann-zhan-betge-rauscher-et-al.-2019]]
+Herrmann, Zhan, Betge, Rauscher et al., Molecular Oncology 2019
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+https://febs.onlinelibrary.wiley.com/doi/abs/10.1002/1878-0261.12539[Herrmann, Zhan, Betge, Rauscher _et al._], 2019, Detection of mutational patterns in cell free DNA of colorectal cancer by custom amplicon sequencing, _Molecular Oncology_
+
+Monitoring the mutational patterns of solid tumors during cancer therapy is a major challenge in oncology. Analysis of mutations in cell free (cf) DNA offers a non‐invasive approach to detect mutations that may be prognostic for disease survival or predictive for primary or secondary drug resistance. A main challenge for the application of cfDNA as a diagnostic tool is the diverse mutational landscape of cancer. Here, we developed a flexible end‐to‐end experimental and bioinformatics workflow to analyze mutations in cfDNA using custom amplicon sequencing. Our approach relies on open software tools to select primers suitable for multiplex PCR using minimal cfDNA as input. In addition, we developed a robust linear model to identify specific genetic alterations from sequencing data of cfDNA. We used our workflow to design a custom amplicon panel suitable for detection of hotspot mutations relevant for colorectal cancer and analyzed mutations in serial cfDNA samples from a pilot cohort of 34 patients with advanced colorectal cancer. Using our method, we could detect recurrent and patient‐specific mutational patterns in the majority of patients. Furthermore, we show that dynamic changes of mutant allele frequencies in cfDNA correlate well with disease progression. Finally, we demonstrate that sequencing of cfDNA can reveal mechanisms of resistance to anti‐EGFR antibody treatment. Thus, our approach offers a simple and highly customizable method to explore genetic alterations in cfDNA.
+
+
+[[betge-rindtorff-sauer-rauscher-et-al.-2019]]
+Betge, Rindtorff, Sauer, Rauscher et al., bioRxiv 2019
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+https://www.biorxiv.org/content/10.1101/660993v1.abstract[Betge, Rindtorff, Sauer, Rauscher _et al._], 2019, Multiparametric phenotyping of compound effects on patient derived organoids, _bioRxiv_
+
+Patient derived organoids (PDOs) closely resemble individual tumor biology and allow testing of small molecules ex vivo. To systematically dissect compound effects on 3D organoids, we developed a high-throughput imaging and quantitative analysis approach. We generated PDOs from colorectal cancer patients, treated them with >500 small molecules and captured >3 million images by confocal microscopy. We developed the software framework SCOPE to measure compound induced re-organization of PDOs. We found diverse, but re-occurring phenotypes that clustered by compound mode-of-action. Complex phenotypes were not congruent with PDO viability and many were specific to subsets of PDO lines or were influenced by recurrent mutations. We further analyzed specific phenotypes induced by compound classes and found GSK3 inhibitors to disassemble PDOs via focal adhesion signaling or that MEK inhibition led to bloating of PDOs by enhancing of stemness. Finally, by viability classification, we show heterogeneous susceptibilities of PDOs to clinical anticancer drugs.
+
+
+[[Rauscher-et-al.-2019]]
+Rauscher et al., bioRxiv 2019
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+https://www.biorxiv.org/content/10.1101/609552v1[Rauscher _et al._], 2019, Lineage specific core-regulatory circuits determine gene essentiality in cancer cells, _bioRxiv_
+
+Cancer cells rely on dysregulated gene expression programs to maintain their malignant phenotype. A cell’s transcriptional state is controlled by a small set of interconnected transcription factors that form its core-regulatory circuit (CRC). Previous work in pediatric cancers has shown, that disruption of the CRC by genetic alterations causes tumor cells to become highly dependent on its components creating new opportunities for therapeutic intervention. However, the role of CRCs and the mechanisms by which they are controlled remain largely unknown for most tumor types. Here, we developed a method that infers lineage dependency scores to systematically predict functional CRCs and associated biological processes from context-dependent essentiality data sets. Analysis of genome-scale CRISPR-Cas9 screens in 558 cancer cell lines showed that most tumor types specifically depend on a small number of transcription factors for proliferation. We found that these transcription factors compose the CRCs in these tumor types. Moreover, they are frequently altered in patient tumor samples indicating their oncogenic potential. Finally, we show that biological processes associated with each CRC are revealed by analyzing codependency between lineage-specific essential genes. Our results demonstrate that genetic addiction to lineage-specific core transcriptional mechanisms occurs across a broad range of tumor types. We exploit this phenomenon to systematically infer CRCs from lineage specific gene essentiality. Furthermore, our findings shed light on the selective genetic vulnerabilities that arise as the consequence of transcriptional dysregulation in different tumor types and show how the plasticity of regulatory circuits might influence drug resistance and metastatic potential.
+
+[[Heigwer-et-al.-2019]]
+Heigwer et al., eLife 2019
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+https://elifesciences.org/articles/40174[Heigwer _et al._], 2019, Time-resolved mapping of genetic interactions to model signaling pathway vulnerabilities, _eLife_
+
+Context-dependent changes in genetic interactions are an important feature of cellular pathways and their varying responses under different environmental conditions. However, methodological frameworks to investigate the plasticity of genetic interaction networks over time or in response to external stresses are largely lacking. To analyze the plasticity of genetic interactions, we performed a combinatorial RNAi screen in Drosophila cells at multiple time points and after pharmacological inhibition of Ras signaling activity. Using an image-based morphology assay to capture a broad range of phenotypes, we assessed the effect of 12768 pairwise RNAi perturbations in six different conditions. We found that genetic interactions form in different trajectories and developed an algorithm, termed MODIFI, to analyze how genetic interactions rewire over time. Using this framework, we identified more statistically significant interactions compared to end-point assays and further observed several examples of context-dependent crosstalk between signaling pathways such as an interaction between Ras and Rel which is dependent on MEK activity.
+Manuscript under review.
+
+
+[[zhan-ambrosi-wandmacher-et-al.-2019]]
+Zhan, Ambrosi, Wandmacher et al., Nature Communications 2019
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+https://www.nature.com/articles/s41467-019-09898-0[Zhan, Ambrosi, Wandmacher _et al._], 2019, MEK inhibitors activate Wnt signalling and induce stem cell plasticity in colorectal cancer. _Nature Communications_
+
+In colorectal cancer (CRC), aberrant Wnt signalling is essential for tumorigenesis and maintenance of cancer stem cells. However, how other oncogenic pathways converge on Wnt signalling to modulate stem cell homeostasis in CRC currently remains poorly understood. Using large-scale compound screens in CRC, we identify MEK1/2 inhibitors as potent activators of Wnt/β-catenin signalling. Targeting MEK increases Wnt activity in different CRC cell lines and murine intestine in vivo. Truncating mutations of APC generated by CRISPR/Cas9 strongly synergize with MEK inhibitors in enhancing Wnt responses in isogenic CRC models. Mechanistically, we demonstrate that MEK inhibition induces a rapid downregulation of AXIN1. Using patient-derived CRC organoids, we show that MEK inhibition leads to increased Wnt activity, elevated LGR5 levels and enrichment of gene signatures associated with stemness and cancer relapse. Our study demonstrates that clinically used MEK inhibitors inadvertently induce stem cell plasticity, revealing an unknown side effect of RAS pathway inhibition.
+
+
+[[voloshanenko-et-al.-scirep-2018]]
+Voloshanenko et al., Scientific Reports 2018
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+https://www.nature.com/articles/s41598-018-20641-5[Voloshanenko _et al._], 2018, β-catenin-independent regulation of Wnt target genes by RoR2 and ATF2/ATF4 in colon cancer cells. _Scientific Reports_
+
+Wnt signaling is an evolutionarily conserved signaling route required for development and homeostasis. While canonical, β-catenin-dependent Wnt signaling is well studied and has been linked to many forms of cancer, much less is known about the role of non-canonical, β-catenin-independent Wnt signaling. Here, we aimed at identifying a β-catenin-independent Wnt target gene signature in order to understand the functional significance of non-canonical signaling in colon cancer cells. Gene expression profiling was performed after silencing of key components of Wnt signaling pathway and an iterative signature algorithm was applied to predict pathway-dependent gene signatures. Independent experiments confirmed several target genes, including PLOD2, HADH, LCOR and REEP1 as non-canonical target genes in various colon cancer cells. Moreover, non-canonical Wnt target genes are regulated via RoR2, Dvl2, ATF2 and ATF4. Furthermore, we show that the ligands Wnt5a/b are upstream regulators of the non-canonical signature and moreover regulate proliferation of cancer cells in a β-catenin-independent manner. Our experiments indicate that colon cancer cells are dependent on both β-catenin-dependent and –independent Wnt signaling routes for growth and proliferation.
+
+
+[[rauscher-et-al.-MSB-2018]]
+Rauscher et al., Molecular Systems Biology 2018
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+http://msb.embopress.org/content/14/2/e7656[Rauscher _et al._], 2018, Towards an Integrated Map of Genetic Interactions in Cancer Cells. _Molecular Systems Biology_, 14, e7656
+
+Cancer genomes often harbor hundreds of molecular aberrations. Such genetic variants can be drivers or passengers of tumorigenesis and create vulnerabilities for potential therapeutic exploitation. To identify genotype-dependent vulnerabilities, forward genetic screens in different genetic backgrounds have been conducted. We devised MINGLE, a computational framework to integrate CRISPR/Cas9 screens originating from different libraries building on approaches pioneered for genetic network discovery in model organisms. We applied this method to integrate and analyze data from 85 CRISPR/Cas9 screens in human cancer cells combining functional data with information on genetic variants to explore more than 2.1 million gene-background relationships. In addition to known dependencies, we identified new genotype-specific vulnerabilities of cancer cells. Experimental validation of predicted vulnerabilities identified GANAB and PRKCSH as new positive regulators of Wnt/β-catenin signaling. By clustering genes with similar genetic interaction profiles, we drew the largest genetic network in cancer cells to date. Our scalable approach highlights how diverse genetic screens can be integrated to systematically build informative maps of genetic interactions in cancer, which can grow dynamically as more data is included.
+
+
+[[billmann-et-al.-cell-systems-2017]]
+Billmann et al., Cell Systems 2017
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-https://academic.oup.com/nar/article/45/D1/D679/2333939/GenomeCRISPR-a-database-for-high-throughput-CRISPR[Rauscher,
-Heigwer, _et al._], 2016, GenomeCRIPSR - a database for high-throughput
-CRISPR/Cas9 screens. _Nucleic Acids Research_, 45(D1):D679-D686.
+http://www.cell.com/cell-systems/abstract/S2405-4712(17)30485-4[Billmann
+_et al._], 2017, Widespread Rewiring of Genetic Networks upon Cancer
+Signaling Pathway Activation. _Cell Systems_ 
 
-Over the past years, CRISPR/Cas9 mediated genome editing has developed
-into a powerful tool for modifying genomes in various organisms. In
-high-throughput screens, CRISPR/Cas9 mediated gene perturbations can be
-used for the systematic functional analysis of whole genomes.
-Discoveries from such screens provide a wealth of knowledge about gene
-to phenotype relationships in various biological model systems. However,
-a database resource to query results efficiently has been lacking. To
-this end, we developed GenomeCRISPR (http://genomecrispr.org), a
-database for genome-scale CRISPR/Cas9 screens. Currently, GenomeCRISPR
-contains data on more than 550 000 single guide RNAs (sgRNA) derived
-from 84 different experiments performed in 48 different human cell
-lines, comprising all screens in human cells using CRISPR/Cas published
-to date. GenomeCRISPR provides data mining options and tools, such as
-gene or genomic region search. Phenotypic and genome track views allow
-users to investigate and compare the results of different screens, or
-the impact of different sgRNAs on the gene of interest. An Application
-Programming Interface (API) allows for automated data access and batch
-download. As more screening data will become available, we also aim at
-extending the database to include functional genomic data from other
-organisms and enable cross-species comparisons.
+Cellular signaling networks coordinate physiological processes in all
+multicellular organisms. Within networks, modules switch their function
+to control signaling activity in response to the cellular context.
+However, systematic approaches to map the interplay of such modules have
+been lacking. Here, we generated a context-dependent genetic interaction
+network of a metazoan's signaling pathway. Using Wnt signaling in
+Drosophila as a model, we measured >290,000 double perturbations of the
+pathway in a baseline state, after activation by Wnt ligand or after
+loss of the tumor suppressor APC. We found that genetic interactions
+within the Wnt network globally rewired after pathway activation. We
+derived between-state networks that showed how genes changed their
+function between state-specific networks. This related pathway
+inhibitors across states and identified genes required for pathway
+activation. For instance, we predicted and confirmed the ER-resident
+protein Catsup to be required for ligand-mediated Wnt signaling
+activation. Together, state-dependent and between-state genetic
+interaction networks identify responsive functional modules that control
+cellular pathways.
+
 
 [[voloshanenko-et-al.-faseb-2017]]
 Voloshanenko et al., FASEB 2017
@@ -62,104 +142,31 @@ demonstrate how multiplex targeting by clustered regularly interspaced
 short palindromic repeat (CRISPR)/Cas9 can be used to systematically
 elucidate the functions of multigene families.
 
-[[billmann-et-al.-cell-systems-2017]]
-Billmann et al., Cell Systems 2017
+[[rauscher-heigwer-et-al.-nar-2016]]
+Rauscher, Heigwer et al., NAR 2016
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-http://www.cell.com/cell-systems/abstract/S2405-4712(17)30485-4[Billmann
-_et al._], 2017, Widespread Rewiring of Genetic Networks upon Cancer
-Signaling Pathway Activation. _Cell Systems_ 
+https://academic.oup.com/nar/article/45/D1/D679/2333939/GenomeCRISPR-a-database-for-high-throughput-CRISPR[Rauscher,
+Heigwer, _et al._], 2016, GenomeCRIPSR - a database for high-throughput
+CRISPR/Cas9 screens. _Nucleic Acids Research_, 45(D1):D679-D686.
 
-Cellular signaling networks coordinate physiological processes in all
-multicellular organisms. Within networks, modules switch their function
-to control signaling activity in response to the cellular context.
-However, systematic approaches to map the interplay of such modules have
-been lacking. Here, we generated a context-dependent genetic interaction
-network of a metazoan's signaling pathway. Using Wnt signaling in
-Drosophila as a model, we measured >290,000 double perturbations of the
-pathway in a baseline state, after activation by Wnt ligand or after
-loss of the tumor suppressor APC. We found that genetic interactions
-within the Wnt network globally rewired after pathway activation. We
-derived between-state networks that showed how genes changed their
-function between state-specific networks. This related pathway
-inhibitors across states and identified genes required for pathway
-activation. For instance, we predicted and confirmed the ER-resident
-protein Catsup to be required for ligand-mediated Wnt signaling
-activation. Together, state-dependent and between-state genetic
-interaction networks identify responsive functional modules that control
-cellular pathways.
-
-[[rauscher-et-al.-MSB-2018]]
-Rauscher et al., Molecular Systems Biology 2018
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-http://msb.embopress.org/content/14/2/e7656[Rauscher _et al._], 2018, Towards an Integrated Map of Genetic Interactions in Cancer Cells. _Molecular Systems Biology_, 14, e7656
-
-Cancer genomes often harbor hundreds of molecular aberrations. Such genetic variants can be drivers or passengers of tumorigenesis and create vulnerabilities for potential therapeutic exploitation. To identify genotype-dependent vulnerabilities, forward genetic screens in different genetic backgrounds have been conducted. We devised MINGLE, a computational framework to integrate CRISPR/Cas9 screens originating from different libraries building on approaches pioneered for genetic network discovery in model organisms. We applied this method to integrate and analyze data from 85 CRISPR/Cas9 screens in human cancer cells combining functional data with information on genetic variants to explore more than 2.1 million gene-background relationships. In addition to known dependencies, we identified new genotype-specific vulnerabilities of cancer cells. Experimental validation of predicted vulnerabilities identified GANAB and PRKCSH as new positive regulators of Wnt/β-catenin signaling. By clustering genes with similar genetic interaction profiles, we drew the largest genetic network in cancer cells to date. Our scalable approach highlights how diverse genetic screens can be integrated to systematically build informative maps of genetic interactions in cancer, which can grow dynamically as more data is included.
-
-[[voloshanenko-et-al.-scirep-2018]]
-Voloshanenko et al., Scientific Reports 2018
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-https://www.nature.com/articles/s41598-018-20641-5[Voloshanenko _et al._], 2018, β-catenin-independent regulation of Wnt target genes by RoR2 and ATF2/ATF4 in colon cancer cells. _Scientific Reports_
-
-Wnt signaling is an evolutionarily conserved signaling route required for development and homeostasis. While canonical, β-catenin-dependent Wnt signaling is well studied and has been linked to many forms of cancer, much less is known about the role of non-canonical, β-catenin-independent Wnt signaling. Here, we aimed at identifying a β-catenin-independent Wnt target gene signature in order to understand the functional significance of non-canonical signaling in colon cancer cells. Gene expression profiling was performed after silencing of key components of Wnt signaling pathway and an iterative signature algorithm was applied to predict pathway-dependent gene signatures. Independent experiments confirmed several target genes, including PLOD2, HADH, LCOR and REEP1 as non-canonical target genes in various colon cancer cells. Moreover, non-canonical Wnt target genes are regulated via RoR2, Dvl2, ATF2 and ATF4. Furthermore, we show that the ligands Wnt5a/b are upstream regulators of the non-canonical signature and moreover regulate proliferation of cancer cells in a β-catenin-independent manner. Our experiments indicate that colon cancer cells are dependent on both β-catenin-dependent and –independent Wnt signaling routes for growth and proliferation.
-
-[[zhan-ambrosi-wandmacher-et-al.-2019]]
-Zhan, Ambrosi, Wandmacher et al., Nature Communications 2019
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-https://www.nature.com/articles/s41467-019-09898-0[Zhan, Ambrosi, Wandmacher _et al._], 2019, MEK inhibitors activate Wnt signalling and induce stem cell plasticity in colorectal cancer. _Nature Communications_
-
-In colorectal cancer (CRC), aberrant Wnt signalling is essential for tumorigenesis and maintenance of cancer stem cells. However, how other oncogenic pathways converge on Wnt signalling to modulate stem cell homeostasis in CRC currently remains poorly understood. Using large-scale compound screens in CRC, we identify MEK1/2 inhibitors as potent activators of Wnt/β-catenin signalling. Targeting MEK increases Wnt activity in different CRC cell lines and murine intestine in vivo. Truncating mutations of APC generated by CRISPR/Cas9 strongly synergize with MEK inhibitors in enhancing Wnt responses in isogenic CRC models. Mechanistically, we demonstrate that MEK inhibition induces a rapid downregulation of AXIN1. Using patient-derived CRC organoids, we show that MEK inhibition leads to increased Wnt activity, elevated LGR5 levels and enrichment of gene signatures associated with stemness and cancer relapse. Our study demonstrates that clinically used MEK inhibitors inadvertently induce stem cell plasticity, revealing an unknown side effect of RAS pathway inhibition.
-
-[[Heigwer-et-al.-2019]]
-Heigwer et al., eLife 2019
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-https://elifesciences.org/articles/40174[Heigwer _et al._], 2019, Time-resolved mapping of genetic interactions to model signaling pathway vulnerabilities, _eLife_
-
-Context-dependent changes in genetic interactions are an important feature of cellular pathways and their varying responses under different environmental conditions. However, methodological frameworks to investigate the plasticity of genetic interaction networks over time or in response to external stresses are largely lacking. To analyze the plasticity of genetic interactions, we performed a combinatorial RNAi screen in Drosophila cells at multiple time points and after pharmacological inhibition of Ras signaling activity. Using an image-based morphology assay to capture a broad range of phenotypes, we assessed the effect of 12768 pairwise RNAi perturbations in six different conditions. We found that genetic interactions form in different trajectories and developed an algorithm, termed MODIFI, to analyze how genetic interactions rewire over time. Using this framework, we identified more statistically significant interactions compared to end-point assays and further observed several examples of context-dependent crosstalk between signaling pathways such as an interaction between Ras and Rel which is dependent on MEK activity.
-Manuscript under review.
-
-[[Rauscher-et-al.-2019]]
-Rauscher et al., bioRxiv 2019
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-https://www.biorxiv.org/content/10.1101/609552v1[Rauscher _et al._], 2019, Lineage specific core-regulatory circuits determine gene essentiality in cancer cells, _bioRxiv_
-
-Cancer cells rely on dysregulated gene expression programs to maintain their malignant phenotype. A cell’s transcriptional state is controlled by a small set of interconnected transcription factors that form its core-regulatory circuit (CRC). Previous work in pediatric cancers has shown, that disruption of the CRC by genetic alterations causes tumor cells to become highly dependent on its components creating new opportunities for therapeutic intervention. However, the role of CRCs and the mechanisms by which they are controlled remain largely unknown for most tumor types. Here, we developed a method that infers lineage dependency scores to systematically predict functional CRCs and associated biological processes from context-dependent essentiality data sets. Analysis of genome-scale CRISPR-Cas9 screens in 558 cancer cell lines showed that most tumor types specifically depend on a small number of transcription factors for proliferation. We found that these transcription factors compose the CRCs in these tumor types. Moreover, they are frequently altered in patient tumor samples indicating their oncogenic potential. Finally, we show that biological processes associated with each CRC are revealed by analyzing codependency between lineage-specific essential genes. Our results demonstrate that genetic addiction to lineage-specific core transcriptional mechanisms occurs across a broad range of tumor types. We exploit this phenomenon to systematically infer CRCs from lineage specific gene essentiality. Furthermore, our findings shed light on the selective genetic vulnerabilities that arise as the consequence of transcriptional dysregulation in different tumor types and show how the plasticity of regulatory circuits might influence drug resistance and metastatic potential.
-
-[[betge-rindtorff-sauer-rauscher-et-al.-2019]]
-Betge, Rindtorff, Sauer, Rauscher et al., bioRxiv 2019
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-https://www.biorxiv.org/content/10.1101/660993v1.abstract[Betge, Rindtorff, Sauer, Rauscher _et al._], 2019, Multiparametric phenotyping of compound effects on patient derived organoids, _bioRxiv_
-
-Patient derived organoids (PDOs) closely resemble individual tumor biology and allow testing of small molecules ex vivo. To systematically dissect compound effects on 3D organoids, we developed a high-throughput imaging and quantitative analysis approach. We generated PDOs from colorectal cancer patients, treated them with >500 small molecules and captured >3 million images by confocal microscopy. We developed the software framework SCOPE to measure compound induced re-organization of PDOs. We found diverse, but re-occurring phenotypes that clustered by compound mode-of-action. Complex phenotypes were not congruent with PDO viability and many were specific to subsets of PDO lines or were influenced by recurrent mutations. We further analyzed specific phenotypes induced by compound classes and found GSK3 inhibitors to disassemble PDOs via focal adhesion signaling or that MEK inhibition led to bloating of PDOs by enhancing of stemness. Finally, by viability classification, we show heterogeneous susceptibilities of PDOs to clinical anticancer drugs.
-
-[[herrmann-zhan-betge-rauscher-et-al.-2019]]
-Herrmann, Zhan, Betge, Rauscher et al., Molecular Oncology 2019
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-https://febs.onlinelibrary.wiley.com/doi/abs/10.1002/1878-0261.12539[Herrmann, Zhan, Betge, Rauscher _et al._], 2019, Detection of mutational patterns in cell free DNA of colorectal cancer by custom amplicon sequencing, _Molecular Oncology_
-
-Monitoring the mutational patterns of solid tumors during cancer therapy is a major challenge in oncology. Analysis of mutations in cell free (cf) DNA offers a non‐invasive approach to detect mutations that may be prognostic for disease survival or predictive for primary or secondary drug resistance. A main challenge for the application of cfDNA as a diagnostic tool is the diverse mutational landscape of cancer. Here, we developed a flexible end‐to‐end experimental and bioinformatics workflow to analyze mutations in cfDNA using custom amplicon sequencing. Our approach relies on open software tools to select primers suitable for multiplex PCR using minimal cfDNA as input. In addition, we developed a robust linear model to identify specific genetic alterations from sequencing data of cfDNA. We used our workflow to design a custom amplicon panel suitable for detection of hotspot mutations relevant for colorectal cancer and analyzed mutations in serial cfDNA samples from a pilot cohort of 34 patients with advanced colorectal cancer. Using our method, we could detect recurrent and patient‐specific mutational patterns in the majority of patients. Furthermore, we show that dynamic changes of mutant allele frequencies in cfDNA correlate well with disease progression. Finally, we demonstrate that sequencing of cfDNA can reveal mechanisms of resistance to anti‐EGFR antibody treatment. Thus, our approach offers a simple and highly customizable method to explore genetic alterations in cfDNA.
-
-
-[[bageritz-et-al.-2019]]
-Bageritz, et al., Nature Methods 2019
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-https://www.nature.com/articles/s41592-019-0492-x[Bageritz _et al._], 2019, Gene expression atlas of a developing tissue by single cell expression correlation analysis, _Nature Methods_
-
-The _Drosophila_ wing disc has been a fundamental model system for the discovery of key signaling pathways and for our understanding of developmental processes. However, a complete map of gene expression in this tissue is lacking. To obtain a gene expression atlas in the wing disc, we employed single cell RNA sequencing (scRNA-seq) and developed a method for analyzing scRNA-seq data based on gene expression correlations rather than cell mapping. This enables us to compute expression maps for all detected genes in the wing disc and to discover 824 genes with spatially restricted expression patterns. This approach identifies clusters of genes with similar expression patterns and functional relevance. As proof of concept, we characterize the previously unstudied gene CG5151 and show that it regulates Wnt signaling. Our method will enable the leveraging of scRNA-seq data for generating expression atlases of undifferentiated tissues during development.
-
-[[zhan-faehling-rauscher-et-al.-2020]]
-Zhan, Faehling, Rauscher et al., International Journal of Cancer 2020
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-https://onlinelibrary.wiley.com/doi/abs/10.1002/ijc.33393[Zhan, Faehling, Rauscher _et al._], 2020, Multi‐omics integration identifies a selective vulnerability of colorectal cancer subtypes to YM155, _International Journal of Cancer_
-
-Tumour heterogeneity is a major challenge to the treatment of colorectal cancer (CRC). Recently, a transcriptome-based classification was developed, segregating CRC into four consensus molecular subtypes (CMS) with distinct biological and clinical characteristics. Here, we applied the CMS classification on CRC cell lines to identify novel subtype-specific drug vulnerabilities. We combined publicly available transcriptome data from multiple resources to assign 157 CRC cell lines to CMS. By integrating results from large-scale drug screens, we discovered that the CMS1 subtype is highly vulnerable to the BIRC5 suppressor YM155. We confirmed our results using an independent panel of CRC cell lines and demonstrate a 100-fold higher sensitivity of CMS1. This vulnerability was specific to YM155 and not observed for commonly used chemotherapeutic agents. In CMS1 cancer, low concentrations of YM155-induced apoptosis and expression signatures were associated with ER stress mediated apoptosis signalling. Using a genome-wide CRISPR/Cas9 screen, we further discovered a novel role of genes involved in LDL-receptor trafficking as modulators of YM155 sensitivity in the CRC cell line HCT116. Our work shows that combining drug response data with CMS classification in cell lines can reveal specific vulnerabilities and proposes YM155 as a novel subtype-specific drug.
-
+Over the past years, CRISPR/Cas9 mediated genome editing has developed
+into a powerful tool for modifying genomes in various organisms. In
+high-throughput screens, CRISPR/Cas9 mediated gene perturbations can be
+used for the systematic functional analysis of whole genomes.
+Discoveries from such screens provide a wealth of knowledge about gene
+to phenotype relationships in various biological model systems. However,
+a database resource to query results efficiently has been lacking. To
+this end, we developed GenomeCRISPR (http://genomecrispr.org), a
+database for genome-scale CRISPR/Cas9 screens. Currently, GenomeCRISPR
+contains data on more than 550 000 single guide RNAs (sgRNA) derived
+from 84 different experiments performed in 48 different human cell
+lines, comprising all screens in human cells using CRISPR/Cas published
+to date. GenomeCRISPR provides data mining options and tools, such as
+gene or genomic region search. Phenotypic and genome track views allow
+users to investigate and compare the results of different screens, or
+the impact of different sgRNAs on the gene of interest. An Application
+Programming Interface (API) allows for automated data access and batch
+download. As more screening data will become available, we also aim at
+extending the database to include functional genomic data from other
+organisms and enable cross-species comparisons.
